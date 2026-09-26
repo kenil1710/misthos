@@ -1,0 +1,24 @@
+{
+  "name": "@misthos/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./chains": "./src/chains.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "prettier --check src test"
+  },
+  "dependencies": {
+    "viem": "^2.56.9",
+    "zod": "^4"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5",
+    "vitest": "^4"
+  }
+}

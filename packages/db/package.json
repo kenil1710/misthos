@@ -1,0 +1,24 @@
+{
+  "name": "@misthos/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "lint": "prettier --check src"
+  },
+  "dependencies": {
+    "@misthos/shared": "workspace:*",
+    "drizzle-orm": "^0.45.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "drizzle-kit": "latest",
+    "typescript": "^5",
+    "vitest": "^4"
+  }
+}

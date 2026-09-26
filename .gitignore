@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+dist
+.turbo
+coverage
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.vercel
+.DS_Store
+# foundry
+packages/contracts/out
+packages/contracts/cache
+packages/contracts/broadcast/*/31337
