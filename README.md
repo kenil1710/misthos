@@ -1,29 +1,128 @@
 # Misthos
 
-Contributor payroll, run by an agent you can audit. Misthos verifies contributor work, catches fraud, and pays in
-USDC on Arc, inside limits enforced on-chain.
+**Contributor payroll, run by an agent you can audit.**
 
-> Work in progress for the Tameion Agents Hackathon. See [PROGRESS.md](./PROGRESS.md) for current status.
+Misthos verifies contributor work, catches fraud, and pays in USDC on Arc, inside limits enforced on-chain.
+Contributors submit links to their posts, pull requests and articles. An AI agent checks that the work is theirs,
+original and inside the round, scores it against the program's rubric, and explains its decision. Payouts go out
+from a vault contract whose limits the agent cannot exceed, and every decision is a signed record anyone can verify
+against the chain.
 
-## Develop
+Built for the Tameion Agents Hackathon (Canteen × Circle × Arc). Status and decisions: [PROGRESS.md](./PROGRESS.md).
+
+![Public audit page with a verified decision](docs/screenshots/public-verify-light.png)
+
+## Try it (for judges)
+
+The hosted app goes live in the deployment phase; its URL will be added here. Locally:
+
+1. **Public audit page** `/p/<slug>`: totals, every payout with its transaction, and the agent's reasons.
+2. **Verify a decision**: click _Verify_ next to any decision. The page re-hashes the record, checks the agent's
+   signature (ERC-1271 for the Circle smart-contract wallet) and matches the `PayoutExecuted` event on Arc.
+3. **Run a program** `/app`: connect a wallet, create a program, deploy and fund its vault, share the join link.
+4. **Contribute** `/join/<slug>`: sign in with X, prove your wallet with a signature, submit links, and watch the
+   agent decide.
+
+Everything on Arc testnet is real and checkable on the explorer (see [On-chain](#on-chain)).
+
+## How it works
+
+```
+contributor link ──► fetch (X / GitHub / article, SSRF-guarded) ──► deterministic checks ──► Claude judge
+                                                                                   │
+              signed decision record ◄── decision engine (pure rules) ◄────────────┘
+                     │
+round closes ──► re-check ──► plan payouts within caps ──► proposeRound ──► executeRound (or owner approves)
+                                                              MisthosVault on Arc: USDC transfers + events
+```
+
+- **Deterministic checks** catch what code can prove: someone else's post, reposts, duplicates, copied text
+  (pg_trgm + SimHash), out-of-window work, unmerged PRs, deleted content, new accounts, engagement anomalies, and
+  prompt-injection attempts (including hidden text in articles).
+- **The judge** (Claude Haiku 4.5) scores only the rubric, through a strict tool schema. Submission content is
+  untrusted and fenced with a random per-request boundary.
+- **The decision engine** is plain TypeScript. Hard flags reject; prompt injection always goes to a human, even when
+  the model is fooled; low confidence, soft flags or large amounts go to review; clear spam is rejected
+  automatically and can be overridden.
+- **Decision records** are canonical JSON (sorted keys), hashed with keccak256 and signed by the agent's Circle
+  smart-contract wallet. Each payout's on-chain `decisionHash` commits to the records it pays.
+- **The vault** enforces per-payout, per-round and rolling 24h caps, an owner approval threshold, a cooldown for new
+  or changed payout wallets, pause, and owner withdrawal at any time. A `payoutId` can never be paid twice.
+
+More: [ARCHITECTURE.md](./ARCHITECTURE.md) · [SECURITY.md](./SECURITY.md)
+
+## Circle and Arc, and where they are used
+
+| Tool                                  | Use                                                                   | Code                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| USDC on Arc                           | All payouts, 6-decimal ERC-20 interface; gas paid in USDC             | `packages/contracts/src/MisthosVault.sol`, `packages/shared/src/money.ts` |
+| Circle Developer-Controlled Wallets   | The agent is an SCA on ARC-TESTNET (executor + record signer)         | `apps/worker/src/circle.ts`, `apps/worker/scripts/circle-setup.ts`        |
+| Circle Gas Station                    | Sponsors the agent SCA's gas (default testnet policy)                 | `apps/worker/src/circle.ts` (balance stays 0)                             |
+| Circle Contracts API (contract exec.) | `registerPayee`, `proposeRound`, `executeRound` with idempotency keys | `packages/agent/src/rounds/job.ts`, `apps/worker/src/circle.ts`           |
+| ERC-1271 signatures                   | Decision records verify against the agent SCA on Arc                  | `packages/shared/src/signatures.ts`, `apps/web/src/lib/verify.ts`         |
+
+## On-chain
+
+Arc testnet (chain 5042002):
+
+| Contract                               | Address                                                                                                                          |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| MisthosVaultFactory (verified)         | [0x19afd6fCeb49A333B3b3b455A26e6ee43db8849b](https://explorer.testnet.arc.io/address/0x19afd6fCeb49A333B3b3b455A26e6ee43db8849b) |
+| MisthosVault implementation (verified) | [0xbB016FeB193c9F1151e77444a2145c5dfAA965D7](https://explorer.testnet.arc.io/address/0xbB016FeB193c9F1151e77444a2145c5dfAA965D7) |
+| Agent SCA (Circle)                     | [0x74a60caa5e6c14a33be4ebf1507a209ac61b78a1](https://explorer.testnet.arc.io/address/0x74a60caa5e6c14a33be4ebf1507a209ac61b78a1) |
+| Live-round vault                       | [0x09138198c0056189727dfe809E67934c1B7fD973](https://explorer.testnet.arc.io/address/0x09138198c0056189727dfe809E67934c1B7fD973) |
+
+Live rounds on that vault: an auto-executed round
+([execute](https://explorer.testnet.arc.io/tx/0x1b22e940e2ce08647259129f3a047a0792ee222193408653ff1c59511e42cd42)) and
+a round above the approval threshold that waited for the owner
+([approve](https://explorer.testnet.arc.io/tx/0x760d0e8e1a936cc5f308d7402cf658c211cded0e75e0dca601010b2383add98e),
+[execute](https://explorer.testnet.arc.io/tx/0x5b56ab5de70be70b56030d5dd3a6cbbc2a75c936c33be02c5f250b35f3ba29ce)).
+
+## Screenshots
+
+|                                                            |                                                                 |
+| ---------------------------------------------------------- | --------------------------------------------------------------- |
+| ![Owner overview](docs/screenshots/app-overview-light.png) | ![Review drawer](docs/screenshots/review-drawer-dark.png)       |
+| ![Round detail](docs/screenshots/round-detail-light.png)   | ![Contributor home](docs/screenshots/contributor-home-dark.png) |
+
+All screens, light and dark: [docs/screenshots](./docs/screenshots). They show a demo program (labeled as such
+and excluded from metrics) whose decisions are signed by the real agent wallet and whose round was paid on Arc
+testnet.
+
+## Run it locally
+
+Requires Node 22+, pnpm 12 and Foundry.
 
 ```bash
 pnpm install
-cp .env.example .env
-pnpm dev            # web on :3000, worker
-pnpm test           # vitest + forge test
-pnpm typecheck
+cp .env.example .env                     # fill in; every variable is documented
+pnpm --filter @misthos/db db:migrate     # Neon / Postgres with pg_trgm
+pnpm --filter @misthos/worker circle:setup   # once: entity secret + agent SCA (testnet)
+pnpm --filter @misthos/worker dev        # agent worker (pg-boss)
+pnpm --filter @misthos/web dev           # app on http://localhost:3000
 ```
 
-Requires Node 22+, pnpm 12, Foundry.
+## Tests
+
+```bash
+pnpm test                                # everything: Vitest + Foundry
+pnpm --filter @misthos/contracts test    # unit, fuzz (1,024 runs) and invariant tests
+pnpm --filter @misthos/agent test        # every flag, every engine rule, adversarial fixtures, round job
+pnpm --filter @misthos/web e2e           # browser e2e on a throwaway in-memory Postgres
+ARC_RPC_TESTS=1 pnpm --filter @misthos/shared test   # live ERC-1271 checks on Arc testnet
+```
+
+Live checks (real APIs, small cost): `pnpm --filter @misthos/agent live-check -- <urls>`,
+`pnpm --filter @misthos/worker live:round`, and the demo of the contract refusing an over-cap payout,
+`pnpm --filter @misthos/worker demo:cap-revert`.
 
 ## Layout
 
-| Path                 | What                                                                       |
-| -------------------- | -------------------------------------------------------------------------- |
-| `apps/web`           | Next.js app: landing, owner app, contributor app, public audit pages, docs |
-| `apps/worker`        | Agent pipeline and chain jobs (pg-boss)                                    |
-| `packages/contracts` | `MisthosVault` + factory (Foundry)                                         |
-| `packages/agent`     | Pure, tested agent logic                                                   |
-| `packages/db`        | Drizzle schema and migrations                                              |
-| `packages/shared`    | Chain config (cited), zod schemas, money helpers, decision hashing         |
+| Path                 | What                                                                 |
+| -------------------- | -------------------------------------------------------------------- |
+| `apps/web`           | Next.js: landing, owner app, contributor pages, public audit, docs   |
+| `apps/worker`        | pg-boss worker: agent pipeline, rounds, payees; Circle adapters      |
+| `packages/contracts` | `MisthosVault` + factory (Foundry), deploy and demo scripts          |
+| `packages/agent`     | Fetchers, checks, judge, decision engine, records, round planner/job |
+| `packages/db`        | Drizzle schema and migrations                                        |
+| `packages/shared`    | Chain config (with citations), schemas, hashing, signature checks    |
