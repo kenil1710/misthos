@@ -1,0 +1,8 @@
+{
+  "note": "EIP-191 signature by the Phase 1 testnet deployer. MockERC1271Wallet is owned by that deployer, so the same signature is valid for both addresses.",
+  "chainId": 5042002,
+  "eoa": "0xb2d469d1092308378710A5365105Ec9A7F6A33d2",
+  "erc1271Wallet": "0x0567059B08CFF857c703e137DCE4a5efab1954f8",
+  "message": "Misthos signature fixture: verify EOA and ERC-1271 on Arc testnet.",
+  "signature": "0x9575384cb74643e6318f1e56c28f0136e08d1bc3fe7e0332e445981868dd5ccc0bae99b4fe80717af15d5102863b9e54bb750d910baf01c9dad382373815b9c81c"
+}

@@ -1,0 +1,17 @@
+{
+  "_note": "Synthetic fixture shaped like GET /2/users/me?user.fields=created_at,public_metrics,verified (docs.x.com).",
+  "data": {
+    "id": "1849012345678901234",
+    "username": "arc_builder",
+    "name": "Arc Builder",
+    "created_at": "2021-03-14T09:26:53.000Z",
+    "verified": false,
+    "public_metrics": {
+      "followers_count": 812,
+      "following_count": 301,
+      "tweet_count": 1450,
+      "listed_count": 9,
+      "like_count": 5120
+    }
+  }
+}
