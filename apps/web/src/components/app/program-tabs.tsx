@@ -9,8 +9,11 @@ export function ProgramTabs({ programId }: { programId: string }) {
   const base = `/app/programs/${programId}`;
   const tabs = [
     ["Overview", base],
+    ["Submissions", `${base}/submissions`],
+    ["Contributors", `${base}/contributors`],
     ["Rounds", `${base}/rounds`],
     ["Treasury", `${base}/treasury`],
+    ["Audit log", `${base}/audit`],
     ["Settings", `${base}/settings`],
   ] as const;
   return (

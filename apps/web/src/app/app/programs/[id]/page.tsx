@@ -16,13 +16,10 @@ import { appOrigin } from "@/lib/server/env";
 import {
   getProgramForMember,
   getRounds,
-  isReviewStatus,
   listContributors,
-  listSubmissionsForReview,
   submissionCounts,
 } from "@/lib/server/queries";
 import Link from "next/link";
-import { ReviewTable } from "@/components/review/review-table";
 import { currentRound } from "@/lib/rounds";
 import { getOwnerSession } from "@/lib/server/session";
 import { DeployVault } from "@/components/vault/deploy-vault";
@@ -38,10 +35,7 @@ import {
 import type { Address } from "viem";
 import { PublishButton } from "./publish-button";
 
-export default async function ProgramPage({
-  params,
-  searchParams,
-}: PageProps<"/app/programs/[id]">) {
+export default async function ProgramPage({ params }: PageProps<"/app/programs/[id]">) {
   const session = await getOwnerSession();
   if (!session) return null;
   const { id } = await params;
@@ -49,13 +43,10 @@ export default async function ProgramPage({
   const row = await getProgramForMember(id, session.sub);
   if (!row) notFound();
   const { program, role } = row;
-  const rawStatus = (await searchParams).status;
-  const status = isReviewStatus(rawStatus) ? rawStatus : undefined;
-  const [rounds, contributors, reviewRows, counts] = await Promise.all([
+  const [rounds, contributors, counts] = await Promise.all([
     getRounds(program.id),
     listContributors(program.id),
     // "Pending" covers both queued and in-review rows, so fetch all and filter below.
-    listSubmissionsForReview(program.id, status === "pending" ? undefined : status),
     submissionCounts(program.id),
   ]);
   const total = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
@@ -240,38 +231,17 @@ export default async function ProgramPage({
         </div>
       </section>
 
-      <section>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-base font-medium">Submissions</h2>
-          <nav aria-label="Filter by status" className="flex flex-wrap gap-1 text-xs">
-            {(
-              [
-                [undefined, "All", total],
-                ["escalated", "Needs review", counts.escalated ?? 0],
-                ["approved", "Approved", counts.approved ?? 0],
-                ["partial", "Partial", counts.partial ?? 0],
-                ["rejected", "Rejected", counts.rejected ?? 0],
-                ["pending", "Pending", (counts.pending ?? 0) + (counts.processing ?? 0)],
-              ] as const
-            ).map(([key, label, n]) => (
-              <Link
-                key={label}
-                href={key ? `?status=${key}` : "?"}
-                scroll={false}
-                aria-current={status === key ? "page" : undefined}
-                className={`rounded-md border px-2 py-1 tabular-nums ${status === key ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {label} {n}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <ReviewTable
-          rows={reviewRows.filter(
-            (r) => status !== "pending" || r.status === "pending" || r.status === "processing",
-          )}
-          maxPerPayout={limits.maxPerPayout}
-        />
+      <section className="bg-card flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 text-sm">
+        <span>
+          <span className="mono-num">{total}</span> submission{total === 1 ? "" : "s"},{" "}
+          <span className="mono-num">{counts.escalated ?? 0}</span> waiting for review
+        </span>
+        <Link
+          href={`/app/programs/${program.id}/submissions${(counts.escalated ?? 0) ? "?status=escalated" : ""}`}
+          className="underline-offset-4 hover:underline"
+        >
+          Open submissions
+        </Link>
       </section>
 
       <section>
