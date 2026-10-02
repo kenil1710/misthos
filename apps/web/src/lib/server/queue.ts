@@ -30,9 +30,15 @@ function boss(): Promise<PgBoss> {
  * Enqueue. "duplicate" means a job with the same key is already waiting (pg-boss deduped it), which is fine.
  * Never throws: on "failed" the row stays pending and the worker's sweeper/scheduler picks it up.
  */
-export async function enqueue(queue: string, data: object, singletonKey: string): Promise<"queued" | "duplicate" | "failed"> {
+export async function enqueue(
+  queue: string,
+  data: object,
+  singletonKey: string,
+): Promise<"queued" | "duplicate" | "failed"> {
   try {
-    return (await (await boss()).send(queue, data, { singletonKey })) === null ? "duplicate" : "queued";
+    return (await (await boss()).send(queue, data, { singletonKey })) === null
+      ? "duplicate"
+      : "queued";
   } catch (e) {
     console.error("enqueue failed", queue, (e as Error).message);
     return "failed";

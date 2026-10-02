@@ -24,3 +24,16 @@ export function cooldownEndsAt(
   const ends = new Date(walletChangedAt.getTime() + cooldownSeconds * 1000);
   return ends.getTime() > now ? ends : null;
 }
+
+/** Contributors whose payout wallet changed within the payee cooldown (owner alert). */
+export function recentlyChanged<C extends { walletChangedAt: Date | null }>(
+  list: C[],
+  cooldownSeconds: number,
+  now: number = Date.now(),
+): C[] {
+  return list.filter(
+    (c) =>
+      c.walletChangedAt &&
+      now - c.walletChangedAt.getTime() < Math.max(cooldownSeconds, 3600) * 1000,
+  );
+}

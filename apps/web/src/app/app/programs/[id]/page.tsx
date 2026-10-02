@@ -25,6 +25,17 @@ import Link from "next/link";
 import { ReviewTable } from "@/components/review/review-table";
 import { currentRound } from "@/lib/rounds";
 import { getOwnerSession } from "@/lib/server/session";
+import { DeployVault } from "@/components/vault/deploy-vault";
+import { FundVault } from "@/components/vault/fund-vault";
+import { recentlyChanged } from "@/lib/rounds";
+import {
+  agentAddress,
+  factoryAddress,
+  programIdBytes32,
+  readVault,
+  usdcAddress,
+} from "@/lib/server/vault";
+import type { Address } from "viem";
 import { PublishButton } from "./publish-button";
 
 export default async function ProgramPage({
@@ -51,6 +62,17 @@ export default async function ProgramPage({
   const limits = program.limitsJson;
   const joinUrl = `${appOrigin()}/join/${program.slug}`;
   const explorer = chainConfig().explorerUrl;
+  const agent = agentAddress();
+  const vaultState = program.vaultAddress
+    ? await readVault(program.vaultAddress as Address).catch(() => null)
+    : null;
+  const awaiting = rounds.filter(
+    (r) =>
+      r.status === "proposed" &&
+      vaultState &&
+      r.totalAmount > vaultState.limits.autoApproveThreshold,
+  );
+  const recentPayeeChanges = recentlyChanged(contributors, limits.payeeCooldownSeconds);
   const current = currentRound(rounds);
 
   return (
@@ -65,6 +87,77 @@ export default async function ProgramPage({
         </div>
         {role === "owner" ? <PublishButton programId={program.id} status={program.status} /> : null}
       </div>
+
+      {role === "owner" && !program.vaultAddress ? (
+        <section className="rounded-lg border p-5">
+          <h2 className="text-base font-medium">Deploy the vault</h2>
+          <p className="text-muted-foreground mt-1 mb-4 text-sm">
+            One transaction from your wallet creates this program&apos;s vault with the limits
+            below. The Misthos agent wallet{" "}
+            {agent ? (
+              <span className="font-mono text-[13px]">
+                {agent.slice(0, 6)}…{agent.slice(-4)}
+              </span>
+            ) : null}{" "}
+            is set as executor; it can never exceed those limits.
+          </p>
+          {agent ? (
+            <DeployVault
+              programId={program.id}
+              factory={factoryAddress()}
+              programIdBytes32={programIdBytes32(program.id)}
+              owner={session.addr as Address}
+              agent={agent}
+              limits={{
+                maxPerPayout: limits.maxPerPayout,
+                maxPerRound: limits.maxPerRound,
+                maxPerDay: limits.maxPerDay,
+                autoApproveThreshold: limits.autoApproveThreshold,
+                payeeCooldown: String(limits.payeeCooldownSeconds),
+              }}
+            />
+          ) : (
+            <p className="text-danger text-sm">
+              The agent wallet isn&apos;t configured on this server (CIRCLE_AGENT_WALLET_ADDRESS).
+            </p>
+          )}
+        </section>
+      ) : null}
+      {role === "owner" && program.vaultAddress && vaultState && vaultState.balance === 0n ? (
+        <section className="rounded-lg border p-5">
+          <h2 className="text-base font-medium">Fund the vault</h2>
+          <p className="text-muted-foreground mt-1 mb-4 text-sm">
+            Approve and deposit USDC so rounds can pay out. You can withdraw unused funds at any
+            time.
+          </p>
+          <FundVault
+            programId={program.id}
+            vault={program.vaultAddress as Address}
+            usdc={usdcAddress()}
+            owner={session.addr as Address}
+          />
+        </section>
+      ) : null}
+      {awaiting.length ? (
+        <p className="bg-warning-subtle text-warning rounded-md p-3 text-sm">
+          {awaiting.map((r) => (
+            <Link
+              key={r.id}
+              href={`/app/programs/${program.id}/rounds/${r.id}`}
+              className="underline"
+            >
+              Round {r.number} ({formatUsdc(r.totalAmount)}) is waiting for your approval.
+            </Link>
+          ))}
+        </p>
+      ) : null}
+      {recentPayeeChanges.length ? (
+        <p className="bg-warning-subtle text-warning rounded-md p-3 text-sm">
+          Payout wallet changed recently:{" "}
+          {recentPayeeChanges.map((c) => `@${c.xHandle}`).join(", ")}. The vault won&apos;t pay a
+          new wallet until its cooldown ends; check this was really them.
+        </p>
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border p-4">
@@ -82,9 +175,10 @@ export default async function ProgramPage({
           <div className="mt-1 text-xl font-semibold tabular-nums">{contributors.length}</div>
         </div>
         <div className="rounded-lg border p-4">
-          <div className="text-muted-foreground text-xs">Vault</div>
-          {program.vaultAddress ? (
+          <div className="text-muted-foreground text-xs">Vault balance</div>
+          {program.vaultAddress && vaultState ? (
             <div className="mt-1">
+              <div className="font-mono text-xl tabular-nums">{formatUsdc(vaultState.balance)}</div>
               <HexValue
                 value={program.vaultAddress}
                 label="vault address"

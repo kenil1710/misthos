@@ -1,0 +1,23 @@
+import { cn } from "@/lib/utils";
+
+const styles: Record<string, string> = {
+  open: "bg-secondary text-foreground",
+  closed: "bg-muted text-muted-foreground",
+  proposed: "bg-warning-subtle text-warning",
+  approved: "bg-brand-subtle text-brand",
+  executed: "bg-success-subtle text-success",
+  failed: "bg-danger-subtle text-danger",
+};
+
+export function RoundStatus({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 items-center rounded-md px-1.5 text-xs font-medium capitalize",
+        styles[status] ?? styles.closed,
+      )}
+    >
+      {status === "proposed" ? "Proposed" : status}
+    </span>
+  );
+}
