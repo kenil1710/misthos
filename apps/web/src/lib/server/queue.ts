@@ -26,12 +26,15 @@ function boss(): Promise<PgBoss> {
   return g.__misthosBoss;
 }
 
-/** Enqueue; returns false (never throws) so callers can leave the row pending for the worker's sweeper. */
-export async function enqueue(queue: string, data: object, singletonKey: string): Promise<boolean> {
+/**
+ * Enqueue. "duplicate" means a job with the same key is already waiting (pg-boss deduped it), which is fine.
+ * Never throws: on "failed" the row stays pending and the worker's sweeper/scheduler picks it up.
+ */
+export async function enqueue(queue: string, data: object, singletonKey: string): Promise<"queued" | "duplicate" | "failed"> {
   try {
-    return (await (await boss()).send(queue, data, { singletonKey })) !== null;
+    return (await (await boss()).send(queue, data, { singletonKey })) === null ? "duplicate" : "queued";
   } catch (e) {
     console.error("enqueue failed", queue, (e as Error).message);
-    return false;
+    return "failed";
   }
 }

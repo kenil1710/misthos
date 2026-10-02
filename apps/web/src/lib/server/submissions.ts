@@ -15,7 +15,7 @@ export type SubmitResult = { ok: true; submissionId: string } | { ok: false; err
 export async function createSubmission(
   db: DbLike,
   p: { programSlug: string; xUserId: string; userId: string; url: string; now?: Date },
-  enqueue: (queue: string, data: object, key: string) => Promise<boolean>,
+  enqueue: (queue: string, data: object, key: string) => Promise<unknown>,
 ): Promise<SubmitResult> {
   const now = p.now ?? new Date();
   const classified = classifySubmissionUrl(p.url);

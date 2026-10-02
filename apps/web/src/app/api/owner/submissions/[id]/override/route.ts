@@ -66,7 +66,7 @@ export async function POST(
     reason: body.data.reason,
   };
   const ok = await enqueue(QUEUES.overrideDecision, job, `${id}:${Date.now()}`);
-  if (!ok) return jsonError("Couldn't queue the override. Try again in a moment.", 503);
+  if (ok === "failed") return jsonError("Couldn't queue the override. Try again in a moment.", 503);
   await audit(db, {
     programId: row.s.programId,
     actor: `user:${session.sub}`,
