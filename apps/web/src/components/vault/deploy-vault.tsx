@@ -1,12 +1,10 @@
 "use client";
 
-import { misthosVaultFactoryAbi } from "@misthos/shared";
+import { formatUsdc, misthosVaultFactoryAbi, shortHex } from "@misthos/shared";
 import type { Address, Hex } from "viem";
 import { useWriteContract } from "wagmi";
-import { Button } from "@/components/ui/button";
-import { OwnerWallet } from "./owner-wallet";
-import { recordTx, useOwnerTx } from "./use-owner-tx";
-import { TxStatus } from "./tx-status";
+import { recordTx } from "./use-owner-tx";
+import { TxAction } from "./tx-action";
 
 export interface VaultLimitsArgs {
   maxPerPayout: string;
@@ -25,7 +23,6 @@ export function DeployVault(p: {
   agent: Address;
   limits: VaultLimitsArgs;
 }) {
-  const tx = useOwnerTx(p.owner);
   const { writeContractAsync } = useWriteContract();
   const limits = {
     maxPerPayout: BigInt(p.limits.maxPerPayout),
@@ -34,42 +31,56 @@ export function DeployVault(p: {
     autoApproveThreshold: BigInt(p.limits.autoApproveThreshold),
     payeeCooldown: BigInt(p.limits.payeeCooldown),
   };
+  const hours = Number(limits.payeeCooldown) / 3600;
   return (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <OwnerWallet owner={p.owner} />
-        <Button
-          disabled={tx.busy || !tx.isConnected}
-          onClick={() =>
-            tx.run([
-              {
-                label: "Deploy vault",
-                send: () =>
-                  writeContractAsync({
-                    address: p.factory,
-                    abi: misthosVaultFactoryAbi,
-                    functionName: "createVault",
-                    args: [
-                      p.programIdBytes32,
-                      p.owner,
-                      p.agent,
-                      "0x0000000000000000000000000000000000000000",
-                      limits,
-                    ],
-                  }),
-                record: (hash) => recordTx(`/api/owner/programs/${p.programId}/vault`, hash),
-              },
-            ])
-          }
-        >
-          {tx.busy ? "Deploying…" : "Deploy vault"}
-        </Button>
-      </div>
-      <p className="text-muted-foreground text-xs">
-        You own the vault. The Misthos agent can only propose and execute payouts inside the limits
-        below, and you can pause it or withdraw at any time.
-      </p>
-      <TxStatus status={tx.status} error={tx.error} />
-    </div>
+    <TxAction
+      owner={p.owner}
+      label="Deploy vault"
+      busyLabel="Deploying…"
+      success="Vault deployed. Next: fund it with USDC."
+      confirm={{
+        title: "Deploy this program's vault",
+        description:
+          "One transaction from your wallet creates a vault that only you own. The agent can propose and send payouts inside these limits, nothing else.",
+        rows: [
+          { label: "Owner (you)", value: shortHex(p.owner), mono: true },
+          { label: "Agent", value: shortHex(p.agent), mono: true },
+          {
+            label: "Per contributor per round",
+            value: formatUsdc(limits.maxPerPayout),
+            mono: true,
+          },
+          { label: "Per round", value: formatUsdc(limits.maxPerRound), mono: true },
+          { label: "Per 24 hours", value: formatUsdc(limits.maxPerDay), mono: true },
+          {
+            label: "Your approval above",
+            value: formatUsdc(limits.autoApproveThreshold),
+            mono: true,
+          },
+          { label: "New wallet cooldown", value: `${hours} h`, mono: true },
+        ],
+        note: "Arc charges a small network fee in USDC. You can change the limits later.",
+        confirmLabel: "Deploy vault",
+      }}
+      steps={() => [
+        {
+          label: "Deploy vault",
+          send: () =>
+            writeContractAsync({
+              address: p.factory,
+              abi: misthosVaultFactoryAbi,
+              functionName: "createVault",
+              args: [
+                p.programIdBytes32,
+                p.owner,
+                p.agent,
+                "0x0000000000000000000000000000000000000000",
+                limits,
+              ],
+            }),
+          record: (hash) => recordTx(`/api/owner/programs/${p.programId}/vault`, hash),
+        },
+      ]}
+    />
   );
 }

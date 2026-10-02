@@ -9,6 +9,15 @@ const styles: Record<string, string> = {
   failed: "bg-danger-subtle text-danger",
 };
 
+const LABELS: Record<string, string> = {
+  open: "Open",
+  closed: "Closing",
+  proposed: "Proposed",
+  approved: "Approved",
+  executed: "Paid",
+  failed: "Failed",
+};
+
 export function RoundStatus({ status }: { status: string }) {
   return (
     <span
@@ -17,7 +26,7 @@ export function RoundStatus({ status }: { status: string }) {
         styles[status] ?? styles.closed,
       )}
     >
-      {status === "proposed" ? "Proposed" : status}
+      {LABELS[status] ?? status}
     </span>
   );
 }

@@ -28,7 +28,11 @@ export async function listRounds(programId: string) {
     )
     .groupBy(payouts.roundId);
   const pending = await db
-    .select({ roundId: submissions.roundId, n: sql<number>`count(*)::int` })
+    .select({
+      roundId: submissions.roundId,
+      n: sql<number>`count(*)::int`,
+      amount: sql<string>`coalesce(sum(${submissions.amount}), 0)::text`,
+    })
     .from(submissions)
     .where(
       and(
@@ -38,8 +42,13 @@ export async function listRounds(programId: string) {
     )
     .groupBy(submissions.roundId);
   const c = new Map(counts.map((x) => [x.roundId, Number(x.n)]));
-  const p = new Map(pending.map((x) => [x.roundId, Number(x.n)]));
-  return rs.map((r) => ({ ...r, payouts: c.get(r.id) ?? 0, approvedUnpaid: p.get(r.id) ?? 0 }));
+  const p = new Map(pending.map((x) => [x.roundId, x]));
+  return rs.map((r) => ({
+    ...r,
+    payouts: c.get(r.id) ?? 0,
+    approvedUnpaid: Number(p.get(r.id)?.n ?? 0),
+    approvedUnpaidAmount: p.get(r.id)?.amount ?? "0",
+  }));
 }
 
 export async function getRoundDetail(programId: string, roundId: string) {

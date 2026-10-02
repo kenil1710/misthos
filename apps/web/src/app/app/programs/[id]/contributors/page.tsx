@@ -29,6 +29,10 @@ export default async function ContributorsPage({
   return (
     <div className="grid gap-6">
       <PageHeader
+        crumbs={[
+          { label: row.program.name, href: `/app/programs/${id}` },
+          { label: "Contributors" },
+        ]}
         title="Contributors"
         description="Everyone who joined, what they've earned, and how often their work was approved."
       />

@@ -25,7 +25,8 @@ export default async function ContributorPage({
   if (!session) return null;
   const { id, contributorId } = await params;
   if (!z.uuid().safeParse(contributorId).success) notFound();
-  if (!(await getProgramForMember(id, session.sub))) notFound();
+  const row = await getProgramForMember(id, session.sub);
+  if (!row) notFound();
   const d = await contributorDetail(id, contributorId);
   if (!d) notFound();
   const { contributor: c } = d;
@@ -39,13 +40,12 @@ export default async function ContributorPage({
   return (
     <div className="grid gap-8">
       <div>
-        <Link
-          href={`/app/programs/${id}/contributors`}
-          className="text-muted-foreground text-sm hover:underline"
-        >
-          Contributors
-        </Link>
         <PageHeader
+          crumbs={[
+            { label: row.program.name, href: `/app/programs/${id}` },
+            { label: "Contributors", href: `/app/programs/${id}/contributors` },
+            { label: `@${c.xHandle}` },
+          ]}
           title={`@${c.xHandle}`}
           description={`Joined ${c.createdAt.toISOString().slice(0, 10)}${c.githubLogin ? `, GitHub ${c.githubLogin}` : ""}`}
         />

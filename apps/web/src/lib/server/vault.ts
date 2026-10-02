@@ -30,11 +30,9 @@ async function receipt(txHash: Hex) {
 }
 
 /** Find a specific vault event in a confirmed transaction, emitted by that vault. */
-export async function findVaultEvent<E extends "LimitsUpdated" | "RoundApproved" | "Deposited">(
-  txHash: Hex,
-  vault: Address,
-  eventName: E,
-) {
+export async function findVaultEvent<
+  E extends "LimitsUpdated" | "RoundApproved" | "Deposited" | "Withdrawn" | "Paused" | "Unpaused",
+>(txHash: Hex, vault: Address, eventName: E) {
   const r = await receipt(txHash);
   const logs = parseEventLogs({ abi: misthosVaultAbi, logs: r.logs, eventName }).filter(
     (l) => l.address.toLowerCase() === vault.toLowerCase(),

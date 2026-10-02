@@ -1,22 +1,20 @@
 "use client";
 
-import { formatUsdc, misthosVaultAbi, parseUsdc } from "@misthos/shared";
+import { formatUsdc, getChainConfig, misthosVaultAbi, parseUsdc, shortHex } from "@misthos/shared";
 import { useState } from "react";
 import { erc20Abi, type Address } from "viem";
 import { useReadContract, useWriteContract } from "wagmi";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { OwnerWallet } from "./owner-wallet";
-import { recordTx, useOwnerTx } from "./use-owner-tx";
-import { TxStatus } from "./tx-status";
+import { UsdcInput } from "@/components/ui-kit/usdc-input";
+import { recordTx } from "./use-owner-tx";
+import { TxAction } from "./tx-action";
+
+const faucet = getChainConfig().faucetUrl;
 
 /** Approve + deposit USDC (6-decimal ERC-20 interface) into the vault. */
 export function FundVault(p: { programId: string; vault: Address; usdc: Address; owner: Address }) {
-  const tx = useOwnerTx(p.owner);
   const { writeContractAsync } = useWriteContract();
   const [amount, setAmount] = useState("");
-  const { data: walletBalance } = useReadContract({
+  const { data: walletBalance, refetch } = useReadContract({
     address: p.usdc,
     abi: erc20Abi,
     functionName: "balanceOf",
@@ -28,64 +26,102 @@ export function FundVault(p: { programId: string; vault: Address; usdc: Address;
   } catch {
     units = null;
   }
-  const valid =
-    units !== null && units > 0n && (walletBalance === undefined || units <= walletBalance);
+  const tooMuch = units !== null && walletBalance !== undefined && units > walletBalance;
+  const error =
+    amount && units === null
+      ? "Enter an amount like 25 or 25.50."
+      : tooMuch
+        ? "That's more than your wallet holds."
+        : null;
+  const valid = units !== null && units > 0n && !tooMuch;
   return (
-    <div className="grid gap-3">
-      <div className="grid max-w-xs gap-1.5">
-        <Label htmlFor="fund-amount">Amount</Label>
-        <div className="relative">
-          <Input
-            id="fund-amount"
-            inputMode="decimal"
-            className="pr-14 font-mono tabular-nums"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-          <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs">
-            USDC
-          </span>
-        </div>
-        <p className="text-muted-foreground text-xs">
-          {walletBalance !== undefined
-            ? `Your wallet: ${formatUsdc(walletBalance)}`
-            : "Connect your wallet to see its balance."}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <OwnerWallet owner={p.owner} />
-        <Button
-          disabled={tx.busy || !valid}
-          onClick={() =>
-            tx.run([
-              {
-                label: "Approve USDC",
-                send: () =>
-                  writeContractAsync({
-                    address: p.usdc,
-                    abi: erc20Abi,
-                    functionName: "approve",
-                    args: [p.vault, units!],
-                  }),
-              },
-              {
-                label: "Deposit",
-                send: () =>
-                  writeContractAsync({
-                    address: p.vault,
-                    abi: misthosVaultAbi,
-                    functionName: "deposit",
-                    args: [units!],
-                  }),
-                record: (hash) => recordTx(`/api/owner/programs/${p.programId}/deposit`, hash),
-              },
-            ])
-          }
-        >
-          {tx.busy ? "Funding…" : "Fund vault"}
-        </Button>
-      </div>
-      <TxStatus status={tx.status} error={tx.error} />
+    <div className="grid gap-4">
+      <UsdcInput
+        id="fund-amount"
+        label="Amount to deposit"
+        value={amount}
+        onChange={setAmount}
+        error={error}
+        hint={
+          walletBalance !== undefined ? (
+            <>
+              Your wallet has {formatUsdc(walletBalance)}.{" "}
+              {walletBalance > 0n ? (
+                <button
+                  type="button"
+                  className="text-foreground underline underline-offset-4"
+                  onClick={() =>
+                    setAmount(formatUsdc(walletBalance, { withSymbol: false }).replace(/,/g, ""))
+                  }
+                >
+                  Use max
+                </button>
+              ) : null}
+              {faucet && (walletBalance === 0n || tooMuch) ? (
+                <>
+                  {" "}
+                  Need test USDC?{" "}
+                  <a
+                    href={faucet}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-foreground underline underline-offset-4"
+                  >
+                    Circle faucet
+                  </a>
+                </>
+              ) : null}
+            </>
+          ) : (
+            "Connect your wallet to see its balance."
+          )
+        }
+      />
+      <TxAction
+        owner={p.owner}
+        label="Fund vault"
+        busyLabel="Funding…"
+        disabled={!valid}
+        success={`Deposited ${units ? formatUsdc(units) : ""} into the vault.`}
+        confirm={{
+          title: `Deposit ${units ? formatUsdc(units) : ""}`,
+          description: "Two wallet prompts: allow the vault to take this amount, then deposit it.",
+          rows: [
+            { label: "Amount", value: units ? formatUsdc(units) : "", mono: true },
+            { label: "From", value: shortHex(p.owner), mono: true },
+            { label: "To vault", value: shortHex(p.vault), mono: true },
+          ],
+          note: "You can withdraw unused funds at any time, even while the vault is paused.",
+          confirmLabel: "Deposit",
+        }}
+        steps={() => [
+          {
+            label: "Allow the vault to take USDC",
+            send: () =>
+              writeContractAsync({
+                address: p.usdc,
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [p.vault, units!],
+              }),
+          },
+          {
+            label: "Deposit",
+            send: () =>
+              writeContractAsync({
+                address: p.vault,
+                abi: misthosVaultAbi,
+                functionName: "deposit",
+                args: [units!],
+              }),
+            record: async (hash) => {
+              await recordTx(`/api/owner/programs/${p.programId}/deposit`, hash);
+              setAmount("");
+              void refetch();
+            },
+          },
+        ]}
+      />
     </div>
   );
 }

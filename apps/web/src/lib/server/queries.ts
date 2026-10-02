@@ -145,3 +145,17 @@ export async function submissionCounts(programId: string) {
     Record<ReviewStatus, number>
   >;
 }
+
+/** Items waiting for a human, per program the user is a member of (for the sidebar badges). */
+export async function needsReviewCounts(userId: string) {
+  const rows = await getDb()
+    .select({ programId: submissions.programId, n: sql<number>`count(*)::int` })
+    .from(submissions)
+    .innerJoin(
+      programMembers,
+      and(eq(programMembers.programId, submissions.programId), eq(programMembers.userId, userId)),
+    )
+    .where(eq(submissions.status, "escalated"))
+    .groupBy(submissions.programId);
+  return Object.fromEntries(rows.map((r) => [r.programId, Number(r.n)])) as Record<string, number>;
+}

@@ -40,8 +40,12 @@ export default async function SubmissionsPage({
   return (
     <div className="grid gap-6">
       <PageHeader
+        crumbs={[
+          { label: row.program.name, href: `/app/programs/${id}` },
+          { label: "Submissions" },
+        ]}
         title="Submissions"
-        description="Open any row to see the content, flags with evidence, scores and reasoning, and to approve, adjust or reject it."
+        description="Everything contributors sent and what the agent decided. Open a row for the evidence, scores and reasoning, and to approve, adjust or reject it."
       />
       <nav aria-label="Filter by status" className="flex flex-wrap gap-1 text-[13px]">
         {filters.map(([key, label, n]) => (

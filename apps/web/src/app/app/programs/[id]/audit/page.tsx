@@ -53,6 +53,10 @@ export default async function AuditPage({
   return (
     <div className="grid gap-6">
       <PageHeader
+        crumbs={[
+          { label: member.program.name, href: `/app/programs/${id}` },
+          { label: "Audit log" },
+        ]}
         title="Audit log"
         description="Every action by the agent, the team and contributors, in order. Entries can't be edited or deleted, even directly in the database."
         actions={

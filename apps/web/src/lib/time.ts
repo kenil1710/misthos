@@ -10,3 +10,6 @@ export function relativeTime(d: Date, now: number = Date.now()): string {
   if (s < 7 * 86_400) return `${Math.floor(s / 86_400)}d ago`;
   return d.toISOString().slice(0, 10);
 }
+
+/** "2026-10-09" (UTC), for dates where the time of day doesn't matter. */
+export const utcDay = (d: Date) => d.toISOString().slice(0, 10);

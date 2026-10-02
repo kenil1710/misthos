@@ -15,9 +15,22 @@ import {
 } from "@/components/ui/table";
 import { ApproveRound, CloseRoundNow } from "@/components/vault/round-actions";
 import { getProgramForMember } from "@/lib/server/queries";
-import { getRoundDetail } from "@/lib/server/rounds-view";
+import { getRoundDetail, listRounds } from "@/lib/server/rounds-view";
+import { Card, Notice, PageHeader, Stat } from "@/components/ui-kit";
+import { Term } from "@/components/ui-kit/term";
+import { utc } from "@/lib/time";
 import { getOwnerSession } from "@/lib/server/session";
 import { explorerAddress, explorerTx, readVault } from "@/lib/server/vault";
+
+const ROUND_STATUS_TEXT: Record<string, string> = {
+  open: "Open for submissions",
+  closed: "Closing: preparing payouts",
+  proposed: "Proposed on Arc",
+  approved: "Approved",
+  executed: "Paid",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
 
 const STEPS = [
   ["round.closed", "Closed"],
@@ -49,52 +62,80 @@ export default async function RoundPage({
     "round.approved": round.txHashApprove,
     "round.executed": round.txHashExecute,
   };
+  const openRound =
+    round.status === "open" ? (await listRounds(id)).find((r) => r.id === round.id) : undefined;
   const planned = events.find((e) => e.action === "round.planned")?.data as
     { deferred?: { submissionId: string; reason: string }[] } | undefined;
 
   return (
     <div className="grid gap-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">Round {round.number}</h1>
-            <RoundStatus status={round.status} />
-          </div>
-          <p className="text-muted-foreground mt-1 text-sm tabular-nums">
-            {round.startsAt.toUTCString().slice(0, 22)} → {round.endsAt.toUTCString().slice(0, 22)}{" "}
-            UTC
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-muted-foreground text-xs">Total</div>
-          <div className="font-mono text-xl tabular-nums">{formatUsdc(round.totalAmount)}</div>
-        </div>
-      </div>
+      <PageHeader
+        crumbs={[
+          { label: row.program.name, href: `/app/programs/${id}` },
+          { label: "Rounds", href: `/app/programs/${id}/rounds` },
+          { label: `Round ${round.number}` },
+        ]}
+        title={`Round ${round.number}`}
+        meta={<RoundStatus status={round.status} />}
+        description={`${utc(round.startsAt)} to ${utc(round.endsAt)}`}
+        actions={
+          round.status === "open" && row.role === "owner" && vault ? (
+            <CloseRoundNow
+              roundId={round.id}
+              roundNumber={round.number}
+              approvedTotal={openRound?.approvedUnpaidAmount ?? "0"}
+              approvedCount={openRound?.approvedUnpaid ?? 0}
+              threshold={row.program.limitsJson.autoApproveThreshold}
+            />
+          ) : null
+        }
+      />
+
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Round totals">
+        <Stat
+          label="Total"
+          value={formatUsdc(round.totalAmount, { withSymbol: false })}
+          hint="USDC"
+        />
+        <Stat label="Payouts" value={payouts.length} hint="one per contributor" />
+        <Stat
+          label="Status"
+          value={
+            <span className="font-sans text-base">
+              {ROUND_STATUS_TEXT[round.status] ?? round.status}
+            </span>
+          }
+        />
+      </section>
 
       {round.lastError ? (
-        <p className="bg-danger-subtle text-danger rounded-md p-3 text-sm">
-          {round.status === "failed" ? "Failed: " : "Retrying: "}
+        <Notice tone={round.status === "failed" ? "danger" : "warning"}>
+          {round.status === "failed" ? "This round failed: " : "The agent is retrying: "}
           {round.lastError}
-        </p>
-      ) : null}
-      {round.status === "open" && row.role === "owner" && vault ? (
-        <CloseRoundNow roundId={round.id} />
+        </Notice>
       ) : null}
       {needsApproval && row.role === "owner" && vault && round.roundIdBytes32 ? (
-        <section className="rounded-lg border p-4">
-          <h2 className="font-medium">Your approval is needed</h2>
-          <p className="text-muted-foreground mt-1 mb-3 text-sm">
-            This round totals {formatUsdc(round.totalAmount)}, above the{" "}
-            {formatUsdc(chain!.limits.autoApproveThreshold)} you allow without approval. Review the
-            payouts below, then sign. The agent executes right after.
-          </p>
+        <Card
+          title="Your approval is needed"
+          description={
+            <>
+              This round totals {formatUsdc(round.totalAmount)}, above the{" "}
+              {formatUsdc(chain!.limits.autoApproveThreshold)} you allow without{" "}
+              <Term k="approvalThreshold">approval</Term>. Check the payouts below, then approve.
+              The agent sends them right after.
+            </>
+          }
+        >
           <ApproveRound
             roundId={round.id}
+            roundNumber={round.number}
             vault={vault}
             roundIdBytes32={round.roundIdBytes32 as Hex}
             owner={session.addr as Address}
+            total={round.totalAmount.toString()}
+            payoutCount={payouts.length}
           />
-        </section>
+        </Card>
       ) : null}
 
       <section>
@@ -113,9 +154,7 @@ export default async function RoundPage({
                   aria-hidden="true"
                 />
                 <span className="w-40">{label}</span>
-                <span className="text-muted-foreground tabular-nums">
-                  {e ? e.at.toUTCString().slice(5, 25) : "—"}
-                </span>
+                <span className="text-muted-foreground tabular-nums">{e ? utc(e.at) : "—"}</span>
                 {tx ? (
                   <a
                     href={explorerTx(tx)}
@@ -131,8 +170,9 @@ export default async function RoundPage({
           })}
         </ol>
         {round.decisionRoot ? (
-          <p className="text-muted-foreground mt-3 font-mono text-[11px]">
-            decision root {round.decisionRoot}
+          <p className="text-muted-foreground mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <Term k="decisionHash">Decision root</Term>
+            <HexValue value={round.decisionRoot} label="decision root" />
           </p>
         ) : null}
       </section>
@@ -146,14 +186,16 @@ export default async function RoundPage({
               : "Nothing to pay in this round."}
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto rounded-lg border">
+          <div className="bg-card mt-3 overflow-x-auto rounded-xl border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Contributor</TableHead>
                   <TableHead>Wallet</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Decision hash</TableHead>
+                  <TableHead>
+                    <Term k="decisionHash">Decision hash</Term>
+                  </TableHead>
                   <TableHead>Records</TableHead>
                   <TableHead>Transaction</TableHead>
                 </TableRow>
