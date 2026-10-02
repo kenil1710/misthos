@@ -1,11 +1,20 @@
 import {
   CLAIM_LEASE_MS,
+  dueRounds,
   processOverride,
   processSubmission,
-  type PipelineDeps,
+  runRound,
+  syncPayee,
+  type RoundDeps,
 } from "@misthos/agent";
 import { submissions } from "@misthos/db";
-import { OverrideDecisionJob, ProcessSubmissionJob, QUEUES } from "@misthos/shared";
+import {
+  OverrideDecisionJob,
+  ProcessSubmissionJob,
+  QUEUES,
+  RunRoundJob,
+  SyncPayeeJob,
+} from "@misthos/shared";
 import { and, eq, lt, or } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
@@ -22,12 +31,7 @@ export interface JobOptions {
  * Create the queues and register handlers. Shared by the worker process and the queue integration test, so the
  * test exercises the real wiring.
  */
-export async function registerJobs(
-  boss: PgBoss,
-  deps: PipelineDeps,
-  log: Logger,
-  opts: JobOptions,
-) {
+export async function registerJobs(boss: PgBoss, deps: RoundDeps, log: Logger, opts: JobOptions) {
   const retry = {
     retryLimit: opts.retryLimit ?? 4,
     retryDelay: opts.retryDelaySeconds ?? 15,
@@ -36,6 +40,9 @@ export async function registerJobs(
   };
   await boss.createQueue(QUEUES.processSubmission, retry);
   await boss.createQueue(QUEUES.overrideDecision, { ...retry, retryLimit: 2 });
+  // Chain work retries longer: Circle/RPC hiccups are common and every step is idempotent.
+  await boss.createQueue(QUEUES.runRound, { ...retry, retryLimit: 8, expireInSeconds: 900 });
+  await boss.createQueue(QUEUES.syncPayee, { ...retry, retryLimit: 8 });
   const polling = opts.pollingIntervalSeconds ?? 1;
 
   await boss.work(
@@ -73,6 +80,43 @@ export async function registerJobs(
     },
   );
 
+  // One round at a time per worker: rounds move money, so they never run concurrently here.
+  await boss.work(
+    QUEUES.runRound,
+    { batchSize: 1, pollingIntervalSeconds: polling, localConcurrency: 1 },
+    async ([job]) => {
+      const { roundId, force } = RunRoundJob.parse(job!.data);
+      const res = await runRound(deps, roundId, { force });
+      log.info(
+        { roundId, ...res, total: "total" in res ? res.total.toString() : undefined },
+        "round processed",
+      );
+    },
+  );
+
+  await boss.work(
+    QUEUES.syncPayee,
+    { batchSize: 1, pollingIntervalSeconds: polling, localConcurrency: 1 },
+    async ([job]) => {
+      const { contributorId } = SyncPayeeJob.parse(job!.data);
+      const res = await syncPayee(deps, contributorId);
+      log.info({ contributorId, ...res }, "payee synced");
+    },
+  );
+
+  /** Close rounds whose window ended (programs with a vault). */
+  const scheduleRounds = async (now = new Date()) => {
+    const due = await dueRounds(deps.db, now);
+    for (const { id } of due)
+      await boss.send(
+        QUEUES.runRound,
+        { roundId: id, force: false },
+        { singletonKey: `round:${id}` },
+      );
+    if (due.length) log.info({ count: due.length }, "enqueued due rounds");
+    return due.length;
+  };
+
   /** Re-enqueue submissions that never got a job or whose worker died mid-claim. Claims make duplicates harmless. */
   const sweep = async (now = Date.now()) => {
     const stuck = await deps.db
@@ -104,5 +148,23 @@ export async function registerJobs(
           opts.sweepIntervalMs ?? 60_000,
         );
 
-  return { sweep, stop: () => timer && clearInterval(timer) };
+  const roundTimer =
+    opts.sweepIntervalMs === 0
+      ? null
+      : setInterval(
+          () =>
+            void scheduleRounds().catch((e) =>
+              log.error({ err: (e as Error).message }, "round scheduling failed"),
+            ),
+          opts.sweepIntervalMs ?? 60_000,
+        );
+
+  return {
+    sweep,
+    scheduleRounds,
+    stop: () => {
+      if (timer) clearInterval(timer);
+      if (roundTimer) clearInterval(roundTimer);
+    },
+  };
 }

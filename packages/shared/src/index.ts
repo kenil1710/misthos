@@ -7,3 +7,5 @@ export * from "./signatures";
 export * from "./submission-url";
 export * from "./canonical";
 export * from "./jobs";
+export { misthosVaultAbi } from "./abi/vault";
+export { misthosVaultFactoryAbi } from "./abi/factory";

@@ -6,7 +6,8 @@
     "build": "forge build",
     "test": "forge test -vv",
     "lint": "forge fmt --check",
-    "typecheck": "forge build --sizes"
+    "typecheck": "forge build --sizes",
+    "abi": "forge build && node export-abi.mjs"
   },
   "devDependencies": {
     "@openzeppelin/contracts": "5.6.1",

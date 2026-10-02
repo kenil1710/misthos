@@ -1,10 +1,11 @@
 import { getDb } from "@misthos/db";
-import { EvmAddress, GithubLogin, Slug, verifyWalletSignature } from "@misthos/shared";
+import { EvmAddress, GithubLogin, QUEUES, Slug, verifyWalletSignature } from "@misthos/shared";
 import { z } from "zod";
 import { chainConfig, publicClient } from "@/lib/server/chain";
 import { linkContributorWallet } from "@/lib/server/contributors";
 import { jsonError, readJson, sameOrigin } from "@/lib/server/http";
 import { consumeNonce } from "@/lib/server/nonces";
+import { enqueue } from "@/lib/server/queue";
 import { getContributorSession } from "@/lib/server/session";
 
 const Body = z.object({
@@ -49,5 +50,11 @@ export async function POST(req: Request) {
     consumeNonce: (n, userId) => consumeNonce(n, "wallet_link", userId),
   });
   if (!result.ok) return jsonError(result.error, STATUS[result.error] ?? 400);
+  // Register (or update) the payee in the program's vault; the contract's cooldown starts on-chain.
+  await enqueue(
+    QUEUES.syncPayee,
+    { contributorId: result.contributorId },
+    `payee:${result.contributorId}:${b.address.toLowerCase()}`,
+  );
   return Response.json(result);
 }

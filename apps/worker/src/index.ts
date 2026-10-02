@@ -1,19 +1,32 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   createJudge,
+  eoaExecutor,
   eoaSigner,
   fetchArticle,
   fetchGithubCommit,
   fetchGithubPr,
   fetchXPost,
-  type PipelineDeps,
+  viemVaultReader,
+  type AgentExecutor,
+  type AgentSigner,
+  type RoundDeps,
 } from "@misthos/agent";
 import { createDb, normalizeDatabaseUrl } from "@misthos/db";
 import { getChainConfig, QUEUE_SCHEMA } from "@misthos/shared";
 import { PgBoss } from "pg-boss";
 import pino from "pino";
-import type { Hex } from "viem";
-import { directUrl, loadEnv } from "./config";
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  type Address,
+  type Hex,
+  type PublicClient,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { circleClient, circleExecutor, circleSigner } from "./circle";
+import { agentBackend, directUrl, loadEnv } from "./config";
 import { registerJobs } from "./jobs";
 
 const log = pino({ name: "misthos-worker" });
@@ -22,11 +35,36 @@ async function main() {
   const env = loadEnv();
   const chain = getChainConfig(env.NEXT_PUBLIC_CHAIN);
   const { db, pool } = createDb(env.DATABASE_URL, { max: env.WORKER_CONCURRENCY + 1 });
-  const signer = eoaSigner(env.AGENT_PRIVATE_KEY as Hex);
+  const publicClient = createPublicClient({
+    chain: chain.chain,
+    transport: http(env.ARC_RPC_URL || undefined),
+  }) as PublicClient;
+  const backend = agentBackend(env);
+  let signer: AgentSigner;
+  let executor: AgentExecutor;
+  if (backend === "circle") {
+    const circle = circleClient(env.CIRCLE_API_KEY!, env.CIRCLE_ENTITY_SECRET!);
+    const address = env.CIRCLE_AGENT_WALLET_ADDRESS as Address;
+    signer = circleSigner(circle, env.CIRCLE_AGENT_WALLET_ID!, address);
+    executor = circleExecutor(circle, env.CIRCLE_AGENT_WALLET_ID!, address);
+  } else {
+    const account = privateKeyToAccount(env.AGENT_PRIVATE_KEY as Hex);
+    signer = eoaSigner(env.AGENT_PRIVATE_KEY as Hex);
+    executor = eoaExecutor(
+      createWalletClient({
+        chain: chain.chain,
+        transport: http(env.ARC_RPC_URL || undefined),
+        account,
+      }),
+      publicClient,
+    );
+  }
   const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2 });
 
-  const deps: PipelineDeps = {
+  const deps: RoundDeps = {
     db,
+    reader: viemVaultReader(publicClient),
+    executor,
     chainId: chain.chain.id,
     signer,
     judge: createJudge({ client: anthropic.messages, model: env.AGENT_MODEL_JUDGE }),

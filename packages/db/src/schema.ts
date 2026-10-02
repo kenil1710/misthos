@@ -171,6 +171,10 @@ export const contributors = pgTable(
     /** The exact signed message + signature, kept as ownership evidence. */
     walletProofMessage: text("wallet_proof_message"),
     walletProofSignature: text("wallet_proof_signature"),
+    /** Wallet last registered as this contributor's payee in the vault, and that transaction. */
+    payeeWallet: text("payee_wallet"),
+    payeeTxHash: text("payee_tx_hash"),
+    payeeRegisteredAt: timestamp("payee_registered_at", { withTimezone: true }),
     trustTier: integer("trust_tier").notNull().default(0),
     status: contributorStatus("status").notNull().default("active"),
     ...timestamps,
@@ -205,6 +209,10 @@ export const rounds = pgTable(
     txHashPropose: text("tx_hash_propose"),
     txHashApprove: text("tx_hash_approve"),
     txHashExecute: text("tx_hash_execute"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    executedAt: timestamp("executed_at", { withTimezone: true }),
+    /** Last processing error (chain or upstream), shown to owners. */
+    lastError: text("last_error"),
     ...timestamps,
   },
   (t) => [uniqueIndex("rounds_program_number_uq").on(t.programId, t.number)],
@@ -232,6 +240,8 @@ export const submissions = pgTable(
     /** Last processing error shown to owners (never secrets or raw upstream bodies). */
     lastError: text("last_error"),
     processedAt: timestamp("processed_at", { withTimezone: true }),
+    /** The payout that pays this submission (set when a round is planned; cleared if that payout is abandoned). */
+    payoutId: uuid("payout_id"),
     ...timestamps,
   },
   (t) => [
@@ -243,6 +253,7 @@ export const submissions = pgTable(
     index("submissions_program_resource_idx").on(t.programId, t.sourceType, t.resourceId),
     index("submissions_program_status_idx").on(t.programId, t.status),
     index("submissions_round_idx").on(t.roundId),
+    index("submissions_payout_idx").on(t.payoutId),
   ],
 );
 

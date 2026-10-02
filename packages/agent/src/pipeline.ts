@@ -609,3 +609,79 @@ export async function processOverride(
   });
   return { ok: true, decisionHash: signed.decisionHash };
 }
+
+/**
+ * Re-check at payout time found an approved item no longer valid (deleted, or no longer owned). Records a new signed
+ * agent decision that supersedes the approval, so the audit trail shows exactly why it wasn't paid.
+ */
+export async function rejectAtPayout(
+  deps: PipelineDeps,
+  submissionId: string,
+  flag: Flag,
+): Promise<Hex | null> {
+  const db = deps.db;
+  const now = deps.now ?? (() => new Date());
+  const ctx = await loadContext(db, submissionId);
+  if (!ctx) return null;
+  const { submission: sub, program, contributor, round } = ctx;
+  const [prev] = await db
+    .select()
+    .from(decisions)
+    .where(eq(decisions.submissionId, sub.id))
+    .orderBy(desc(decisions.createdAt))
+    .limit(1);
+  if (!prev) return null;
+  const prevRecord = JSON.parse(prev.decisionJson) as DecisionRecord;
+  const summary = `Rejected at payout. ${flag.message} Approved work is re-checked before every payout.`;
+  const signed = await signRecord(
+    {
+      ...prevRecord,
+      contributor: { ...prevRecord.contributor, wallet: contributor.walletAddress },
+      round: {
+        id: round.id,
+        number: round.number,
+        startsAt: round.startsAt.toISOString(),
+        endsAt: round.endsAt.toISOString(),
+      },
+      flags: [...prevRecord.flags, flag],
+      ruleVersion: RULE_VERSION,
+      rule: "R0_PAYOUT_RECHECK",
+      decision: {
+        action: "reject",
+        categoryKey: prev.categoryKey,
+        points: prev.points,
+        amount: "0",
+        auto: true,
+      },
+      decidedBy: { type: "agent" },
+      summary,
+      decidedAt: now().toISOString(),
+    },
+    deps.signer,
+  );
+  await persist(db, {
+    submissionId: sub.id,
+    programId: program.id,
+    status: "rejected",
+    amount: 0n,
+    signed,
+    llmOutput: prev.llmOutputJson,
+    model: prev.model,
+    promptVersion: prev.promptVersion,
+    decidedBy: "agent",
+    decidedByUserId: null,
+    overrideReason: null,
+    auditAction: "decision.payout_recheck_failed",
+    now: now(),
+  });
+  return signed.decisionHash;
+}
+
+export function fetcherFor(fetchers: Fetchers, sourceType: Resource["sourceType"]) {
+  return {
+    x_post: fetchers.x,
+    github_pr: fetchers.githubPr,
+    github_commit: fetchers.githubCommit,
+    article: fetchers.article,
+  }[sourceType];
+}

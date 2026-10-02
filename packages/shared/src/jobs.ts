@@ -4,7 +4,15 @@ import { z } from "zod";
 export const QUEUES = {
   processSubmission: "submission-process",
   overrideDecision: "decision-override",
+  runRound: "round-run",
+  syncPayee: "payee-sync",
 } as const;
+
+export const RunRoundJob = z.object({ roundId: z.uuid(), force: z.boolean().default(false) });
+export type RunRoundJob = z.infer<typeof RunRoundJob>;
+
+export const SyncPayeeJob = z.object({ contributorId: z.uuid() });
+export type SyncPayeeJob = z.infer<typeof SyncPayeeJob>;
 
 export const ProcessSubmissionJob = z.object({ submissionId: z.uuid() });
 export type ProcessSubmissionJob = z.infer<typeof ProcessSubmissionJob>;

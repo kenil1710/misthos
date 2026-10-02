@@ -1,10 +1,5 @@
-import {
-  eoaSigner,
-  FetchError,
-  type Judge,
-  type PipelineDeps,
-  type Resource,
-} from "@misthos/agent";
+import { eoaSigner, FetchError, type Judge, type Resource, type RoundDeps } from "@misthos/agent";
+import { FakeVault } from "../../../packages/agent/test/fake-vault";
 import {
   contributors,
   decisions,
@@ -139,6 +134,7 @@ beforeEach(async () => {
       xUserId: "42",
       xHandle: "alice",
       walletAddress: `0x${"b1".padStart(40, "0")}`,
+      walletVerifiedAt: new Date(),
     })
     .returning();
   const [s] = await db
@@ -168,7 +164,19 @@ afterEach(async () => {
   await ctx.client.close();
 });
 
-function deps(x: PipelineDeps["fetchers"]["x"]): PipelineDeps {
+const fakeVault = () =>
+  new FakeVault(
+    {
+      maxPerPayout: 50_000_000n,
+      maxPerRound: 500_000_000n,
+      maxPerDay: 1_000_000_000n,
+      autoApproveThreshold: 100_000_000n,
+      payeeCooldown: 0n,
+    },
+    1_000_000_000n,
+  );
+
+function deps(x: RoundDeps["fetchers"]["x"], vault = fakeVault()): RoundDeps {
   const unused = async () => {
     throw new Error("unused");
   };
@@ -178,6 +186,8 @@ function deps(x: PipelineDeps["fetchers"]["x"]): PipelineDeps {
     signer: eoaSigner(generatePrivateKey()),
     chainId: 5042002,
     fetchers: { x, githubPr: unused, githubCommit: unused, article: unused },
+    reader: vault,
+    executor: vault,
   };
 }
 
@@ -247,6 +257,23 @@ describe("queue → worker → decision", () => {
     await boss.send(QUEUES.processSubmission, { submissionId }, { singletonKey: submissionId });
     await waitForStatus("approved");
     expect(x).toHaveBeenCalledTimes(2);
+    jobs.stop();
+  });
+
+  it("runs a payout round end to end from the queue: decision → round job → paid", async () => {
+    const vault = fakeVault();
+    const d = deps(async () => ({ outcome: { status: "ok", resource }, usage: [] }), vault);
+    const jobs = await registerJobs(boss, d, log, { concurrency: 1, sweepIntervalMs: 0 });
+    await db.update(programs).set({ vaultAddress: "0x000000000000000000000000000000000000f00d" });
+    await boss.send(QUEUES.processSubmission, { submissionId }, { singletonKey: submissionId });
+    await waitForStatus("approved");
+    // The round ended; the scheduler finds it and the round job pays it.
+    await db.update(rounds).set({ endsAt: new Date(Date.now() - 1000) });
+    expect(await jobs.scheduleRounds()).toBe(1);
+    await waitForStatus("paid");
+    expect(vault.calls).toEqual(["registerPayee", "proposeRound", "executeRound"]);
+    const [r] = await db.select().from(rounds).where(eq(rounds.number, 1));
+    expect(r).toMatchObject({ status: "executed", totalAmount: 8_000_000n });
     jobs.stop();
   });
 
