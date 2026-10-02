@@ -4,12 +4,14 @@ import { SignOutButton } from "@/components/app/sign-out-button";
 import { SiteHeader } from "@/components/app/site-header";
 import { OwnerSignIn } from "@/components/web3/owner-sign-in";
 import { Web3Provider } from "@/components/web3/web3-provider";
+import { isFounder } from "@/lib/server/founders";
 import { getOwnerSession } from "@/lib/server/session";
 
 export const metadata = { title: "App" };
 
 export default async function AppLayout({ children }: LayoutProps<"/app">) {
   const session = await getOwnerSession();
+  const founder = await isFounder(session);
   return (
     <Web3Provider>
       <SiteHeader
@@ -18,7 +20,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
           session ? (
             <>
               <Link href="/app" className="text-muted-foreground hover:text-foreground">
-                Programs
+                Overview
               </Link>
               <Link
                 href="/app/programs/new"
@@ -26,6 +28,14 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
               >
                 New program
               </Link>
+              {founder ? (
+                <Link
+                  href="/app/admin/metrics"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Metrics
+                </Link>
+              ) : null}
             </>
           ) : null
         }

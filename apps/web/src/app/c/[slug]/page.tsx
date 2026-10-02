@@ -1,4 +1,4 @@
-import { Slug } from "@misthos/shared";
+import { formatUsdc, Slug } from "@misthos/shared";
 import { notFound, redirect } from "next/navigation";
 import { SignOutButton } from "@/components/app/sign-out-button";
 import { SiteHeader } from "@/components/app/site-header";
@@ -9,6 +9,9 @@ import { Web3Provider } from "@/components/web3/web3-provider";
 import { chainConfig } from "@/lib/server/chain";
 import { getContributorMembership, getProgramBySlug } from "@/lib/server/queries";
 import { cooldownEndsAt } from "@/lib/rounds";
+import { contributorDetail } from "@/lib/server/contributors-view";
+import { EmptyState, Section, Stat } from "@/components/ui-kit";
+import Link from "next/link";
 import { getContributorSession } from "@/lib/server/session";
 
 export const metadata = { title: "Your contributions" };
@@ -25,6 +28,16 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
   if (!me) redirect(`/join/${program.slug}`);
 
   const cooldownEnds = cooldownEndsAt(me.walletChangedAt, program.limitsJson.payeeCooldownSeconds);
+  const detail = await contributorDetail(program.id, me.id);
+  const earned =
+    detail?.payouts.filter((p) => p.p.status === "executed").reduce((s, p) => s + p.p.amount, 0n) ??
+    0n;
+  const awaiting =
+    detail?.submissions
+      .filter((s) => s.status === "approved" || s.status === "partial")
+      .reduce((sum, s) => sum + (s.amount ?? 0n), 0n) ?? 0n;
+  const reviewed =
+    detail?.submissions.filter((s) => !["pending", "processing"].includes(s.status)).length ?? 0;
   const explorer = chainConfig().explorerUrl;
 
   return (
@@ -35,6 +48,24 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
           <p className="text-muted-foreground text-sm">{program.name}</p>
           <h1 className="mt-1 text-2xl font-semibold">Your contributions</h1>
         </div>
+
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-3" aria-label="Your totals">
+          <Stat
+            label="Earned"
+            value={formatUsdc(earned, { withSymbol: false })}
+            hint="USDC paid to your wallet"
+          />
+          <Stat
+            label="Approved, paid next round"
+            value={formatUsdc(awaiting, { withSymbol: false })}
+            hint="USDC"
+          />
+          <Stat
+            label="Reviewed"
+            value={reviewed}
+            hint={`of ${detail?.submissions.length ?? 0} submitted`}
+          />
+        </section>
 
         <section className="rounded-lg border p-5">
           <Submissions
@@ -84,6 +115,34 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
             <WalletLink programSlug={program.slug} mode="change" showGithub={false} />
           </div>
         </section>
+        <Section
+          title="Payout history"
+          description="Every payment is a USDC transfer on Arc from this program's vault."
+        >
+          {!detail || detail.payouts.length === 0 ? (
+            <EmptyState>No payouts yet. Approved work is paid when the round closes.</EmptyState>
+          ) : (
+            <ul className="bg-card divide-y rounded-lg border text-sm">
+              {detail.payouts.map(({ p, roundNumber, roundId }) => (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                  <Link href={`/p/${program.slug}/rounds/${roundId}`} className="hover:underline">
+                    Round {roundNumber} receipt
+                  </Link>
+                  {p.txHash ? (
+                    <HexValue
+                      value={p.txHash}
+                      label="transaction"
+                      href={`${explorer}/tx/${p.txHash}`}
+                    />
+                  ) : (
+                    <span className="text-muted-foreground capitalize">{p.status}</span>
+                  )}
+                  <span className="mono-num">{formatUsdc(p.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
       </main>
     </Web3Provider>
   );

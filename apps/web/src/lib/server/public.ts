@@ -31,8 +31,7 @@ const HARD_REJECT_CODES = [
   "PROMPT_INJECTION_ATTEMPT",
 ];
 
-export async function publicStats(programId: string) {
-  const db = getDb();
+export async function publicStats(programId: string, db: DbLike = getDb()) {
   const [paid] = await db
     .select({
       usdc: sql<string>`coalesce(sum(${payouts.amount}), 0)::text`,
