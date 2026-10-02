@@ -1,3 +1,13 @@
-// Agent pipeline (fetch → deterministic checks → LLM judgment → decision engine → record).
-// Implemented in Phase 3.
-export const AGENT_PACKAGE = "@misthos/agent";
+export * from "./types";
+export * from "./checks";
+export * from "./engine";
+export * from "./explain";
+export * from "./injection";
+export * from "./judge";
+export * from "./record";
+export * from "./simhash";
+export * from "./pipeline";
+export { fetchXPost, X_LOOKUP_COST_USD } from "./fetch/x";
+export { fetchGithubPr, fetchGithubCommit } from "./fetch/github";
+export { fetchArticle, parseArticle } from "./fetch/article";
+export { isPublicAddress, assertFetchableUrl } from "./fetch/safe-fetch";

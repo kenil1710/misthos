@@ -1,0 +1,18 @@
+{
+  "_note": "Synthetic fixture shaped like GitHub REST v2022-11-28. Not a real PR.",
+  "number": 42,
+  "title": "Fix 6-decimal rounding in payout preview",
+  "body": "The payout preview rounded USDC to 2 decimals before summing, which overstated totals by up to 0.99 cents per row. This sums in base units and formats once. Adds tests for 1,000 rows.",
+  "state": "closed",
+  "html_url": "https://github.com/arc-builders/payroll/pull/42",
+  "created_at": "2026-10-05T10:00:00Z",
+  "merged": true,
+  "merged_at": "2026-10-06T15:30:00Z",
+  "additions": 84,
+  "deletions": 21,
+  "changed_files": 3,
+  "user": {
+    "login": "alice-dev",
+    "id": 5501
+  }
+}

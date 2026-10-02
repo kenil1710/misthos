@@ -1,0 +1,36 @@
+{
+  "_note": "Synthetic fixture shaped like GET /2/tweets/:id?expansions=author_id (docs.x.com). Not a real post. Posted before the round started.",
+  "data": {
+    "id": "1840000000000000004",
+    "author_id": "1000000001",
+    "created_at": "2026-09-20T08:00:00.000Z",
+    "text": "Throwback: my first notes on Arc's USDC-native gas model, deterministic finality, and why 6-decimal accounting matters for any payroll product built on it.",
+    "lang": "en",
+    "conversation_id": "1840000000000000004",
+    "edit_history_tweet_ids": ["1840000000000000004"],
+    "public_metrics": {
+      "retweet_count": 12,
+      "reply_count": 5,
+      "like_count": 84,
+      "quote_count": 2,
+      "bookmark_count": 9,
+      "impression_count": 4100
+    }
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "1000000001",
+        "username": "alice_builds",
+        "name": "alice_builds",
+        "created_at": "2021-03-14T09:26:53.000Z",
+        "public_metrics": {
+          "followers_count": 812,
+          "following_count": 120,
+          "tweet_count": 900,
+          "listed_count": 3
+        }
+      }
+    ]
+  }
+}

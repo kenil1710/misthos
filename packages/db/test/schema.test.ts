@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as s from "../src/schema";
 import { testDb } from "./helpers";
@@ -143,7 +143,7 @@ describe("submissions", () => {
     await ctx.db.insert(s.submissions).values({ ...base, contributorId: a.id });
     await expect(
       ctx.db.insert(s.submissions).values({ ...base, contributorId: a.id }),
-    ).rejects.toSatisfy((e) => pgError(e).includes("submissions_contributor_resource_uq"));
+    ).rejects.toSatisfy((e) => pgError(e).includes("submissions_contributor_resource_live_uq"));
     await expect(
       ctx.db.insert(s.submissions).values({ ...base, contributorId: b.id }),
     ).resolves.toBeTruthy();

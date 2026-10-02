@@ -9,12 +9,22 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "lint": "prettier --check src"
+    "lint": "prettier --check src test"
   },
   "dependencies": {
-    "@misthos/shared": "workspace:*"
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@misthos/db": "workspace:*",
+    "@misthos/shared": "workspace:*",
+    "@mozilla/readability": "^0.6.0",
+    "drizzle-orm": "^0.45.3",
+    "jsdom": "^27.4.0",
+    "undici": "^7.30.0",
+    "viem": "^2.56.9",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^22",
     "typescript": "^5",
     "vitest": "^4"

@@ -1,0 +1,32 @@
+{
+  "_note": "Synthetic fixture shaped like GitHub REST v2022-11-28. Not a real PR.",
+  "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "html_url": "https://github.com/arc-builders/payroll/commit/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "author": {
+    "login": "alice-dev",
+    "id": 5501
+  },
+  "commit": {
+    "message": "docs: explain 6-decimal accounting\n\nAdds a section on base units vs native 18-decimal values.",
+    "author": {
+      "name": "Alice",
+      "date": "2026-10-06T11:00:00Z"
+    },
+    "committer": {
+      "date": "2026-10-06T11:05:00Z"
+    }
+  },
+  "stats": {
+    "additions": 40,
+    "deletions": 2,
+    "total": 42
+  },
+  "files": [
+    {
+      "filename": "docs/accounting.md",
+      "additions": 40,
+      "deletions": 2,
+      "patch": "@@ +1,40 @@\n+## Base units"
+    }
+  ]
+}

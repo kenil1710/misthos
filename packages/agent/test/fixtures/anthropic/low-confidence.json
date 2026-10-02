@@ -1,0 +1,45 @@
+{
+  "_note": "Synthetic fixture shaped like a Messages API response with a forced record_judgment tool call (claude-haiku-4-5-20251001).",
+  "id": "msg_fixture_low_confidence",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_fixture_low_confidence",
+      "name": "record_judgment",
+      "input": {
+        "category": "threads",
+        "rubric_scores": [
+          {
+            "criterion": "depth",
+            "score": 6
+          },
+          {
+            "criterion": "clarity",
+            "score": 6
+          },
+          {
+            "criterion": "originality",
+            "score": 5
+          }
+        ],
+        "total_points": 5.67,
+        "quality_summary": "Short explainer on USDC gas with accurate points but little depth.",
+        "reasons": ["Accurate but brief.", "Hard to tell how original this is."],
+        "soft_flags": [],
+        "confidence": 0.55,
+        "recommended_action": "approve"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1450,
+    "output_tokens": 310,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  }
+}

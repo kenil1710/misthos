@@ -1,6 +1,14 @@
 import "server-only";
-import { contributors, getDb, programMembers, programs, rounds } from "@misthos/db";
-import { and, asc, desc, eq } from "drizzle-orm";
+import {
+  contributors,
+  decisions,
+  getDb,
+  programMembers,
+  programs,
+  rounds,
+  submissions,
+} from "@misthos/db";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 export async function listProgramsForUser(userId: string) {
   return getDb()
@@ -60,4 +68,80 @@ export async function getContributorMembership(programId: string, xUserId: strin
     .where(and(eq(contributors.programId, programId), eq(contributors.xUserId, xUserId)))
     .limit(1);
   return c ?? null;
+}
+
+const REVIEW_STATUSES = [
+  "pending",
+  "processing",
+  "approved",
+  "partial",
+  "rejected",
+  "escalated",
+  "paid",
+] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+export const isReviewStatus = (s: unknown): s is ReviewStatus =>
+  REVIEW_STATUSES.includes(s as ReviewStatus);
+
+/** Submissions for the owner table, newest first, with the latest decision's summary. */
+export async function listSubmissionsForReview(programId: string, status?: ReviewStatus) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: submissions.id,
+      url: submissions.url,
+      sourceType: submissions.sourceType,
+      status: submissions.status,
+      amount: submissions.amount,
+      createdAt: submissions.createdAt,
+      xHandle: contributors.xHandle,
+    })
+    .from(submissions)
+    .innerJoin(contributors, eq(contributors.id, submissions.contributorId))
+    .where(
+      status
+        ? and(eq(submissions.programId, programId), eq(submissions.status, status))
+        : eq(submissions.programId, programId),
+    )
+    .orderBy(desc(submissions.createdAt))
+    .limit(200);
+  const ids = rows.map((r) => r.id);
+  const decs = ids.length
+    ? await db
+        .select({
+          submissionId: decisions.submissionId,
+          summary: decisions.summary,
+          flags: decisions.flagsJson,
+          createdAt: decisions.createdAt,
+        })
+        .from(decisions)
+        .where(inArray(decisions.submissionId, ids))
+        .orderBy(desc(decisions.createdAt))
+    : [];
+  const latest = new Map<string, (typeof decs)[number]>();
+  for (const d of decs) if (!latest.has(d.submissionId)) latest.set(d.submissionId, d);
+  return rows.map((r) => {
+    const d = latest.get(r.id);
+    return {
+      ...r,
+      amount: r.amount?.toString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+      summary: d?.summary ?? null,
+      flags: ((d?.flags as { code: string; severity: string }[] | undefined) ?? []).map((f) => ({
+        code: f.code,
+        severity: f.severity,
+      })),
+    };
+  });
+}
+
+export async function submissionCounts(programId: string) {
+  const rows = await getDb()
+    .select({ status: submissions.status, n: sql<number>`count(*)::int` })
+    .from(submissions)
+    .where(eq(submissions.programId, programId))
+    .groupBy(submissions.status);
+  return Object.fromEntries(rows.map((r) => [r.status, Number(r.n)])) as Partial<
+    Record<ReviewStatus, number>
+  >;
 }

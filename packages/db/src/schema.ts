@@ -48,7 +48,12 @@ export const roundStatus = pgEnum("round_status", [
   "executed",
   "failed",
 ]);
-export const sourceType = pgEnum("source_type", ["x_post", "github_pr", "article"]);
+export const sourceType = pgEnum("source_type", [
+  "x_post",
+  "github_pr",
+  "github_commit",
+  "article",
+]);
 export const submissionStatus = pgEnum("submission_status", [
   "pending",
   "processing",
@@ -224,15 +229,17 @@ export const submissions = pgTable(
     resourceId: text("resource_id").notNull(),
     status: submissionStatus("status").notNull().default("pending"),
     amount: usdc("amount"),
+    /** Last processing error shown to owners (never secrets or raw upstream bodies). */
+    lastError: text("last_error"),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
-    // A contributor can't submit the same resource twice; cross-contributor duplicates are kept and flagged.
-    uniqueIndex("submissions_contributor_resource_uq").on(
-      t.contributorId,
-      t.sourceType,
-      t.resourceId,
-    ),
+    // A contributor can't have two live submissions of the same resource; a rejected one (e.g. NOT_MERGED) may be
+    // resubmitted. Cross-contributor duplicates are kept and flagged DUPLICATE_URL.
+    uniqueIndex("submissions_contributor_resource_live_uq")
+      .on(t.contributorId, t.sourceType, t.resourceId)
+      .where(sql`status <> 'rejected'`),
     index("submissions_program_resource_idx").on(t.programId, t.sourceType, t.resourceId),
     index("submissions_program_status_idx").on(t.programId, t.status),
     index("submissions_round_idx").on(t.roundId),
@@ -270,6 +277,12 @@ export const decisions = pgTable(
     amount: usdc("amount")
       .notNull()
       .default(sql`0`),
+    /** Rubric category the decision scored against (null when rejected before judgment). */
+    categoryKey: text("category_key"),
+    /** Points as a decimal string, e.g. "7.50". */
+    points: text("points"),
+    /** Reviewer-style explanation shown in the UI; also inside decision_json. */
+    summary: text("summary").notNull(),
     /** Canonical JSON (sorted keys) that was hashed. */
     decisionJson: text("decision_json").notNull(),
     decisionHash: text("decision_hash").notNull().unique(),
@@ -335,6 +348,9 @@ export const apiUsage = pgTable(
     endpoint: text("endpoint").notNull(),
     units: integer("units").notNull().default(1),
     estCostUsd: numeric("est_cost_usd", { precision: 12, scale: 6 }).notNull().default("0"),
+    programId: uuid("program_id").references(() => programs.id),
+    /** e.g. token counts. Never request/response bodies. */
+    metaJson: jsonb("meta_json").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("api_usage_provider_created_idx").on(t.provider, t.createdAt)],

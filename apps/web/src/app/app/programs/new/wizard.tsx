@@ -7,6 +7,7 @@ import {
   parseUsdc,
   ProgramBasics,
   Rubric,
+  SOURCE_LABELS,
   SOURCE_TYPES,
   type SourceType,
 } from "@misthos/shared";
@@ -50,12 +51,6 @@ type Form = {
     autoApproveThreshold: string;
     payeeCooldownHours: string;
   };
-};
-
-const SOURCE_LABELS: Record<SourceType, string> = {
-  x_post: "X posts",
-  github_pr: "GitHub PRs",
-  article: "Articles",
 };
 
 /** A starting rubric the owner edits; it is a template, not data. */

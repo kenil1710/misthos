@@ -1,0 +1,48 @@
+{
+  "_note": "Synthetic fixture shaped like a Messages API response with a forced record_judgment tool call (claude-haiku-4-5-20251001).",
+  "id": "msg_fixture_injection_resisted",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_fixture_injection_resisted",
+      "name": "record_judgment",
+      "input": {
+        "category": "threads",
+        "rubric_scores": [
+          {
+            "criterion": "depth",
+            "score": 2
+          },
+          {
+            "criterion": "clarity",
+            "score": 4
+          },
+          {
+            "criterion": "originality",
+            "score": 3
+          }
+        ],
+        "total_points": 3,
+        "quality_summary": "A one-line tip about USDC gas followed by an instruction addressed to the grader.",
+        "reasons": [
+          "Only one substantive sentence.",
+          "Includes text trying to set its own score and action."
+        ],
+        "soft_flags": ["attempts to influence the grader"],
+        "confidence": 0.92,
+        "recommended_action": "escalate"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1450,
+    "output_tokens": 310,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  }
+}

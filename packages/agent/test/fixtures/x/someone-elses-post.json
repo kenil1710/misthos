@@ -1,0 +1,36 @@
+{
+  "_note": "Synthetic fixture shaped like GET /2/tweets/:id?expansions=author_id (docs.x.com). Not a real post. Authored by bob, submitted by alice.",
+  "data": {
+    "id": "1840000000000000003",
+    "author_id": "1000000002",
+    "created_at": "2026-10-06T12:00:00.000Z",
+    "text": "A short guide to Arc's USDC gas: fees are in dollars, finality is sub-second, and the ERC-20 view uses 6 decimals. Build accounting in base units and stay safe out there.",
+    "lang": "en",
+    "conversation_id": "1840000000000000003",
+    "edit_history_tweet_ids": ["1840000000000000003"],
+    "public_metrics": {
+      "retweet_count": 12,
+      "reply_count": 5,
+      "like_count": 10,
+      "quote_count": 2,
+      "bookmark_count": 9,
+      "impression_count": 4100
+    }
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "1000000002",
+        "username": "bob_copies",
+        "name": "bob_copies",
+        "created_at": "2022-07-01T10:00:00.000Z",
+        "public_metrics": {
+          "followers_count": 95,
+          "following_count": 120,
+          "tweet_count": 900,
+          "listed_count": 3
+        }
+      }
+    ]
+  }
+}

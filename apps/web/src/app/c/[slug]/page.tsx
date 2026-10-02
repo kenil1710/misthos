@@ -2,6 +2,7 @@ import { Slug } from "@misthos/shared";
 import { notFound, redirect } from "next/navigation";
 import { SignOutButton } from "@/components/app/sign-out-button";
 import { SiteHeader } from "@/components/app/site-header";
+import { Submissions } from "@/components/contributor/submissions";
 import { WalletLink } from "@/components/contributor/wallet-link";
 import { HexValue } from "@/components/hex-value";
 import { Web3Provider } from "@/components/web3/web3-provider";
@@ -36,11 +37,12 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
         </div>
 
         <section className="rounded-lg border p-5">
-          <h2 className="text-base font-medium">Submissions</h2>
-          <p className="text-muted-foreground mt-2 text-sm">
-            Submitting links opens when the agent pipeline goes live for this program. Your joined
-            account and wallet are already set up.
-          </p>
+          <Submissions
+            programSlug={program.slug}
+            acceptedSources={[
+              ...new Set(program.rubricJson.categories.flatMap((c) => c.sourceTypes)),
+            ]}
+          />
         </section>
 
         <section className="grid gap-6 lg:grid-cols-2">

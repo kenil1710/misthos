@@ -1,0 +1,36 @@
+{
+  "_note": "Synthetic fixture shaped like GET /2/tweets/:id?expansions=author_id (docs.x.com). Not a real post. 4-day-old account, implausible engagement.",
+  "data": {
+    "id": "1840000000000000008",
+    "author_id": "1000000003",
+    "created_at": "2026-10-06T18:00:00.000Z",
+    "text": "Everyone should learn how Arc handles gas: USDC as the native token, 18 decimals natively and 6 in the ERC-20 view, sub-second finality. Huge for payments.",
+    "lang": "en",
+    "conversation_id": "1840000000000000008",
+    "edit_history_tweet_ids": ["1840000000000000008"],
+    "public_metrics": {
+      "retweet_count": 1900,
+      "reply_count": 5,
+      "like_count": 4800,
+      "quote_count": 2,
+      "bookmark_count": 9,
+      "impression_count": 5200
+    }
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "1000000003",
+        "username": "fresh_acct",
+        "name": "fresh_acct",
+        "created_at": "2026-09-28T10:00:00.000Z",
+        "public_metrics": {
+          "followers_count": 3,
+          "following_count": 120,
+          "tweet_count": 900,
+          "listed_count": 3
+        }
+      }
+    ]
+  }
+}

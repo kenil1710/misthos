@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Notes</title>
+  </head>
+  <body>
+    <article>
+      <h1>Notes on Arc</h1>
+      <p>
+        Arc treats USDC as the native gas token. That single choice changes how a payroll product
+        should do accounting. The native balance has 18 decimals, while the ERC-20 interface at the
+        system address reports the very same balance with 6 decimals. Mixing the two in one
+        calculation is the most common bug we have seen, and it silently inflates totals by a factor
+        of a trillion. The fix is boring and reliable: keep every amount in 6-decimal base units as
+        a bigint, and convert only at the edges.
+      </p>
+      <p>
+        Arc treats USDC as the native gas token. That single choice changes how a payroll product
+        should do accounting. The native balance has 18 decimals, while the ERC-20 interface at the
+        system address reports the very same balance with 6 decimals. Mixing the two in one
+        calculation is the most common bug we have seen, and it silently inflates totals by a factor
+        of a trillion. The fix is boring and reliable: keep every amount in 6-decimal base units as
+        a bigint, and convert only at the edges.
+      </p>
+    </article>
+  </body>
+</html>

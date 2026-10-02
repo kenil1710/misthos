@@ -1,0 +1,8 @@
+{
+  "_note": "Decision hash signed (EIP-191 raw) by the testnet deployer, owner of MockERC1271Wallet on Arc testnet.",
+  "eoa": "0xb2d469d1092308378710A5365105Ec9A7F6A33d2",
+  "erc1271Wallet": "0x0567059B08CFF857c703e137DCE4a5efab1954f8",
+  "decisionJson": "{\"decision\":{\"action\":\"approve\",\"amount\":\"16000000\"},\"note\":\"ERC-1271 decision fixture\",\"schema\":\"misthos.decision/v1\",\"signer\":\"0x0567059B08CFF857c703e137DCE4a5efab1954f8\"}",
+  "decisionHash": "0x53ee0a26d29d068b92d95579a04342d96b0eae57ed78c1b8dd186b9a5fea1404",
+  "signature": "0x4dafbd1140b3f8eccbfa82a497152a03f5ca687a29caa294f5c7e1bf3cd6141f15a4088d9b83b771262ff6e202929cc70f99549a54d67be3a0fa8bfa35e221f11c"
+}

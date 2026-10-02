@@ -1,0 +1,39 @@
+{
+  "_note": "Synthetic fixture shaped like GET /2/tweets/:id?expansions=author_id (docs.x.com). Not a real post. Near-copy of original-thread by another account.",
+  "data": {
+    "id": "1840000000000000002",
+    "author_id": "1000000002",
+    "created_at": "2026-10-07T09:00:00.000Z",
+    "text": "x",
+    "lang": "en",
+    "conversation_id": "1840000000000000002",
+    "edit_history_tweet_ids": ["1840000000000000002"],
+    "public_metrics": {
+      "retweet_count": 0,
+      "reply_count": 5,
+      "like_count": 3,
+      "quote_count": 2,
+      "bookmark_count": 9,
+      "impression_count": 4100
+    },
+    "note_tweet": {
+      "text": "Arc's gas model, explained simply. 1/ On Arc, USDC is the native gas token, so fees are quoted in dollars instead of a volatile coin. That makes costs predictable for payroll and payments. 2/ The ERC-20 interface at 0x3600 exposes the same balance with 6 decimals while the native view uses 18, so apps must never mix the two in one calculation. 3/ Finality is deterministic and sub-second, which means a payout either happened or it didn't: no waiting for confirmations. 4/ Bottom line: build your accounting in 6-decimal units and treat the 18-decimal value only as gas."
+    }
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "1000000002",
+        "username": "bob_copies",
+        "name": "bob_copies",
+        "created_at": "2022-07-01T10:00:00.000Z",
+        "public_metrics": {
+          "followers_count": 95,
+          "following_count": 120,
+          "tweet_count": 900,
+          "listed_count": 3
+        }
+      }
+    ]
+  }
+}

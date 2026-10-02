@@ -4,3 +4,6 @@ export * from "./deployments";
 export * from "./program";
 export * from "./identity";
 export * from "./signatures";
+export * from "./submission-url";
+export * from "./canonical";
+export * from "./jobs";

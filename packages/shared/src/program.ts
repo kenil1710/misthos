@@ -6,7 +6,7 @@ import { parseUsdc } from "./money";
  * 6-decimal base units. Stored JSON keeps base units as decimal-integer strings (JSON has no bigint).
  */
 
-export const SOURCE_TYPES = ["x_post", "github_pr", "article"] as const;
+export const SOURCE_TYPES = ["x_post", "github_pr", "github_commit", "article"] as const;
 export const SourceType = z.enum(SOURCE_TYPES);
 export type SourceType = z.infer<typeof SourceType>;
 
@@ -69,7 +69,7 @@ export const RubricCategory = z.object({
   criteria: z.array(RubricCriterion).min(1).max(8),
   /** Plain-language rules the agent applies, e.g. "Threads must be at least 4 posts." */
   rules: z.string().trim().max(2000).default(""),
-  /** GitHub only: unmerged PRs are flagged NOT_MERGED. */
+  /** GitHub pull requests only: unmerged PRs are flagged NOT_MERGED. */
   requireMerged: z.boolean().default(true),
 });
 
@@ -185,3 +185,10 @@ export function toStoredLimits(limits: LimitsInput, budget: BudgetInput): Stored
     maxAutoApproveItem: budget.maxAutoApproveItem.toString(),
   };
 }
+
+export const SOURCE_LABELS: Record<SourceType, string> = {
+  x_post: "X posts",
+  github_pr: "GitHub pull requests",
+  github_commit: "GitHub commits",
+  article: "Articles",
+};

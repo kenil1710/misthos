@@ -1,0 +1,19 @@
+[
+  {
+    "filename": "src/payout/preview.ts",
+    "additions": 30,
+    "deletions": 18,
+    "patch": "@@ -10,7 +10,9 @@\n-const total = rows.reduce((s, r) => s + round2(r.amount), 0)\n+const total = rows.reduce((s, r) => s + r.units, 0n)"
+  },
+  {
+    "filename": "src/payout/preview.test.ts",
+    "additions": 50,
+    "deletions": 0,
+    "patch": "@@ -0,0 +1,50 @@\n+it('sums 1,000 rows exactly', () => {"
+  },
+  {
+    "filename": "CHANGELOG.md",
+    "additions": 4,
+    "deletions": 3
+  }
+]

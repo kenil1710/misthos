@@ -1,0 +1,49 @@
+{
+  "_note": "Synthetic fixture shaped like a Messages API response with a forced record_judgment tool call (claude-haiku-4-5-20251001).",
+  "id": "msg_fixture_approve_thread",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_fixture_approve_thread",
+      "name": "record_judgment",
+      "input": {
+        "category": "threads",
+        "rubric_scores": [
+          {
+            "criterion": "depth",
+            "score": 8
+          },
+          {
+            "criterion": "clarity",
+            "score": 7
+          },
+          {
+            "criterion": "originality",
+            "score": 9
+          }
+        ],
+        "total_points": 8,
+        "quality_summary": "Original 4-post thread explaining Arc's USDC gas model and the 6- vs 18-decimal pitfall, with a concrete takeaway for builders.",
+        "reasons": [
+          "Explains why dollar-denominated fees matter for payroll, not just that they exist.",
+          "Calls out the 6/18-decimal mismatch, the most common real bug.",
+          "Could include a code example or link to the docs."
+        ],
+        "soft_flags": [],
+        "confidence": 0.9,
+        "recommended_action": "approve"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1450,
+    "output_tokens": 310,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  }
+}

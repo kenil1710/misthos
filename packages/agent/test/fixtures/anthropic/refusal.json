@@ -1,0 +1,21 @@
+{
+  "_note": "Synthetic fixture shaped like a Messages API response with a forced record_judgment tool call (claude-haiku-4-5-20251001).",
+  "id": "msg_fixture_refusal",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "content": [],
+  "stop_reason": "refusal",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1450,
+    "output_tokens": 310,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  },
+  "stop_details": {
+    "type": "refusal",
+    "category": null,
+    "explanation": null
+  }
+}

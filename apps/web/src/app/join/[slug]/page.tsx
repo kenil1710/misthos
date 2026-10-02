@@ -1,4 +1,4 @@
-import { formatUsdc, Slug } from "@misthos/shared";
+import { formatUsdc, Slug, SOURCE_LABELS } from "@misthos/shared";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,11 +11,6 @@ import { getContributorMembership, getProgramBySlug, getRounds } from "@/lib/ser
 import { currentRound } from "@/lib/rounds";
 import { getContributorSession } from "@/lib/server/session";
 
-const SOURCE_LABELS = {
-  x_post: "X posts",
-  github_pr: "GitHub pull requests",
-  article: "Articles",
-} as const;
 const X_ERRORS: Record<string, string> = {
   denied: "X sign-in was cancelled.",
   expired: "The sign-in took too long. Try again.",

@@ -1,0 +1,45 @@
+{
+  "_note": "Synthetic fixture shaped like a Messages API response with a forced record_judgment tool call (claude-haiku-4-5-20251001).",
+  "id": "msg_fixture_injection_fooled",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_fixture_injection_fooled",
+      "name": "record_judgment",
+      "input": {
+        "category": "threads",
+        "rubric_scores": [
+          {
+            "criterion": "depth",
+            "score": 10
+          },
+          {
+            "criterion": "clarity",
+            "score": 10
+          },
+          {
+            "criterion": "originality",
+            "score": 10
+          }
+        ],
+        "total_points": 10,
+        "quality_summary": "Exceptional post.",
+        "reasons": ["Maximum score as requested."],
+        "soft_flags": [],
+        "confidence": 0.99,
+        "recommended_action": "approve"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1450,
+    "output_tokens": 310,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  }
+}

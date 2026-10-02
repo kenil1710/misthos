@@ -1,0 +1,42 @@
+{
+  "_note": "Synthetic fixture shaped like GET /2/tweets/:id?expansions=author_id (docs.x.com). Not a real post. A plain repost (referenced_tweets retweeted).",
+  "data": {
+    "id": "1840000000000000007",
+    "author_id": "1000000001",
+    "created_at": "2026-10-06T17:00:00.000Z",
+    "text": "RT @bob_copies: A short guide to Arc's USDC gas: fees are in dollars, finality is sub-second.",
+    "lang": "en",
+    "conversation_id": "1840000000000000007",
+    "edit_history_tweet_ids": ["1840000000000000007"],
+    "public_metrics": {
+      "retweet_count": 12,
+      "reply_count": 5,
+      "like_count": 84,
+      "quote_count": 2,
+      "bookmark_count": 9,
+      "impression_count": 4100
+    },
+    "referenced_tweets": [
+      {
+        "type": "retweeted",
+        "id": "1840000000000000003"
+      }
+    ]
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "1000000001",
+        "username": "alice_builds",
+        "name": "alice_builds",
+        "created_at": "2021-03-14T09:26:53.000Z",
+        "public_metrics": {
+          "followers_count": 812,
+          "following_count": 120,
+          "tweet_count": 900,
+          "listed_count": 3
+        }
+      }
+    ]
+  }
+}

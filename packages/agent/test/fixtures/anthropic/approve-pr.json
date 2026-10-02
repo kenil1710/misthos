@@ -1,0 +1,45 @@
+{
+  "_note": "Synthetic fixture shaped like a Messages API response with a forced record_judgment tool call (claude-haiku-4-5-20251001).",
+  "id": "msg_fixture_approve_pr",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_fixture_approve_pr",
+      "name": "record_judgment",
+      "input": {
+        "category": "pull_requests",
+        "rubric_scores": [
+          {
+            "criterion": "impact",
+            "score": 7
+          },
+          {
+            "criterion": "quality",
+            "score": 8
+          }
+        ],
+        "total_points": 15,
+        "quality_summary": "Fixes an overstated payout total by summing in base units, with tests covering 1,000 rows.",
+        "reasons": [
+          "Real correctness bug with a measurable effect on totals.",
+          "Adds a focused regression test.",
+          "Small, readable diff that follows the existing structure."
+        ],
+        "soft_flags": [],
+        "confidence": 0.88,
+        "recommended_action": "approve"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1450,
+    "output_tokens": 310,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  }
+}

@@ -1,0 +1,139 @@
+import type { RubricCategory } from "@misthos/shared";
+import { notMerged } from "./checks";
+import type { JudgmentOutput } from "./judge";
+import type { Flag, Resource } from "./types";
+
+/** Bump whenever a rule below changes. Recorded in every decision. */
+export const RULE_VERSION = "rules-v1";
+
+/** Flags that end in rejection: the work can't be paid, whatever its quality. */
+export const REJECT_FLAGS = new Set([
+  "DELETED",
+  "OWNERSHIP_MISMATCH",
+  "DUPLICATE_URL",
+  "OUT_OF_WINDOW",
+  "NEAR_DUPLICATE",
+  "NOT_MERGED",
+]);
+
+export interface EngineInput {
+  flags: Flag[];
+  judgment: JudgmentOutput | null;
+  judgeError?: string;
+  categories: RubricCategory[];
+  resource: Resource | null;
+  ratePerPoint: bigint;
+  autoApproveConfidence: number;
+  maxPerPayout: bigint;
+  maxAutoApproveItem: bigint;
+}
+
+export type EngineAction = "approve" | "partial" | "reject" | "escalate";
+
+export interface EngineDecision {
+  action: EngineAction;
+  /** Paid amount for approve/partial; the agent's recommendation for escalate; 0 for reject. */
+  amount: bigint;
+  points: string | null;
+  categoryKey: string | null;
+  auto: boolean;
+  /** The rule that decided, e.g. "R1_REJECT_FLAG". */
+  rule: string;
+  /** Extra flags added after judgment (e.g. NOT_MERGED for the chosen category). */
+  addedFlags: Flag[];
+  cappedBy: "maxPerPayout" | null;
+}
+
+/** points = maxPoints × Σscores / (10 × n), kept exact as a rational, shown with 2 decimals. */
+export function computeAmount(cat: RubricCategory, scores: Record<string, number>, rate: bigint) {
+  const n = BigInt(cat.criteria.length);
+  const sum = BigInt(
+    cat.criteria.reduce((s, k) => s + Math.min(10, Math.max(0, scores[k.key] ?? 0)), 0),
+  );
+  const num = BigInt(cat.maxPoints) * sum; // points = num / (10n * n)
+  const den = 10n * n;
+  const amount = (rate * num) / den; // ≤ rate × maxPoints, floored to base units
+  const hundredths = (num * 100n) / den;
+  const points = `${hundredths / 100n}.${(hundredths % 100n).toString().padStart(2, "0")}`;
+  return { amount, points };
+}
+
+export function decide(i: EngineInput): EngineDecision {
+  const base = {
+    addedFlags: [] as Flag[],
+    cappedBy: null as EngineDecision["cappedBy"],
+    auto: true,
+  };
+  const hardReject = i.flags.find((f) => f.severity === "hard" && REJECT_FLAGS.has(f.code));
+  if (hardReject) {
+    return {
+      ...base,
+      action: "reject",
+      amount: 0n,
+      points: null,
+      categoryKey: i.judgment?.category ?? null,
+      rule: "R1_REJECT_FLAG",
+    };
+  }
+
+  // Price the agent's recommendation (used for approval, or pre-filled for a reviewer).
+  let amount = 0n;
+  let points: string | null = null;
+  let cat: RubricCategory | undefined;
+  const addedFlags: Flag[] = [];
+  if (i.judgment) {
+    cat = i.categories.find(
+      (c) =>
+        c.key === i.judgment!.category &&
+        i.resource &&
+        c.sourceTypes.includes(i.resource.sourceType),
+    );
+    if (cat) {
+      ({ amount, points } = computeAmount(cat, i.judgment.rubric_scores, i.ratePerPoint));
+      if (
+        cat.requireMerged &&
+        i.resource?.sourceType === "github_pr" &&
+        i.resource.github &&
+        !i.resource.github.merged
+      ) {
+        addedFlags.push(notMerged(i.resource));
+      }
+    }
+  }
+  let cappedBy: EngineDecision["cappedBy"] = null;
+  if (amount > i.maxPerPayout) {
+    amount = i.maxPerPayout;
+    cappedBy = "maxPerPayout";
+  }
+  const out = (
+    action: EngineAction,
+    rule: string,
+    auto = action !== "escalate",
+  ): EngineDecision => ({
+    action,
+    amount: action === "reject" ? 0n : amount,
+    points,
+    categoryKey: cat?.key ?? i.judgment?.category ?? null,
+    auto,
+    rule,
+    addedFlags,
+    cappedBy,
+  });
+
+  if (addedFlags.length) return out("reject", "R1_REJECT_FLAG");
+  if (i.flags.some((f) => f.code === "PROMPT_INJECTION_ATTEMPT"))
+    return out("escalate", "R2_INJECTION");
+  if (!i.judgment) return out("escalate", "R3_NO_JUDGMENT");
+  if (!cat) return out("escalate", "R4_CATEGORY_INVALID");
+  if (i.judgment.recommended_action === "reject" || i.judgment.recommended_action === "escalate") {
+    return out("escalate", "R5_AGENT_RECOMMENDS_REVIEW");
+  }
+  if (i.flags.some((f) => f.severity === "soft")) return out("escalate", "R6_SOFT_FLAGS");
+  if (i.judgment.confidence < i.autoApproveConfidence) return out("escalate", "R7_LOW_CONFIDENCE");
+  if (amount === 0n) return out("escalate", "R8_ZERO_AMOUNT");
+  if (amount > i.maxAutoApproveItem) return out("escalate", "R9_ABOVE_AUTO_CAP");
+  return out(
+    i.judgment.recommended_action === "partial" ? "partial" : "approve",
+    "R10_AUTO_APPROVE",
+  );
+}

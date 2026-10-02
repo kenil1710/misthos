@@ -1,0 +1,37 @@
+{
+  "_note": "Synthetic fixture shaped like a Messages API response with a forced record_judgment tool call (claude-haiku-4-5-20251001).",
+  "id": "msg_fixture_invalid",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_fixture_invalid",
+      "name": "record_judgment",
+      "input": {
+        "category": "threads",
+        "rubric_scores": [
+          {
+            "criterion": "depth",
+            "score": 8
+          }
+        ],
+        "total_points": 8,
+        "quality_summary": "Good thread.",
+        "reasons": ["Clear."],
+        "soft_flags": [],
+        "confidence": 0.9,
+        "recommended_action": "approve"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1450,
+    "output_tokens": 310,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  }
+}
