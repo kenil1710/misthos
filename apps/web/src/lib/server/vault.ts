@@ -1,14 +1,10 @@
 import "server-only";
 import { getDeployment, misthosVaultAbi, misthosVaultFactoryAbi } from "@misthos/shared";
-import { keccak256, parseEventLogs, toBytes, type Address, type Hex } from "viem";
+import { parseEventLogs, type Address, type Hex } from "viem";
 import { chainConfig, publicClient } from "./chain";
 import { env } from "./env";
 
-/** Same derivations as @misthos/agent rounds/ids (kept here so the web bundle doesn't pull the agent). */
-export const programIdBytes32 = (programId: string): Hex =>
-  keccak256(toBytes(`misthos:program:${programId}`));
-export const roundIdBytes32 = (roundId: string): Hex =>
-  keccak256(toBytes(`misthos:round:${roundId}`));
+export { programIdBytes32, roundIdBytes32 } from "@misthos/shared";
 
 export function factoryAddress(): Address {
   const f = getDeployment(chainConfig().key).vaultFactory;
