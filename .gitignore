@@ -19,3 +19,8 @@ packages/contracts/broadcast/**/dry-run
 apps/web/test-results
 apps/web/playwright-report
 .next-lh
+
+# QA wallets (testnet-only private keys)
+.qa-wallets.json
+.qa/
+.next-qa

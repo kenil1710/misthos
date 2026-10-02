@@ -422,11 +422,40 @@ async function main() {
     round2!.id,
     0,
   );
+  // A second, brand-new program (draft, no vault) to show the "Get your program live" checklist.
+  const [fresh] = await db
+    .insert(programs)
+    .values({
+      slug: "docs-writers",
+      name: "Docs Writers",
+      description: "Pays for clear guides and pull requests that improve the Arc developer docs. Demo program.",
+      ownerUserId: ownerId,
+      chain: "arc-testnet",
+      status: "draft",
+      isDemo: true,
+      rubricJson: rubric,
+      ratePerPoint: U / 20n,
+      limitsJson: {
+        maxPerPayout: "1500000",
+        maxPerRound: "3000000",
+        maxPerDay: "10000000",
+        autoApproveThreshold: "2000000",
+        payeeCooldownSeconds: 86400,
+        maxAutoApproveItem: "1000000",
+      },
+      autoApproveConfidence: 0.8,
+      minAccountAgeDays: 30,
+      roundLengthDays: 14,
+      firstRoundStartsAt: new Date(Date.now() + DAY),
+    })
+    .returning();
+  await db.insert(programMembers).values({ programId: fresh!.id, userId: ownerId, role: "owner" });
   writeFileSync(
     new URL("./.showcase.json", import.meta.url),
     JSON.stringify(
       {
         programId: program!.id,
+        setupProgramId: fresh!.id,
         slug: "arc-builders",
         ownerUserId: ownerId,
         owner: deployer,

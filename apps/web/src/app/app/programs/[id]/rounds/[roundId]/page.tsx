@@ -24,7 +24,7 @@ import { explorerAddress, explorerTx, readVault } from "@/lib/server/vault";
 
 const ROUND_STATUS_TEXT: Record<string, string> = {
   open: "Open for submissions",
-  closed: "Closing: preparing payouts",
+  closed: "Closed: preparing payouts",
   proposed: "Proposed on Arc",
   approved: "Approved",
   executed: "Paid",
@@ -64,6 +64,7 @@ export default async function RoundPage({
   };
   const openRound =
     round.status === "open" ? (await listRounds(id)).find((r) => r.id === round.id) : undefined;
+  const nothingToPay = events.some((e) => e.action === "round.nothing_to_pay");
   const planned = events.find((e) => e.action === "round.planned")?.data as
     { deferred?: { submissionId: string; reason: string }[] } | undefined;
 
@@ -102,7 +103,9 @@ export default async function RoundPage({
           label="Status"
           value={
             <span className="font-sans text-base">
-              {ROUND_STATUS_TEXT[round.status] ?? round.status}
+              {nothingToPay
+                ? "Closed: nothing to pay"
+                : (ROUND_STATUS_TEXT[round.status] ?? round.status)}
             </span>
           }
         />

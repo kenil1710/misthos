@@ -11,7 +11,7 @@ const styles: Record<string, string> = {
 
 const LABELS: Record<string, string> = {
   open: "Open",
-  closed: "Closing",
+  closed: "Closed",
   proposed: "Proposed",
   approved: "Approved",
   executed: "Paid",

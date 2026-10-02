@@ -89,14 +89,14 @@ export function Card({
   return (
     <section id={id} className={cn("bg-card scroll-mt-20 rounded-xl border p-5 sm:p-6", className)}>
       {title ? (
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <h2 className="text-base font-medium">{title}</h2>
             {description ? (
               <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{description}</p>
             ) : null}
           </div>
-          {actions}
+          {actions ? <div className="shrink-0">{actions}</div> : null}
         </div>
       ) : null}
       {children}

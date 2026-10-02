@@ -107,15 +107,15 @@ function tool(categories: RubricCategory[]): Anthropic.Tool {
           },
         },
         total_points: { type: "number" },
-        quality_summary: { type: "string" },
+        quality_summary: { type: "string", description: "One or two sentences, under 400 characters" },
         reasons: {
           type: "array",
-          description: "2 to 5 short observations",
+          description: "2 to 5 short observations, each under 200 characters",
           items: { type: "string" },
         },
         soft_flags: {
           type: "array",
-          description: "At most 3 short notes; empty if none",
+          description: "At most 3 short notes, each under 100 characters; empty if none",
           items: { type: "string" },
         },
         confidence: { type: "number", description: "0 to 1" },
@@ -221,13 +221,18 @@ export function parseJudgment(
   >;
   const scores: Record<string, number> = {};
   for (const s of raw.rubric_scores ?? []) scores[s.criterion] = s.score;
-  // List lengths are guidance, not correctness: keep the first items rather than discarding a sound judgment.
-  const list = (v: unknown, n: number) => (Array.isArray(v) ? v.slice(0, n) : v);
+  // Lengths are guidance, not correctness: keep the first items and trim long notes rather than discarding a sound
+  // judgment (the model often writes a soft-flag note a little over its limit).
+  const clip = (v: unknown, max: number) =>
+    typeof v === "string" && v.length > max ? `${v.slice(0, max - 1).trimEnd()}…` : v;
+  const list = (v: unknown, n: number, max: number) =>
+    Array.isArray(v) ? v.slice(0, n).map((x) => clip(x, max)) : v;
   const parsed = JudgmentOutput.safeParse({
     ...raw,
     rubric_scores: scores,
-    reasons: list(raw.reasons, 6),
-    soft_flags: list(raw.soft_flags, 6),
+    quality_summary: clip(raw.quality_summary, 600),
+    reasons: list(raw.reasons, 6, 300),
+    soft_flags: list(raw.soft_flags, 6, 120),
   });
   if (!parsed.success) throw new JudgeError("The judgment didn't match the schema.", true);
 

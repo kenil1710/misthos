@@ -14,7 +14,8 @@ import pg from "pg";
 const root = path.resolve(import.meta.dirname, "../../..");
 nextEnv.loadEnvConfig(root);
 const BASE = "http://localhost:3100";
-const OUT = path.join(root, "docs/screenshots");
+/** SHOTS_DIR overrides the output folder (e.g. docs/screenshots/redesign/after). */
+const OUT = path.join(root, process.env.SHOTS_DIR ?? "docs/screenshots");
 const show = JSON.parse(readFileSync(path.join(root, "apps/worker/scripts/.showcase.json"), "utf8")) as {
   programId: string;
   slug: string;
@@ -23,6 +24,7 @@ const show = JSON.parse(readFileSync(path.join(root, "apps/worker/scripts/.showc
   contributor: { id: string; userId: string; xid: string };
   escalatedSubmission: string;
   round1: string;
+  setupProgramId?: string;
 };
 
 const key = new TextEncoder().encode(process.env.SESSION_SECRET!);
@@ -152,7 +154,15 @@ async function main() {
     await shot(owner, `settings-${theme}`, `${p}/settings`);
     await shot(owner, `audit-log-${theme}`, `${p}/audit`);
     await shot(owner, `metrics-${theme}`, "/app/admin/metrics");
+    if (show.setupProgramId) await shot(owner, `setup-checklist-${theme}`, `/app/programs/${show.setupProgramId}`);
+    await shot(owner, `close-round-confirm-${theme}`, `${p}/rounds`, async (pg) => {
+      await pg.getByRole("button", { name: "Close round now" }).click();
+      await pg.getByRole("dialog").waitFor();
+    });
     await owner.close();
+    const signedOut = await context(browser, theme, 1440, "anon");
+    await shot(signedOut, `sign-in-${theme}`, "/app");
+    await signedOut.close();
 
     const contributor = await context(browser, theme, 1440, "contributor");
     await shot(contributor, `contributor-home-${theme}`, `/c/${show.slug}`);
@@ -171,9 +181,15 @@ async function main() {
   await mAnonDark.close();
   const mOwner = await context(browser, "light", 375, "owner");
   await shot(mOwner, "mobile-app-overview", "/app");
+  await shot(mOwner, "mobile-program-overview", `/app/programs/${show.programId}`);
+  await shot(mOwner, "mobile-menu", `/app/programs/${show.programId}`, async (pg) => {
+    await pg.getByRole("button", { name: "Open menu" }).click();
+    await pg.getByRole("dialog").waitFor();
+  });
   await mOwner.close();
   const mContributor = await context(browser, "dark", 375, "contributor");
   await shot(mContributor, "mobile-contributor-home-dark", `/c/${show.slug}`);
+  await shot(mContributor, "mobile-join-dark", `/join/${show.slug}`);
   await mContributor.close();
   await browser.close();
 }

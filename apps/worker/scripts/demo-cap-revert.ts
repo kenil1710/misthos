@@ -1,7 +1,7 @@
 /**
  * Demo: the agent tries to pay more than the vault's maxPerPayout and the contract refuses.
  *
- *   pnpm --filter @misthos/worker demo:cap-revert [vaultAddress] [--broadcast]
+ *   pnpm --filter @misthos/worker demo:cap-revert [vaultAddress] [--contributor <bytes32>] [--broadcast]
  *
  * Simulates proposeRound as the agent wallet (eth_call from the agent SCA) twice: at exactly maxPerPayout (accepted)
  * and 1 USDC above it (reverts with PayoutTooLarge). With --broadcast it also sends the over-cap call through
@@ -33,7 +33,7 @@ const LIVE = new URL("./.live-round.json", import.meta.url);
 async function main() {
   const args = process.argv.slice(2).filter((a) => a !== "--");
   const broadcast = args.includes("--broadcast");
-  const vault = (args.find((a) => a.startsWith("0x")) ??
+  const vault = (args.find((a) => /^0x[0-9a-fA-F]{40}$/.test(a)) ??
     (existsSync(LIVE)
       ? JSON.parse(readFileSync(LIVE, "utf8")).vault
       : getDeployment("arc-testnet").smokeVault)) as Address;
@@ -60,7 +60,10 @@ async function main() {
 
   // A registered payee is required for a proposal to reach the amount check; use the probe/live contributor if present.
   const live = existsSync(LIVE) ? JSON.parse(readFileSync(LIVE, "utf8")) : null;
-  const contributorId = (live?.demoContributorBytes32 ??
+  // The proposal only reaches the amount check for a registered payee: pass one for other vaults.
+  const flag = args.indexOf("--contributor");
+  const contributorId = ((flag >= 0 ? args[flag + 1] : undefined) ??
+    live?.demoContributorBytes32 ??
     keccak256(toBytes("circle-probe-contributor"))) as Hex;
   const payee = await pub.readContract({
     address: vault,
@@ -95,8 +98,14 @@ async function main() {
         e instanceof BaseError ? e.walk((x) => x instanceof ContractFunctionRevertedError) : null;
       if (revert instanceof ContractFunctionRevertedError) {
         const a = revert.data?.args ?? [];
+        const detail =
+          revert.data?.errorName === "PayoutTooLarge" &&
+          typeof a[1] === "bigint" &&
+          typeof a[2] === "bigint"
+            ? `(payoutId, amount ${formatUsdc(a[1])}, max ${formatUsdc(a[2])})`
+            : `(${a.map(String).join(", ")})`;
         console.log(
-          `✗ ${formatUsdc(amount)} (${label}): REVERTED with ${revert.data?.errorName}(payoutId, amount ${formatUsdc(a[1] as bigint)}, max ${formatUsdc(a[2] as bigint)})`,
+          `✗ ${formatUsdc(amount)} (${label}): REVERTED with ${revert.data?.errorName}${detail}`,
         );
       } else {
         console.log(`✗ ${formatUsdc(amount)} (${label}): ${(e as Error).message.split("\n")[0]}`);

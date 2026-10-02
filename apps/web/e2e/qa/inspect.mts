@@ -1,0 +1,11 @@
+import nextEnv from "@next/env";
+import path from "node:path";
+import pg from "pg";
+const ROOT = path.resolve(import.meta.dirname, "../../../..");
+nextEnv.loadEnvConfig(ROOT);
+const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
+await db.connect();
+const sql = process.argv[2]!;
+const { rows } = await db.query(sql);
+console.log(JSON.stringify(rows, null, 1).slice(0, 4000));
+await db.end();

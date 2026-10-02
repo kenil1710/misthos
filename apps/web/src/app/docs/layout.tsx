@@ -10,7 +10,7 @@ export default function Layout({ children }: LayoutProps<"/docs">) {
       <DocsLayout
         tree={source.getPageTree()}
         nav={{ title: <Wordmark />, url: "/" }}
-        githubUrl={undefined}
+        links={[{ text: "Open app", url: "/app", active: "none" }]}
       >
         {children}
       </DocsLayout>

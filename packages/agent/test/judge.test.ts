@@ -135,6 +135,20 @@ describe("createJudge", () => {
     expect(out.rubric_scores).toEqual({ impact: 8, quality: 7 });
   });
 
+  it("trims an over-long soft-flag note and reason instead of discarding the judgment (seen live in QA)", () => {
+    const m = fixture<Anthropic.Message>("anthropic/approve-thread.json");
+    const input = (m.content[0] as Anthropic.ToolUseBlock).input as {
+      soft_flags: string[];
+      reasons: string[];
+    };
+    input.soft_flags = ["x".repeat(180)];
+    input.reasons = ["y".repeat(450), ...input.reasons.slice(1)];
+    const out = parseJudgment(m, CATEGORIES);
+    expect(out.soft_flags[0]).toHaveLength(120);
+    expect(out.soft_flags[0]!.endsWith("…")).toBe(true);
+    expect(out.reasons[0]).toHaveLength(300);
+  });
+
   it("rejects scores outside 0–10 even if the API returned them", () => {
     const m = fixture<Anthropic.Message>("anthropic/approve-thread.json");
     const block = m.content[0] as Anthropic.ToolUseBlock;
