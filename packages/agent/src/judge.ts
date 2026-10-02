@@ -107,7 +107,10 @@ function tool(categories: RubricCategory[]): Anthropic.Tool {
           },
         },
         total_points: { type: "number" },
-        quality_summary: { type: "string", description: "One or two sentences, under 400 characters" },
+        quality_summary: {
+          type: "string",
+          description: "One or two sentences, under 400 characters",
+        },
         reasons: {
           type: "array",
           description: "2 to 5 short observations, each under 200 characters",

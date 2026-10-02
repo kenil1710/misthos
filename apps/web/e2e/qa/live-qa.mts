@@ -388,7 +388,7 @@ async function main() {
           `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`,
         );
       await op.getByLabel("Largest item paid without review").fill("0.5");
-    await op.getByLabel("Minimum agent confidence").fill("0.7");
+      await op.getByLabel("Minimum agent confidence").fill("0.7");
       await op.getByLabel("Max per contributor per round").fill("0.6");
       await op.getByLabel("Max per round").fill("1.2");
       await op.getByLabel("Max per rolling 24 hours").fill("3");
@@ -793,6 +793,14 @@ async function main() {
           programId,
         ])
       )[0]!.id;
+      const closeToast = await op
+        .locator("[data-sonner-toast]")
+        .first()
+        .innerText({ timeout: 20_000 });
+      expect(
+        /Closing round 1/.test(closeToast),
+        `close request failed: ${closeToast.replace(/\s+/g, " ")}`,
+      );
       const st = await until(
         "round 1 proposed",
         async () =>
@@ -853,6 +861,7 @@ async function main() {
   await check("O-09", "Owner", "Update limits on-chain (cooldown 0 → 1 h)", op, async () => {
     await op.goto(`/app/programs/${programId}/settings`);
     await op.getByLabel("New wallet cooldown").fill("1");
+    await op.getByLabel("Your approval needed above").fill("1");
     await op.getByRole("button", { name: "Update limits" }).click();
     await confirmDialog(op, "Update limits");
     const toast = await txDone(op);
@@ -926,13 +935,45 @@ async function main() {
       return "2 submissions accepted";
     },
   );
-  await expectDecision(
+  await check(
     "A-07",
-    "Round 2 work approved",
-    r2approve,
-    A.xid,
-    (d) => d.action === "approve" || d.action === "partial",
-    "",
+    "Agent",
+    "Round 2 work is approved (by the agent, or by the owner after review)",
+    op,
+    async () => {
+      const d = await decisionFor(r2approve, programId, A.xid);
+      if (d.action === "approve" || d.action === "partial")
+        return `${d.action} by ${d.rule}, ${Number(d.amount) / 1e6} USDC`;
+      expect(d.action === "escalate", `got ${d.action} (${d.rule})`);
+      // The agent asked for a person: the owner approves it through the same endpoint the review drawer uses.
+      const sub = (
+        await q<{ id: string }>(
+          `select s.id from submissions s join contributors c on c.id = s.contributor_id
+       where s.program_id = $1 and c.x_user_id = $2 and s.resource_id = $3`,
+          [programId, A.xid, /\/status\/(\d+)/.exec(r2approve)![1]],
+        )
+      )[0]!.id;
+      const res = await op.request.post(`/api/owner/submissions/${sub}/override`, {
+        headers: { Origin: BASE },
+        data: {
+          action: "approve",
+          amount: "0.3",
+          reason: "Reviewed: solid practical advice, paying 0.30 USDC.",
+        },
+      });
+      expect(res.ok(), `override ${res.status()}`);
+      await until(
+        "human approval",
+        async () =>
+          (
+            await q<{ by: string }>(
+              `select decided_by as by from decisions where submission_id = $1 order by created_at desc limit 1`,
+              [sub],
+            )
+          )[0]?.by === "human" || null,
+      );
+      return `agent escalated (${d.rule}); owner approved 0.30 USDC via review, signed human decision recorded`;
+    },
   );
   await check(
     "E-03",

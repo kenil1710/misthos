@@ -245,9 +245,11 @@ export async function runRound(
         number: round.number,
         manual: round.endsAt > now(),
       });
-      await ensureCurrentRound(db, program, new Date(now().getTime() + 1));
     }
   }
+  // Open the next round whenever this one is past "open", not only in the run that closed it: a worker that died
+  // between closing and opening would otherwise leave the program without an open round. Idempotent.
+  await ensureCurrentRound(db, program, new Date(now().getTime() + 1));
   const [fresh] = await db.select().from(rounds).where(eq(rounds.id, round.id));
   if (!fresh || fresh.status === "executed" || fresh.status === "failed")
     return { status: "skipped", reason: fresh?.status ?? "missing" };

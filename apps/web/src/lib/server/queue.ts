@@ -15,6 +15,8 @@ function boss(): Promise<PgBoss> {
       ...PRODUCER_OPTIONS,
       connectionString: normalizeDatabaseUrl(env().DATABASE_URL),
       max: 2,
+      // A suspended Neon compute can take a few seconds to wake; don't treat that as a failure.
+      connectionTimeoutMillis: 10_000,
     });
     b.on("error", (e) => console.error("pg-boss producer error", e.message));
     await b.start();
@@ -35,12 +37,20 @@ export async function enqueue(
   data: object,
   singletonKey: string,
 ): Promise<"queued" | "duplicate" | "failed"> {
-  try {
-    return (await (await boss()).send(queue, data, { singletonKey })) === null
-      ? "duplicate"
-      : "queued";
-  } catch (e) {
-    console.error("enqueue failed", queue, (e as Error).message);
-    return "failed";
+  // One retry on a dropped or timed-out connection (seen live: Neon timing out a single send).
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return (await (await boss()).send(queue, data, { singletonKey })) === null
+        ? "duplicate"
+        : "queued";
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (attempt < 2 && /connection|timeout|terminated|ECONNRESET/i.test(msg)) {
+        await new Promise((r) => setTimeout(r, 750));
+        continue;
+      }
+      console.error("enqueue failed", queue, msg);
+      return "failed";
+    }
   }
 }

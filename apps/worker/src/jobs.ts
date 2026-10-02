@@ -7,7 +7,7 @@ import {
   syncPayee,
   type RoundDeps,
 } from "@misthos/agent";
-import { submissions } from "@misthos/db";
+import { rounds, submissions } from "@misthos/db";
 import {
   OverrideDecisionJob,
   ProcessSubmissionJob,
@@ -15,7 +15,7 @@ import {
   RunRoundJob,
   SyncPayeeJob,
 } from "@misthos/shared";
-import { and, eq, lt, or } from "drizzle-orm";
+import { and, eq, inArray, lt, or } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
 
@@ -117,6 +117,34 @@ export async function registerJobs(boss: PgBoss, deps: RoundDeps, log: Logger, o
     return due.length;
   };
 
+  /**
+   * On startup, pick up rounds a crashed worker left mid-flight. Its job stays "active" until the queue's 15-minute
+   * lease expires, so without this a crash delays a payout run by that long. A fresh job key is used because the old
+   * key is still held; runRound reads the chain and database first and every transaction has a deterministic
+   * idempotency key, so the old job's eventual retry finds the round finished and does nothing.
+   */
+  const recoverRounds = async () => {
+    const inFlight = await deps.db
+      .select({ id: rounds.id })
+      .from(rounds)
+      .where(inArray(rounds.status, ["closed", "proposed", "approved"]))
+      .limit(50);
+    const boot = Date.now().toString(36);
+    for (const { id } of inFlight)
+      await boss.send(
+        QUEUES.runRound,
+        { roundId: id, force: false },
+        { singletonKey: `round:${id}:recover:${boot}` },
+      );
+    if (inFlight.length)
+      log.info({ count: inFlight.length }, "re-enqueued in-flight rounds after start");
+    return inFlight.length;
+  };
+  if (opts.sweepIntervalMs !== 0)
+    void recoverRounds().catch((e) =>
+      log.error({ err: (e as Error).message }, "round recovery failed"),
+    );
+
   /** Re-enqueue submissions that never got a job or whose worker died mid-claim. Claims make duplicates harmless. */
   const sweep = async (now = Date.now()) => {
     const stuck = await deps.db
@@ -162,6 +190,7 @@ export async function registerJobs(boss: PgBoss, deps: RoundDeps, log: Logger, o
   return {
     sweep,
     scheduleRounds,
+    recoverRounds,
     stop: () => {
       if (timer) clearInterval(timer);
       if (roundTimer) clearInterval(roundTimer);

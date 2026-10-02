@@ -277,6 +277,32 @@ describe("queue → worker → decision", () => {
     jobs.stop();
   });
 
+  it("a round left mid-flight by a crashed worker is paid once after restart", async () => {
+    const vault = fakeVault();
+    const d = deps(async () => ({ outcome: { status: "ok", resource }, usage: [] }), vault);
+    const first = await registerJobs(boss, d, log, { concurrency: 1, sweepIntervalMs: 0 });
+    await db.update(programs).set({ vaultAddress: "0x000000000000000000000000000000000000f00d" });
+    await boss.send(QUEUES.processSubmission, { submissionId }, { singletonKey: submissionId });
+    await waitForStatus("approved");
+    first.stop();
+    await boss.offWork(QUEUES.runRound);
+    // The dead worker closed the round and still holds its job: claimed (active), never completed.
+    const [round] = await db.select().from(rounds).where(eq(rounds.number, 1));
+    await db.update(rounds).set({ status: "closed", endsAt: new Date(Date.now() - 1000) });
+    await boss.send(
+      QUEUES.runRound,
+      { roundId: round!.id, force: false },
+      { singletonKey: `round:${round!.id}` },
+    );
+    expect(await boss.fetch(QUEUES.runRound)).toHaveLength(1);
+    // Restart: recovery enqueues it under a fresh key and the round pays exactly once.
+    const restarted = await registerJobs(boss, d, log, { concurrency: 1, sweepIntervalMs: 0 });
+    expect(await restarted.recoverRounds()).toBe(1);
+    await waitForStatus("paid");
+    expect(vault.calls.filter((c) => c === "executeRound")).toHaveLength(1);
+    restarted.stop();
+  });
+
   it("the sweeper picks up a pending submission that never got a job", async () => {
     const jobs = await registerJobs(
       boss,

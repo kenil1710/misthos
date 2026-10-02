@@ -335,6 +335,22 @@ describe("runRound", () => {
     expect(v.balances.get(people.alice!.wallet.toLowerCase())).toBe(2n * U);
   });
 
+  it("opens the next round even if the worker died between closing this one and opening the next", async () => {
+    const v = fake();
+    await approved("alice", 2n * U);
+    // Seen in live QA: the round was marked closed, then the worker was killed before round 2 existed.
+    await db
+      .update(rounds)
+      .set({ status: "closed", closedAt: new Date() })
+      .where(eq(rounds.id, round1));
+    expect(await runRound(deps(v), round1)).toMatchObject({ status: "executed" });
+    expect(
+      (await db.select().from(rounds).where(eq(rounds.programId, programId)))
+        .map((x) => x.number)
+        .sort(),
+    ).toEqual([1, 2]);
+  });
+
   it("re-checks before paying: a deleted post is rejected with a signed payout-recheck decision", async () => {
     const v = fake();
     const keep = await approved("alice", 2n * U);
