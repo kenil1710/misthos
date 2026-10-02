@@ -66,7 +66,7 @@ export default async function ContributorsPage({
                       @{c.xHandle}
                     </Link>
                     <div className="text-muted-foreground text-xs">
-                      {c.githubLogin ? `GitHub ${c.githubLogin}` : "No GitHub username"}
+                      {c.githubLogin ? `GitHub ${c.githubLogin}` : "—"}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -82,12 +82,22 @@ export default async function ContributorsPage({
                             changed {c.walletChangedAt.toISOString().slice(0, 10)}
                           </span>
                         ) : null}
-                        {c.payeeWallet && c.payeeWallet === c.walletAddress ? null : row.program
-                            .vaultAddress ? (
-                          <span className="text-muted-foreground text-xs">
-                            registering in vault
+                        {!row.program.vaultAddress ||
+                        c.payeeWallet === c.walletAddress ? null : c.payeeWallet ? (
+                          <span
+                            className="text-warning text-xs"
+                            title="The vault still pays the previous wallet until the new one is registered and its cooldown ends."
+                          >
+                            Wallet change pending in vault
                           </span>
-                        ) : null}
+                        ) : (
+                          <span
+                            className="text-muted-foreground text-xs"
+                            title="Registered automatically after joining, and always before their first payout."
+                          >
+                            Not in vault yet
+                          </span>
+                        )}
                       </span>
                     ) : (
                       <span className="text-muted-foreground">Not linked</span>

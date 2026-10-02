@@ -1,5 +1,13 @@
 import "server-only";
-import { auditEvents, contributors, getDb, payouts, rounds, submissions } from "@misthos/db";
+import {
+  auditEvents,
+  contributors,
+  decisions,
+  getDb,
+  payouts,
+  rounds,
+  submissions,
+} from "@misthos/db";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 export async function listRounds(programId: string) {
@@ -59,6 +67,25 @@ export async function getRoundDetail(programId: string, roundId: string) {
           ),
         )
     : [];
+  const itemDecisions = items.length
+    ? await db
+        .select({
+          submissionId: decisions.submissionId,
+          hash: decisions.decisionHash,
+          createdAt: decisions.createdAt,
+        })
+        .from(decisions)
+        .where(
+          inArray(
+            decisions.submissionId,
+            items.map((i) => i.id),
+          ),
+        )
+        .orderBy(desc(decisions.createdAt))
+    : [];
+  const latestHash = new Map<string, string>();
+  for (const d of itemDecisions)
+    if (!latestHash.has(d.submissionId)) latestHash.set(d.submissionId, d.hash);
   const events = await db
     .select({
       action: auditEvents.action,
@@ -74,7 +101,9 @@ export async function getRoundDetail(programId: string, roundId: string) {
     payouts: ps.map(({ p, xHandle }) => ({
       ...p,
       xHandle,
-      items: items.filter((i) => i.payoutId === p.id),
+      items: items
+        .filter((i) => i.payoutId === p.id)
+        .map((i) => ({ ...i, decisionHash: latestHash.get(i.id) ?? null })),
     })),
     events,
   };

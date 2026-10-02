@@ -1,10 +1,10 @@
 "use client";
 
 import { misthosVaultFactoryAbi } from "@misthos/shared";
-import { ConnectKitButton } from "connectkit";
 import type { Address, Hex } from "viem";
 import { useWriteContract } from "wagmi";
 import { Button } from "@/components/ui/button";
+import { OwnerWallet } from "./owner-wallet";
 import { recordTx, useOwnerTx } from "./use-owner-tx";
 import { TxStatus } from "./tx-status";
 
@@ -37,7 +37,7 @@ export function DeployVault(p: {
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <ConnectKitButton />
+        <OwnerWallet owner={p.owner} />
         <Button
           disabled={tx.busy || !tx.isConnected}
           onClick={() =>

@@ -209,10 +209,12 @@ function DrawerBody({
                 {latest.decidedBy === "human" ? "Reviewer decision" : "Agent decision"}
               </h3>
               <p className="mt-1">{latest.summary}</p>
-              <p className="text-muted-foreground mt-2 font-mono text-[11px] break-all">
-                {shortHex(latest.decisionHash, 8, 6)} · {latest.ruleVersion}
-                {latest.promptVersion ? ` · ${latest.promptVersion}` : ""}
-                {latest.model ? ` · ${latest.model}` : ""}
+              {/* Each token wraps as a whole; only the model id may wrap at its hyphens. */}
+              <p className="text-muted-foreground mt-2 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px]">
+                <span>{shortHex(latest.decisionHash, 8, 6)}</span>
+                <span>{latest.ruleVersion}</span>
+                {latest.promptVersion ? <span>{latest.promptVersion}</span> : null}
+                {latest.model ? <span>{latest.model}</span> : null}
               </p>
             </section>
           ) : detail.submission.lastError ? (
@@ -240,7 +242,13 @@ function DrawerBody({
                       {Object.entries(f.evidence).map(([k, v]) => (
                         <div key={k} className="contents">
                           <dt>{k}</dt>
-                          <dd className="break-all">
+                          <dd
+                            className={
+                              typeof v === "string" && /^0x[0-9a-fA-F]{16,}$/.test(v)
+                                ? "[overflow-wrap:anywhere]"
+                                : "break-words"
+                            }
+                          >
                             {typeof v === "string" && /^https?:\/\//.test(v) ? (
                               <a href={v} target="_blank" rel="noreferrer" className="underline">
                                 {v}

@@ -156,7 +156,7 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
                               href={i.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-muted-foreground underline-offset-4 hover:underline"
+                              className="underline underline-offset-4"
                             >
                               Work
                             </a>

@@ -1,13 +1,13 @@
 "use client";
 
 import { formatUsdc, misthosVaultAbi, parseUsdc } from "@misthos/shared";
-import { ConnectKitButton } from "connectkit";
 import { useState } from "react";
 import { erc20Abi, type Address } from "viem";
 import { useReadContract, useWriteContract } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OwnerWallet } from "./owner-wallet";
 import { recordTx, useOwnerTx } from "./use-owner-tx";
 import { TxStatus } from "./tx-status";
 
@@ -53,7 +53,7 @@ export function FundVault(p: { programId: string; vault: Address; usdc: Address;
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <ConnectKitButton />
+        <OwnerWallet owner={p.owner} />
         <Button
           disabled={tx.busy || !valid}
           onClick={() =>

@@ -1,13 +1,13 @@
 "use client";
 
 import { LimitsInput, misthosVaultAbi } from "@misthos/shared";
-import { ConnectKitButton } from "connectkit";
 import { useState } from "react";
 import type { Address } from "viem";
 import { useWriteContract } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CooldownWarning, OwnerWallet } from "./owner-wallet";
 import { recordTx, useOwnerTx } from "./use-owner-tx";
 import { TxStatus } from "./tx-status";
 
@@ -55,8 +55,9 @@ export function LimitsForm(p: {
           </div>
         ))}
       </div>
+      <CooldownWarning hours={form.payeeCooldownHours} />
       <div className="flex flex-wrap items-center gap-3">
-        <ConnectKitButton />
+        <OwnerWallet owner={p.owner} />
         <Button
           disabled={tx.busy || !parsed.success}
           onClick={() => {

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { AuditDetails } from "@/components/app/audit-details";
 import { Button } from "@/components/ui/button";
+import { chainConfig } from "@/lib/server/chain";
 import {
   Table,
   TableBody,
@@ -22,18 +24,6 @@ const GROUP_LABELS: Record<AuditGroup, string> = {
   rounds: "Rounds and payouts",
 };
 
-function describe(data: unknown): string {
-  if (!data || typeof data !== "object") return "";
-  return Object.entries(data as Record<string, unknown>)
-    .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
-    .slice(0, 4)
-    .map(
-      ([k, v]) =>
-        `${k}: ${String(v).length > 24 ? `${String(v).slice(0, 10)}…${String(v).slice(-6)}` : String(v)}`,
-    )
-    .join(", ");
-}
-
 export default async function AuditPage({
   params,
   searchParams,
@@ -41,7 +31,10 @@ export default async function AuditPage({
   const session = await getOwnerSession();
   if (!session) return null;
   const { id } = await params;
-  if (!(await getProgramForMember(id, session.sub))) return null;
+  const member = await getProgramForMember(id, session.sub);
+  if (!member) return null;
+  const explorer = chainConfig().explorerUrl;
+  const verifyBase = member.program.status === "draft" ? null : `/p/${member.program.slug}`;
   const sp = await searchParams;
   const group =
     typeof sp.group === "string" && sp.group in AUDIT_GROUPS ? (sp.group as AuditGroup) : undefined;
@@ -134,11 +127,8 @@ export default async function AuditPage({
                   <TableCell className="font-mono text-[12px] whitespace-nowrap">
                     {r.action}
                   </TableCell>
-                  <TableCell
-                    className="text-muted-foreground max-w-[520px] truncate text-[13px]"
-                    title={JSON.stringify(r.dataJson)}
-                  >
-                    {describe(r.dataJson)}
+                  <TableCell className="max-w-[640px] text-[13px] whitespace-normal">
+                    <AuditDetails data={r.dataJson} explorer={explorer} verifyBase={verifyBase} />
                   </TableCell>
                 </TableRow>
               ))}

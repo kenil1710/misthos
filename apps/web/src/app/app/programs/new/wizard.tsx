@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { CooldownWarning } from "@/components/vault/owner-wallet";
 import { createProgramAction } from "../actions";
 
 // ─── Form state (strings, as typed) ─────────────────────────────────────────
@@ -727,6 +728,9 @@ export function ProgramWizard() {
                     onChange={(ev) => update("limits", { payeeCooldownHours: ev.target.value })}
                   />
                 </Field>
+                <div className="sm:col-span-2">
+                  <CooldownWarning hours={form.limits.payeeCooldownHours} />
+                </div>
               </div>
             </section>
           </>

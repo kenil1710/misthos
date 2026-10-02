@@ -1,12 +1,12 @@
 "use client";
 
 import { misthosVaultAbi } from "@misthos/shared";
-import { ConnectKitButton } from "connectkit";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Address, Hex } from "viem";
 import { useWriteContract } from "wagmi";
 import { Button } from "@/components/ui/button";
+import { OwnerWallet } from "./owner-wallet";
 import { recordTx, useOwnerTx } from "./use-owner-tx";
 import { TxStatus } from "./tx-status";
 
@@ -22,7 +22,7 @@ export function ApproveRound(p: {
   return (
     <div className="grid gap-2">
       <div className="flex flex-wrap items-center gap-3">
-        <ConnectKitButton />
+        <OwnerWallet owner={p.owner} />
         <Button
           disabled={tx.busy}
           onClick={() =>

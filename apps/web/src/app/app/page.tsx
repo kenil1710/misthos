@@ -12,8 +12,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState, Notice, PageHeader, Section, Stat, TableFrame } from "@/components/ui-kit";
+import { relativeTime, utc } from "@/lib/time";
 import { ownerOverview } from "@/lib/server/overview";
 import { getOwnerSession } from "@/lib/server/session";
+
+function reviewHint(waiting: number, queued: number) {
+  const you =
+    waiting === 0
+      ? "Nothing waiting for you"
+      : `${waiting} item${waiting === 1 ? "" : "s"} waiting for you`;
+  return queued ? `${you}; ${queued} queued for the agent` : you;
+}
 
 const STATUS_ORDER = [
   ["escalated", "Needs review"],
@@ -95,7 +104,7 @@ export default async function OverviewPage() {
         <Stat
           label="Needs review"
           value={o.byStatus.escalated ?? 0}
-          hint={queued ? `${queued} queued for the agent` : "Nothing queued"}
+          hint={reviewHint(o.byStatus.escalated ?? 0, queued)}
         />
         <Stat
           label="Fraud caught"
@@ -121,9 +130,13 @@ export default async function OverviewPage() {
                     >
                       {d.programName}
                     </Link>
-                    <span className="text-muted-foreground mono-num ml-auto text-xs">
-                      {d.createdAt.toISOString().slice(5, 16).replace("T", " ")}
-                    </span>
+                    <time
+                      dateTime={d.createdAt.toISOString()}
+                      title={utc(d.createdAt)}
+                      className="text-muted-foreground mono-num ml-auto text-xs"
+                    >
+                      {relativeTime(d.createdAt)}
+                    </time>
                   </div>
                   <p className="text-sm">{d.summary}</p>
                 </li>

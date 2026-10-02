@@ -1,4 +1,5 @@
 import { formatUsdc, shortHex } from "@misthos/shared";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Address, Hex } from "viem";
 import { z } from "zod";
@@ -39,6 +40,7 @@ export default async function RoundPage({
   if (!detail) notFound();
   const { round, payouts, events } = detail;
   const vault = row.program.vaultAddress as Address | null;
+  const verifyBase = row.program.status === "draft" ? null : `/p/${row.program.slug}`;
   const chain = vault ? await readVault(vault).catch(() => null) : null;
   const needsApproval =
     round.status === "proposed" && chain && round.totalAmount > chain.limits.autoApproveThreshold;
@@ -152,7 +154,7 @@ export default async function RoundPage({
                   <TableHead>Wallet</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead>Decision hash</TableHead>
-                  <TableHead>Items</TableHead>
+                  <TableHead>Records</TableHead>
                   <TableHead>Transaction</TableHead>
                 </TableRow>
               </TableHeader>
@@ -170,22 +172,36 @@ export default async function RoundPage({
                     <TableCell className="text-right font-mono tabular-nums">
                       {formatUsdc(p.amount, { withSymbol: false })}
                     </TableCell>
-                    <TableCell className="font-mono text-[12px]" title={p.decisionHash}>
-                      {shortHex(p.decisionHash, 6, 4)}
+                    <TableCell>
+                      <HexValue value={p.decisionHash} label="payout decision hash" />
                     </TableCell>
-                    <TableCell className="text-muted-foreground tabular-nums">
-                      {p.items.length}
+                    <TableCell>
+                      {/* The payout hash commits to these records; each can be verified on the public page. */}
+                      <div className="flex flex-wrap gap-3 text-[13px]">
+                        {p.items.map((i, n) =>
+                          i.decisionHash && verifyBase ? (
+                            <Link
+                              key={i.id}
+                              href={`${verifyBase}#verify?d=${i.decisionHash}`}
+                              className="underline underline-offset-4"
+                            >
+                              Verify{p.items.length > 1 ? ` ${n + 1}` : ""}
+                            </Link>
+                          ) : (
+                            <span key={i.id} className="text-muted-foreground font-mono">
+                              {i.decisionHash ? shortHex(i.decisionHash, 6, 4) : "—"}
+                            </span>
+                          ),
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {p.txHash ? (
-                        <a
+                        <HexValue
+                          value={p.txHash}
+                          label="transaction hash"
                           href={explorerTx(p.txHash)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-mono text-[13px] hover:underline"
-                        >
-                          {shortHex(p.txHash, 6, 4)}
-                        </a>
+                        />
                       ) : (
                         <span className="text-muted-foreground capitalize">{p.status}</span>
                       )}
