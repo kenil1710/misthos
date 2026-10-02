@@ -11,7 +11,7 @@ export function ProgramStatus({ status }: { status: keyof typeof styles }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center rounded-md px-1.5 text-xs font-medium capitalize",
+        "inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-xs font-medium whitespace-nowrap capitalize",
         styles[status],
       )}
     >

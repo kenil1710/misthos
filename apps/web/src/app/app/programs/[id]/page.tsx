@@ -172,6 +172,9 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
     },
   ];
 
+  // Publishing is allowed at any time; the header offers it unless the checklist is already showing it.
+  const shareIsNext = steps.findIndex((s) => !s.done) === 2;
+
   return (
     <div className="grid gap-8">
       <PageHeader
@@ -188,7 +191,7 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
                 </Link>
               </Button>
             ) : null}
-            {isOwner && published ? (
+            {isOwner && (published || !shareIsNext) ? (
               <PublishButton programId={program.id} status={program.status} />
             ) : null}
           </>

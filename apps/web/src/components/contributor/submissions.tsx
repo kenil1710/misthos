@@ -132,7 +132,9 @@ export function Submissions({
     }
   }
 
-  const accepts = acceptedSources.map((t) => SOURCE_LABELS[t].toLowerCase()).join(", ");
+  const accepts = acceptedSources
+    .map((t) => SOURCE_LABELS[t].replace(/^(?!X )./, (c) => c.toLowerCase()))
+    .join(", ");
 
   return (
     <div className="grid min-w-0 gap-6">

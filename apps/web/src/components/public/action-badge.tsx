@@ -10,7 +10,12 @@ const styles: Record<string, [string, string]> = {
 export function ActionBadge({ action }: { action: string }) {
   const [label, cls] = styles[action] ?? [action, "bg-muted text-muted-foreground"];
   return (
-    <span className={cn("inline-flex h-5 items-center rounded-md px-1.5 text-xs font-medium", cls)}>
+    <span
+      className={cn(
+        "inline-flex h-5 shrink-0 items-center rounded-md px-1.5 text-xs font-medium whitespace-nowrap",
+        cls,
+      )}
+    >
       {label}
     </span>
   );

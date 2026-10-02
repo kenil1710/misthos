@@ -1,6 +1,6 @@
 # Misthos — Progress
 
-**Current phase:** 6 (Landing + docs) complete; awaiting go-ahead for Phase 7 (deployment).
+**Current phase:** 6.5 (UX redesign + live QA) complete; awaiting go-ahead for Phase 7 (deployment).
 **Last updated:** 2026-10-02
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
@@ -21,6 +21,30 @@
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (Phase 6.5 — UX redesign + full live QA)
+
+- **UX audit** (`docs/UX_AUDIT.md`): every owner, contributor and public flow against Nielsen's heuristics;
+  8 critical, 22 major, 15 minor issues. All critical and major fixed; minors: 12 fixed, 2 partly, 1 open.
+- **Redesign**: sidebar shell with program switcher and review badges (menu sheet on mobile); breadcrumbs and one
+  page header everywhere; centered two-step sign-in; "Get your program live" checklist (deploy, fund, publish and
+  share, first submission, first payout) and "Finish setting up" on the overview; every on-chain action through one
+  flow (confirmation with exact amounts → wallet → pending with explorer link → confirmed/failed with a sentence and
+  Try again; toasts); wallet readiness with one-click fixes (connect, switch network, wrong account); session expiry
+  handled everywhere; withdraw and pause/resume (new); paused-vault banner; limit help text in plain words; jargon
+  tooltips with doc links; humanized review drawer and override confirmation; wizard validates on blur; contributor
+  flow mobile-first with a join stepper, "what happens next", how-to-fix guidance on rejections, Verify links, wallet
+  change behind a button with the cooldown stated, GitHub username editable after joining.
+- **Live QA** (`docs/QA_REPORT.md`): five fresh testnet wallets (Circle faucet API returned 403 for our key; funded
+  from the deployer), a real EIP-1193 test wallet in Playwright, the real agent (Circle SCA, Claude, pg-boss) against
+  Neon and Arc testnet; QA programs marked demo. Final run **39/39**. 11 bugs found and fixed (judge discarding
+  sound judgments over long notes; GitHub username not settable after join; non-member 200 instead of 404; over-cap
+  demo crash; 375px overflow; no withdraw/pause UI; worker crash left rounds stuck 15 min; next round not opened
+  after a crash; transient enqueue failure; two minor UI). About 0.16 test USDC of gas over 10 runs; 4.05 test USDC
+  still in the QA wallets.
+- **Screenshots**: `docs/screenshots/redesign/{before,after}` with an index; `docs/screenshots` re-taken (67).
+- **Tests**: worker 12 (startup recovery), agent 147 (judge trimming, next round after crash), web 54, contracts 76,
+  shared 42, db 7; browser e2e updated for the new flows.
 
 ## Done (Phase 6 — Landing + docs)
 
@@ -329,6 +353,8 @@ re-execution reverted with `RoundNotExecutable`.
 - [x] Circle entity secret + agent SCA (done 2026-10-02). **Back up `~/misthos-circle-recovery/` somewhere safe.**
 
 ## Next (Phase 7 — Deployment)
+
+Owner to do first: the 5-minute real "Sign in with X" check at the end of `docs/QA_REPORT.md`.
 
 Vercel (web) + Railway (worker) + Neon; production env vars; X callback URL; replace "added in deployment" in the
 README with the live URL. Waiting for the owner's browser test before marking any of their programs as demo.

@@ -18,7 +18,7 @@ const X = { id: "1000000001", handle: "e2e_alice" };
 
 async function connectWallet(page: Page) {
   await page
-    .getByRole("button", { name: /connect wallet/i })
+    .getByRole("button", { name: /^connect/i })
     .first()
     .click();
   await page.getByRole("button", { name: /metamask/i }).click();
@@ -67,13 +67,13 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await op.goto("/app");
     await expect(op.getByRole("heading", { name: "Sign in to Misthos" })).toBeVisible();
     await connectWallet(op);
-    await op.getByRole("button", { name: "Sign in with this wallet" }).click();
-    await expect(op.getByRole("heading", { name: "Overview" })).toBeVisible();
-    await expect(op.getByText("You don't run any programs yet.")).toBeVisible();
+    await op.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(op.getByRole("heading", { name: "Welcome to Misthos" })).toBeVisible();
+    await expect(op.getByText("Your first program takes about five minutes")).toBeVisible();
 
-    await op.getByRole("link", { name: "Create a program" }).click();
+    await op.getByRole("link", { name: "Create your first program" }).click();
     await op.getByLabel("Program name").fill("E2E Builders");
-    await expect(op.getByLabel("URL name")).toHaveValue(SLUG);
+    await expect(op.getByLabel("Join link")).toHaveValue(SLUG);
     await op.getByLabel("Description").fill("End-to-end test program that pays for Arc content.");
     await op.getByRole("button", { name: "Continue" }).click();
     await expect(op.getByText("Category 1")).toBeVisible();
@@ -91,9 +91,14 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await expect(op).toHaveURL(/\/app\/programs\/[0-9a-f-]{36}$/);
     await expect(op.getByRole("heading", { name: "E2E Builders" })).toBeVisible();
     await expect(op.getByText("draft", { exact: true })).toBeVisible();
+    await expect(op.getByRole("region", { name: "Get your program live" })).toContainText(
+      "0 of 5 done",
+    );
     await op.getByRole("button", { name: "Publish join page" }).click();
     await expect(op.getByText("active", { exact: true })).toBeVisible();
-    await expect(op.getByRole("link", { name: `localhost:3100/join/${SLUG}` })).toBeVisible();
+    await op.getByRole("link", { name: "Settings" }).click();
+    await expect(op.getByText(`localhost:3100/join/${SLUG}`)).toBeVisible();
+    await expect(op.getByRole("button", { name: "Copy join link" })).toBeVisible();
 
     // ── Contributor joins ──────────────────────────────────────────────────
     const cookie = await contributorCookie(db);
@@ -106,8 +111,8 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await cp.goto(`/join/${SLUG}`);
     await expect(cp.getByRole("heading", { name: "E2E Builders" })).toBeVisible();
     await expect(cp.getByText(`@${X.handle}`)).toBeVisible();
-    await cp.getByLabel("GitHub username (optional)").fill("e2e-alice");
     await connectWallet(cp);
+    await cp.getByLabel("GitHub username (optional)").fill("e2e-alice");
     await cp.getByRole("button", { name: "Sign and join" }).click();
     await expect(cp).toHaveURL(new RegExp(`/c/${SLUG}$`));
     await expect(cp.getByRole("heading", { name: "Your contributions" })).toBeVisible();
@@ -119,14 +124,16 @@ test("owner creates and publishes a program; contributor joins and switches wall
     const wallet2 = await injectWallet(c2, generatePrivateKey());
     const cp2 = await c2.newPage();
     await cp2.goto(`/c/${SLUG}`);
+    await cp2.getByRole("button", { name: "Change payout wallet" }).click();
     await connectWallet(cp2);
     await cp2.getByRole("button", { name: "Sign to switch wallet" }).click();
     await expect(cp2.getByText(/You changed your wallet recently/)).toBeVisible();
 
     // ── Owner sees the contributor and the wallet-change flag ──────────────
-    await op.reload();
-    await expect(op.getByRole("cell", { name: `@${X.handle}` })).toBeVisible();
-    await expect(op.getByText("changed", { exact: true })).toBeVisible();
+    await op.getByRole("link", { name: "Overview" }).click();
+    await expect(op.getByText(`Payout wallet changed recently: @${X.handle}`)).toBeVisible();
+    await op.getByRole("link", { name: "Contributors" }).click();
+    await expect(op.getByRole("link", { name: `@${X.handle}` })).toBeVisible();
 
     // ── Database state ─────────────────────────────────────────────────────
     const c = await db.query(

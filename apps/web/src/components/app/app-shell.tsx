@@ -24,9 +24,12 @@ export function AppShell({
   const [open, setOpen] = useState(false);
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
-      <aside className="bg-sidebar sticky top-0 hidden h-dvh w-60 shrink-0 border-r lg:block">
-        <AppSidebar programs={programs} founder={founder} address={address} />
-      </aside>
+      {/* The column spans the page height; the sidebar inside it stays put while the content scrolls. */}
+      <div className="bg-sidebar hidden w-60 shrink-0 border-r lg:block">
+        <aside className="sticky top-0 h-dvh">
+          <AppSidebar programs={programs} founder={founder} address={address} />
+        </aside>
+      </div>
       <header className="bg-background sticky top-0 z-30 flex h-14 items-center justify-between border-b px-4 lg:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
