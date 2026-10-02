@@ -1,5 +1,6 @@
 import { formatUsdc, Slug, SOURCE_LABELS } from "@misthos/shared";
 import type { Metadata } from "next";
+import { Check } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SignOutButton } from "@/components/app/sign-out-button";
@@ -10,6 +11,7 @@ import { Web3Provider } from "@/components/web3/web3-provider";
 import { getContributorMembership, getProgramBySlug, getRounds } from "@/lib/server/queries";
 import { currentRound } from "@/lib/rounds";
 import { getContributorSession } from "@/lib/server/session";
+import { utcDay } from "@/lib/time";
 
 const X_ERRORS: Record<string, string> = {
   denied: "X sign-in was cancelled.",
@@ -31,6 +33,38 @@ export async function generateMetadata({ params }: PageProps<"/join/[slug]">): P
   return program ? { title: `Join ${program.name}`, description: program.description } : {};
 }
 
+function JoinStep({
+  n,
+  title,
+  done,
+  current,
+  children,
+}: {
+  n: number;
+  title: string;
+  done: boolean;
+  current: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="flex gap-3">
+      <span
+        className={`flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums ${done ? "bg-foreground border-foreground text-background" : current ? "border-foreground" : "text-muted-foreground"}`}
+        aria-hidden="true"
+      >
+        {done ? <Check className="size-3.5" strokeWidth={2.5} /> : n}
+      </span>
+      <div className="grid min-w-0 flex-1 gap-3">
+        <p className={`leading-6 font-medium ${!done && !current ? "text-muted-foreground" : ""}`}>
+          {title}
+          <span className="sr-only">{done ? " (done)" : current ? " (current step)" : ""}</span>
+        </p>
+        {current ? children : null}
+      </div>
+    </li>
+  );
+}
+
 export default async function JoinPage({ params, searchParams }: PageProps<"/join/[slug]">) {
   const { slug } = await params;
   const program = await load(slug);
@@ -44,16 +78,19 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   return (
     <Web3Provider>
       <SiteHeader right={session ? <SignOutButton kind="contributor" /> : null} />
-      <main className="mx-auto grid w-full max-w-5xl flex-1 gap-12 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_360px]">
+      <main
+        id="main"
+        className="mx-auto grid w-full max-w-5xl flex-1 grid-cols-[minmax(0,1fr)] gap-10 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12"
+      >
         <article>
           <p className="text-muted-foreground text-sm">Contributor program</p>
-          <h1 className="mt-1 text-3xl font-semibold">{program.name}</h1>
+          <h1 className="mt-1 text-3xl font-medium tracking-[-0.02em]">{program.name}</h1>
           <p className="text-muted-foreground mt-3 max-w-2xl">{program.description}</p>
 
           <h2 className="mt-10 text-base font-medium">What this program pays for</h2>
           <ul className="mt-3 grid gap-3">
             {program.rubricJson.categories.map((c) => (
-              <li key={c.key} className="rounded-lg border p-4">
+              <li key={c.key} className="bg-card rounded-xl border p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <span className="font-medium">{c.name}</span>
                   <span className="font-mono text-sm tabular-nums">
@@ -84,14 +121,13 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
           </p>
         </article>
 
-        <aside className="h-fit rounded-lg border p-5 lg:sticky lg:top-6">
+        <aside className="bg-card order-first h-fit rounded-xl border p-5 sm:p-6 lg:sticky lg:top-6 lg:order-none">
           {round ? (
             <p className="text-muted-foreground text-sm">
-              Round {round.number}: {round.startsAt.toISOString().slice(0, 10)} to{" "}
-              {round.endsAt.toISOString().slice(0, 10)}
+              Round {round.number}: {utcDay(round.startsAt)} to {utcDay(round.endsAt)} (UTC)
             </p>
           ) : null}
-          {program.status === "paused" ? (
+          {program.status === "paused" && !membership ? (
             <p className="mt-3 text-sm">
               This program isn&apos;t accepting new contributors right now.
             </p>
@@ -102,31 +138,41 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
                 <Link href={`/c/${program.slug}`}>Go to your dashboard</Link>
               </Button>
             </div>
-          ) : !session ? (
-            <div className="mt-3 grid gap-3">
-              <h2 className="font-medium">Join in two steps</h2>
-              <ol className="text-muted-foreground list-decimal pl-4 text-sm">
-                <li>Sign in with X so we can confirm which posts are yours.</li>
-                <li>Connect the wallet you want to be paid in.</li>
-              </ol>
-              <Button asChild>
-                <a href={`/api/auth/x/start?next=${encodeURIComponent(`/join/${program.slug}`)}`}>
-                  Sign in with X
-                </a>
-              </Button>
-              {typeof xError === "string" && X_ERRORS[xError] ? (
-                <p role="alert" className="text-danger text-sm">
-                  {X_ERRORS[xError]}
-                </p>
-              ) : null}
-            </div>
           ) : (
-            <div className="mt-3 grid gap-3">
-              <p className="text-sm">
-                Signed in as <span className="font-medium">@{session.xh}</span>. Last step: your
-                payout wallet.
-              </p>
-              <WalletLink programSlug={program.slug} mode="join" />
+            <div className="mt-4 grid gap-5">
+              <h2 className="font-medium">Join in two steps</h2>
+              <ol className="grid gap-5">
+                <JoinStep n={1} title="Sign in with X" done={!!session} current={!session}>
+                  <p className="text-muted-foreground text-sm">
+                    So the agent can confirm which posts are yours. Misthos reads your public
+                    profile once and never posts.
+                  </p>
+                  <Button asChild className="w-full">
+                    <a
+                      href={`/api/auth/x/start?next=${encodeURIComponent(`/join/${program.slug}`)}`}
+                    >
+                      Sign in with X
+                    </a>
+                  </Button>
+                  {typeof xError === "string" && X_ERRORS[xError] ? (
+                    <p role="alert" className="text-danger text-sm">
+                      {X_ERRORS[xError]}
+                    </p>
+                  ) : null}
+                </JoinStep>
+                <JoinStep n={2} title="Link your payout wallet" done={false} current={!!session}>
+                  {session ? (
+                    <>
+                      <p className="text-muted-foreground text-sm">
+                        Signed in as{" "}
+                        <span className="text-foreground font-medium">@{session.xh}</span>. USDC is
+                        paid to this wallet on Arc.
+                      </p>
+                      <WalletLink programSlug={program.slug} mode="join" />
+                    </>
+                  ) : null}
+                </JoinStep>
+              </ol>
             </div>
           )}
         </aside>

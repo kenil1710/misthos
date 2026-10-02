@@ -131,10 +131,7 @@ function Step({
   children: React.ReactNode;
 }) {
   return (
-    <li
-      className={cn("flex gap-4", disabled && "opacity-50")}
-     
-    >
+    <li className={cn("flex gap-4", disabled && "opacity-50")}>
       <span
         className={cn(
           "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums",

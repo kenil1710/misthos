@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { flagLabel } from "@/lib/flags";
 import { ReviewDrawer } from "./review-drawer";
 
 export interface ReviewRow {
@@ -68,13 +69,14 @@ export function ReviewTable({ rows, maxPerPayout }: { rows: ReviewRow[]; maxPerP
                   {r.summary ?? (r.status === "processing" ? "Reviewing…" : "Queued")}
                 </TableCell>
                 <TableCell>
-                  <div className="flex max-w-[220px] flex-wrap gap-1">
+                  <div className="flex max-w-[260px] flex-wrap gap-1">
                     {r.flags.map((f) => (
                       <span
                         key={f.code}
-                        className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${f.severity === "hard" ? "bg-danger-subtle text-danger" : "bg-warning-subtle text-warning"}`}
+                        title={f.code}
+                        className={`rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap ${f.severity === "hard" ? "bg-danger-subtle text-danger" : "bg-warning-subtle text-warning"}`}
                       >
-                        {f.code}
+                        {flagLabel(f.code)}
                       </span>
                     ))}
                   </div>

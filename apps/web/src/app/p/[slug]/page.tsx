@@ -150,7 +150,8 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
                             <a
                               key={i.submissionId}
                               href={`#verify?d=${i.decisionHash}`}
-                              className="text-[13px] underline-offset-4 hover:underline"
+                              title="Check this decision record against the payment on Arc"
+                              className="text-[13px] underline underline-offset-4"
                             >
                               Verify{p.items.length > 1 ? ` ${n + 1}` : ""}
                             </a>
@@ -228,13 +229,17 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
                     <span className="text-muted-foreground">decided by the program team</span>
                   ) : null}
                   <span className="text-muted-foreground ml-auto mono-num text-xs">
-                    {d.createdAt.toISOString().slice(0, 16).replace("T", " ")}
+                    {d.createdAt.toISOString().slice(0, 16).replace("T", " ")} UTC
                   </span>
                 </div>
                 <p className="text-sm">{d.summary}</p>
                 <div className="flex flex-wrap items-center gap-4 text-[13px]">
                   <span className="text-muted-foreground font-mono">{shortHex(d.hash, 8, 6)}</span>
-                  <a href={`#verify?d=${d.hash}`} className="underline-offset-4 hover:underline">
+                  <a
+                    href={`#verify?d=${d.hash}`}
+                    title="Check this decision record against the payment on Arc"
+                    className="underline underline-offset-4"
+                  >
                     Verify
                   </a>
                   <a

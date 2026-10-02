@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { CooldownWarning } from "@/components/vault/owner-wallet";
+import { LIMIT_HELP } from "@/lib/limits-help";
 import { createProgramAction } from "../actions";
 
 // ─── Form state (strings, as typed) ─────────────────────────────────────────
@@ -169,6 +170,27 @@ function issues(schema: z.ZodType, value: unknown, prefix: string): Record<strin
 
 const STEPS = ["Basics", "Rubric", "Budget and limits", "Review"] as const;
 
+/** Field ids → the error keys the schemas report, for validating a field when the owner leaves it. */
+const ID_KEYS: Record<string, string> = {
+  name: "basics.name",
+  slug: "basics.slug",
+  description: "basics.description",
+  logo: "basics.logoUrl",
+  rate: "budget.ratePerPoint",
+  len: "budget.roundLengthDays",
+  start: "budget.firstRoundStartsAt",
+  age: "budget.minAccountAgeDays",
+  conf: "budget.autoApproveConfidence",
+  autoitem: "budget.maxAutoApproveItem",
+  perpayout: "limits.maxPerPayout",
+  perround: "limits.maxPerRound",
+  perday: "limits.maxPerDay",
+  threshold: "limits.autoApproveThreshold",
+  cooldown: "limits.payeeCooldownHours",
+};
+
+const APP_HOST = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/^https?:\/\//, "");
+
 // ─── Small field helpers ────────────────────────────────────────────────────
 
 function Field({
@@ -234,6 +256,7 @@ export function ProgramWizard() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [slugTouched, setSlugTouched] = useState(false);
+  const [touched, setTouched] = useState<Set<string>>(() => new Set());
   const [pending, startTransition] = useTransition();
 
   const payload = toPayload(form);
@@ -257,6 +280,23 @@ export function ProgramWizard() {
         ...issues(LimitsInput, payload.limits, "limits"),
       };
     return {};
+  }
+
+  /** Validate a field as soon as the owner leaves it, so mistakes show up where they were made. */
+  function onFieldBlur(ev: React.FocusEvent) {
+    const key = ID_KEYS[(ev.target as HTMLElement).id];
+    if (!key) return;
+    const t = new Set(touched).add(key);
+    setTouched(t);
+    const all = validate(step);
+    setErrors((prev) => {
+      const out = { ...prev };
+      for (const k of t) {
+        if (all[k]) out[k] = all[k];
+        else delete out[k];
+      }
+      return out;
+    });
   }
 
   function next() {
@@ -317,7 +357,7 @@ export function ProgramWizard() {
         ))}
       </ol>
 
-      <div className="mt-8 grid gap-6">
+      <div className="mt-8 grid gap-6" onBlur={onFieldBlur}>
         {step === 0 ? (
           <>
             <Field id="name" label="Program name" error={e["basics.name"]}>
@@ -333,8 +373,8 @@ export function ProgramWizard() {
             </Field>
             <Field
               id="slug"
-              label="URL name"
-              hint={`Contributors join at /join/${form.basics.slug || "your-program"}`}
+              label="Join link"
+              hint={`Contributors join at ${APP_HOST}/join/${form.basics.slug || "your-program"}. Lowercase letters, numbers and dashes.`}
               error={e["basics.slug"]}
             >
               <Input
@@ -628,7 +668,12 @@ export function ProgramWizard() {
                     onChange={(ev) => update("budget", { roundLengthDays: ev.target.value })}
                   />
                 </Field>
-                <Field id="start" label="First round starts" error={e["budget.firstRoundStartsAt"]}>
+                <Field
+                  id="start"
+                  label="First round starts"
+                  hint="In your local time. Shown to contributors in UTC."
+                  error={e["budget.firstRoundStartsAt"]}
+                >
                   <Input
                     id="start"
                     type="datetime-local"
@@ -658,7 +703,7 @@ export function ProgramWizard() {
                 <Field
                   id="conf"
                   label="Minimum agent confidence"
-                  hint="Between 0.5 and 1. Below this, items go to your review queue."
+                  hint={LIMIT_HELP.autoApproveConfidence}
                   error={e["budget.autoApproveConfidence"]}
                 >
                   <Input
@@ -672,6 +717,7 @@ export function ProgramWizard() {
                 <UsdcField
                   id="autoitem"
                   label="Largest item paid without review"
+                  hint={LIMIT_HELP.maxAutoApproveItem}
                   error={e["budget.maxAutoApproveItem"]}
                   value={form.budget.maxAutoApproveItem}
                   onChange={(v) => update("budget", { maxAutoApproveItem: v })}
@@ -688,6 +734,7 @@ export function ProgramWizard() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <UsdcField
                   id="perpayout"
+                  hint={LIMIT_HELP.maxPerPayout}
                   label="Max per contributor per round"
                   error={e["limits.maxPerPayout"]}
                   value={form.limits.maxPerPayout}
@@ -695,6 +742,7 @@ export function ProgramWizard() {
                 />
                 <UsdcField
                   id="perround"
+                  hint={LIMIT_HELP.maxPerRound}
                   label="Max per round"
                   error={e["limits.maxPerRound"]}
                   value={form.limits.maxPerRound}
@@ -702,6 +750,7 @@ export function ProgramWizard() {
                 />
                 <UsdcField
                   id="perday"
+                  hint={LIMIT_HELP.maxPerDay}
                   label="Max per rolling 24 hours"
                   error={e["limits.maxPerDay"]}
                   value={form.limits.maxPerDay}
@@ -709,7 +758,8 @@ export function ProgramWizard() {
                 />
                 <UsdcField
                   id="threshold"
-                  label="Rounds above this need your approval"
+                  hint={LIMIT_HELP.autoApproveThreshold}
+                  label="Your approval needed above"
                   error={e["limits.autoApproveThreshold"]}
                   value={form.limits.autoApproveThreshold}
                   onChange={(v) => update("limits", { autoApproveThreshold: v })}
@@ -717,7 +767,7 @@ export function ProgramWizard() {
                 <Field
                   id="cooldown"
                   label="New wallet cooldown (hours)"
-                  hint="A new or changed payout wallet can't be paid until this passes."
+                  hint={LIMIT_HELP.payeeCooldownHours}
                   error={e["limits.payeeCooldownHours"]}
                 >
                   <Input
@@ -760,19 +810,21 @@ export function ProgramWizard() {
             <dt className="text-muted-foreground">Rounds</dt>
             <dd>
               Every {form.budget.roundLengthDays} days, starting{" "}
-              {new Date(form.budget.firstRoundStartsAt).toLocaleString()}
+              {Number.isNaN(Date.parse(form.budget.firstRoundStartsAt))
+                ? "—"
+                : `${new Date(form.budget.firstRoundStartsAt).toISOString().slice(0, 16).replace("T", " ")} UTC`}
             </dd>
             <dt className="text-muted-foreground">Vault limits</dt>
             <dd className="font-mono tabular-nums">
-              {form.limits.maxPerPayout} per payout · {form.limits.maxPerRound} per round ·{" "}
-              {form.limits.maxPerDay} per 24h
+              {form.limits.maxPerPayout} USDC per contributor per round, {form.limits.maxPerRound}{" "}
+              USDC per round, {form.limits.maxPerDay} USDC per 24 hours
             </dd>
             <dt className="text-muted-foreground">Owner approval</dt>
             <dd>Rounds above {form.limits.autoApproveThreshold} USDC</dd>
             <dt className="text-muted-foreground">Next</dt>
             <dd className="text-muted-foreground">
-              The program is saved as a draft. You can publish it to open the join page, then deploy
-              and fund its vault before the first payout.
+              The program is saved as a draft. Its overview then walks you through deploying and
+              funding the vault, publishing the join page, and the first payout.
             </dd>
           </dl>
         ) : null}

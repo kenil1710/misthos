@@ -4,6 +4,11 @@ import { formatUsdc, shortHex } from "@misthos/shared";
 import { ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { HexValue } from "@/components/hex-value";
+import { ConfirmDialog } from "@/components/ui-kit/confirm-dialog";
+import { Term } from "@/components/ui-kit/term";
+import { EVIDENCE_LABELS, flagLabel } from "@/lib/flags";
 import { StatusBadge, type Status } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -161,13 +166,28 @@ function DrawerBody({
           action === "approve" ? { action, amount, reason } : { action, reason },
         ),
       });
+      if (res.status === 401) {
+        setError("Your session expired. Sign in again, then retry; your reason is kept below.");
+        toast.error("Your session expired. Sign in again to continue.");
+        return;
+      }
       const body = (await res.json()) as { ok: boolean; error?: string };
-      if (!body.ok) setError(body.error ?? "Couldn't save the decision.");
-      else setWaitingFor(detail.decisions.length);
+      if (!body.ok) {
+        setError(body.error ?? "Couldn't save the decision.");
+        toast.error(body.error ?? "Couldn't save the decision.");
+      } else {
+        setWaitingFor(detail.decisions.length);
+        toast.success(action === "approve" ? `Approved ${amount} USDC` : "Rejected", {
+          description: "The agent is signing your decision. The contributor sees your reason.",
+        });
+      }
+    } catch {
+      setError("Couldn't reach Misthos. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
   }
+  const [confirming, setConfirming] = useState<"approve" | "reject" | null>(null);
 
   const latest = detail?.decisions[0];
   const agent = detail?.decisions.find((d) => d.decidedBy === "agent");
@@ -209,13 +229,33 @@ function DrawerBody({
                 {latest.decidedBy === "human" ? "Reviewer decision" : "Agent decision"}
               </h3>
               <p className="mt-1">{latest.summary}</p>
-              {/* Each token wraps as a whole; only the model id may wrap at its hyphens. */}
-              <p className="text-muted-foreground mt-2 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[11px]">
-                <span>{shortHex(latest.decisionHash, 8, 6)}</span>
-                <span>{latest.ruleVersion}</span>
-                {latest.promptVersion ? <span>{latest.promptVersion}</span> : null}
-                {latest.model ? <span>{latest.model}</span> : null}
-              </p>
+              <details className="group mt-3">
+                <summary className="text-muted-foreground hover:text-foreground w-fit cursor-pointer text-xs">
+                  Decision details
+                </summary>
+                <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs">
+                  <dt className="text-muted-foreground">
+                    <Term k="decisionHash">Decision hash</Term>
+                  </dt>
+                  <dd>
+                    <HexValue value={latest.decisionHash} label="decision hash" />
+                  </dd>
+                  <dt className="text-muted-foreground">Rules</dt>
+                  <dd className="font-mono">{latest.ruleVersion}</dd>
+                  {latest.promptVersion ? (
+                    <>
+                      <dt className="text-muted-foreground">Prompt</dt>
+                      <dd className="font-mono">{latest.promptVersion}</dd>
+                    </>
+                  ) : null}
+                  {latest.model ? (
+                    <>
+                      <dt className="text-muted-foreground">Model</dt>
+                      <dd className="font-mono break-words">{latest.model}</dd>
+                    </>
+                  ) : null}
+                </dl>
+              </details>
             </section>
           ) : detail.submission.lastError ? (
             <p className="text-warning">Retrying: {detail.submission.lastError}</p>
@@ -229,36 +269,40 @@ function DrawerBody({
               <ul className="mt-2 grid gap-2">
                 {latest.flags.map((f) => (
                   <li key={f.code} className="rounded-md border p-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${f.severity === "hard" ? "bg-danger-subtle text-danger" : "bg-warning-subtle text-warning"}`}
+                        className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${f.severity === "hard" ? "bg-danger-subtle text-danger" : "bg-warning-subtle text-warning"}`}
                       >
-                        {f.code}
+                        {flagLabel(f.code)}
                       </span>
-                      <span className="text-muted-foreground text-xs">{f.severity}</span>
+                      <span className="text-muted-foreground font-mono text-[11px]">{f.code}</span>
                     </div>
-                    <p className="mt-1">{f.message}</p>
-                    <dl className="text-muted-foreground mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 font-mono text-[11px]">
-                      {Object.entries(f.evidence).map(([k, v]) => (
-                        <div key={k} className="contents">
-                          <dt>{k}</dt>
-                          <dd
-                            className={
-                              typeof v === "string" && /^0x[0-9a-fA-F]{16,}$/.test(v)
-                                ? "[overflow-wrap:anywhere]"
-                                : "break-words"
-                            }
-                          >
-                            {typeof v === "string" && /^https?:\/\//.test(v) ? (
-                              <a href={v} target="_blank" rel="noreferrer" className="underline">
-                                {v}
-                              </a>
-                            ) : (
-                              String(v)
-                            )}
-                          </dd>
-                        </div>
-                      ))}
+                    <p className="mt-1.5">{f.message}</p>
+                    <dl className="text-muted-foreground mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                      {Object.entries(f.evidence)
+                        .filter(([, v]) => v !== null && v !== false && v !== "")
+                        .map(([k, v]) => (
+                          <div key={k} className="contents">
+                            <dt>{EVIDENCE_LABELS[k] ?? k}</dt>
+                            <dd
+                              className={
+                                typeof v === "string" && /^0x[0-9a-fA-F]{16,}$/.test(v)
+                                  ? "[overflow-wrap:anywhere]"
+                                  : "break-words"
+                              }
+                            >
+                              {typeof v === "string" && /^https?:\/\//.test(v) ? (
+                                <a href={v} target="_blank" rel="noreferrer" className="underline">
+                                  {v}
+                                </a>
+                              ) : v === true ? (
+                                "Yes"
+                              ) : (
+                                String(v).replace(/,(?=\S)/g, ", ")
+                              )}
+                            </dd>
+                          </div>
+                        ))}
                     </dl>
                   </li>
                 ))}
@@ -268,7 +312,10 @@ function DrawerBody({
 
           {agent?.llm ? (
             <section>
-              <h3 className="font-medium">Rubric scores · {agent.categoryKey}</h3>
+              <h3 className="font-medium">
+                Scores{" "}
+                <span className="text-muted-foreground font-normal">({agent.categoryKey})</span>
+              </h3>
               <dl className="mt-2 grid grid-cols-[1fr_auto] gap-y-1">
                 {Object.entries(agent.llm.rubric_scores).map(([k, v]) => (
                   <div key={k} className="contents">
@@ -276,9 +323,11 @@ function DrawerBody({
                     <dd className="font-mono tabular-nums">{v}/10</dd>
                   </div>
                 ))}
-                <dt className="text-muted-foreground">Points · confidence</dt>
+                <dt className="text-muted-foreground border-t pt-1">Points</dt>
+                <dd className="border-t pt-1 font-mono tabular-nums">{agent.points}</dd>
+                <dt className="text-muted-foreground">Agent confidence</dt>
                 <dd className="font-mono tabular-nums">
-                  {agent.points} · {Math.round(agent.llm.confidence * 100)}%
+                  {Math.round(agent.llm.confidence * 100)}%
                 </dd>
               </dl>
               <ul className="mt-3 list-disc pl-5">
@@ -328,13 +377,19 @@ function DrawerBody({
                 </p>
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="ov-reason">Reason (required, saved with the decision)</Label>
+                <Label htmlFor="ov-reason">Reason</Label>
                 <Textarea
                   id="ov-reason"
                   rows={3}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
+                  aria-describedby="ov-reason-help"
                 />
+                <p id="ov-reason-help" className="text-muted-foreground text-xs">
+                  {reasonOk
+                    ? "Saved with the signed decision and shown to the contributor."
+                    : `At least 10 characters (${reason.trim().length}/10). Saved with the signed decision and shown to the contributor.`}
+                </p>
               </div>
               {error ? (
                 <p role="alert" className="text-danger">
@@ -347,7 +402,7 @@ function DrawerBody({
               <div className="flex gap-2">
                 <Button
                   disabled={busy || !reasonOk || !amount || waitingFor !== null}
-                  onClick={() => override("approve")}
+                  onClick={() => setConfirming("approve")}
                 >
                   {agent && amount && toDecimal(agent.amount) !== amount && agent.amount !== "0"
                     ? "Adjust and approve"
@@ -356,12 +411,48 @@ function DrawerBody({
                 <Button
                   variant="outline"
                   disabled={busy || !reasonOk || waitingFor !== null}
-                  onClick={() => override("reject")}
+                  onClick={() => setConfirming("reject")}
                 >
                   Reject
                 </Button>
               </div>
             </section>
+          ) : null}
+
+          {decided ? (
+            <ConfirmDialog
+              open={confirming !== null}
+              onOpenChange={(o) => !o && setConfirming(null)}
+              title={
+                confirming === "approve" ? `Approve ${amount} USDC?` : "Reject this submission?"
+              }
+              description={
+                confirming === "approve"
+                  ? "It's paid when the round closes, within the vault limits."
+                  : "The contributor sees your reason. You can change this decision until the round pays."
+              }
+              rows={[
+                ...(confirming === "approve"
+                  ? [{ label: "Amount", value: `${amount} USDC`, mono: true }]
+                  : []),
+                ...(agent
+                  ? [
+                      {
+                        label: "Agent recommended",
+                        value: agent.amount !== "0" ? `${toDecimal(agent.amount)} USDC` : "Nothing",
+                        mono: true,
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Reason",
+                  value: <span className="line-clamp-3 text-left">{reason}</span>,
+                },
+              ]}
+              confirmLabel={confirming === "approve" ? "Approve" : "Reject"}
+              destructive={confirming === "reject"}
+              onConfirm={() => confirming && void override(confirming)}
+            />
           ) : null}
 
           {detail.decisions.length > 1 ? (

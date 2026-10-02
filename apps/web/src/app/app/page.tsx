@@ -41,28 +41,91 @@ export default async function OverviewPage() {
   if (!o) {
     return (
       <div className="grid gap-8">
-        <PageHeader title="Overview" />
-        <EmptyState action={{ label: "Create a program", href: "/app/programs/new" }}>
-          You don&apos;t run any programs yet. Set up the rules once and the agent handles review
-          and payouts.
-        </EmptyState>
+        <PageHeader
+          title="Welcome to Misthos"
+          description="Set up a contributor program once; the agent reviews every submission and pays approved work from a vault you own."
+        />
+        <section className="bg-card rounded-xl border p-6 sm:p-8">
+          <h2 className="text-base font-medium">Your first program takes about five minutes</h2>
+          <ol className="text-soft mt-4 grid gap-3 text-sm sm:grid-cols-3">
+            {[
+              ["Write the rules", "What you pay for, how it's scored, and your limits."],
+              ["Deploy and fund the vault", "One transaction to create it, one to deposit USDC."],
+              [
+                "Share the join link",
+                "Contributors sign in with X and submit links to their work.",
+              ],
+            ].map(([t, d], i) => (
+              <li key={t} className="flex gap-3">
+                <span className="text-muted-foreground mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums">
+                  {i + 1}
+                </span>
+                <span>
+                  <span className="text-foreground block font-medium">{t}</span>
+                  {d}
+                </span>
+              </li>
+            ))}
+          </ol>
+          <Button asChild className="mt-6">
+            <Link href="/app/programs/new">Create your first program</Link>
+          </Button>
+        </section>
       </div>
     );
   }
 
   const queued = (o.byStatus.pending ?? 0) + (o.byStatus.processing ?? 0);
+  const setup = o.programs
+    .filter((p) => p.role === "owner" && p.status !== "archived")
+    .map((p) => ({
+      p,
+      next: !p.vault
+        ? "deploy the vault"
+        : p.vault.balance === 0n
+          ? "fund the vault"
+          : p.status === "draft"
+            ? "publish the join page"
+            : null,
+    }))
+    .filter((x): x is { p: (typeof o.programs)[number]; next: string } => x.next !== null);
   const next = o.forecast[0];
 
   return (
     <div className="grid gap-10">
       <PageHeader
         title="Overview"
+        description="All your programs: what the agent decided, what needs you, and what's about to be paid."
         actions={
           <Button asChild size="sm">
             <Link href="/app/programs/new">New program</Link>
           </Button>
         }
       />
+
+      {setup.length ? (
+        <section className="bg-card rounded-xl border" aria-labelledby="setup-heading">
+          <h2 id="setup-heading" className="border-b px-5 py-4 text-base font-medium sm:px-6">
+            Finish setting up
+          </h2>
+          <ul className="divide-y">
+            {setup.map(({ p, next }) => (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 sm:px-6"
+              >
+                <span className="min-w-0">
+                  <span className="font-medium">{p.name}</span>
+                  <span className="text-muted-foreground block text-sm">Next: {next}</span>
+                </span>
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/app/programs/${p.id}`}>Continue</Link>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {o.awaitingApproval.length || o.payeeChanges.length ? (
         <div className="grid gap-2">

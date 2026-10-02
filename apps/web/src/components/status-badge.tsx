@@ -15,11 +15,11 @@ const styles: Record<Status, string> = {
 };
 
 const labels: Record<Status, string> = {
-  pending: "Pending",
-  processing: "Processing",
+  pending: "Queued",
+  processing: "Reviewing",
   approved: "Approved",
   partial: "Partial",
-  escalated: "Escalated",
+  escalated: "Needs review",
   rejected: "Rejected",
   paid: "Paid",
 };

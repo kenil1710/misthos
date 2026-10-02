@@ -91,7 +91,7 @@ export function VerifyTool({ initialHash }: { initialHash?: string }) {
           id="verify-record"
           rows={12}
           spellCheck={false}
-          className="font-mono text-xs leading-relaxed"
+          className="h-72 resize-y overflow-auto font-mono text-xs leading-relaxed [field-sizing:fixed]"
           placeholder='{"schema":"misthos.decision/v1", …}'
           value={record}
           onChange={(e) => setRecord(e.target.value)}
@@ -115,7 +115,7 @@ export function VerifyTool({ initialHash }: { initialHash?: string }) {
         ref={resultRef}
         tabIndex={-1}
         aria-live="polite"
-        className="rounded-lg border p-4 outline-none"
+        className="bg-card self-start rounded-xl border p-4 outline-none sm:p-5"
       >
         {!result ? (
           <p className="text-muted-foreground text-sm">
@@ -174,7 +174,7 @@ export function VerifyTool({ initialHash }: { initialHash?: string }) {
                           )
                         </span>
                       </p>
-                      <p className="text-muted-foreground mt-0.5 text-[13px] break-words">
+                      <p className="text-muted-foreground mt-0.5 text-[13px] [overflow-wrap:anywhere]">
                         {s.detail}
                       </p>
                       {s.href ? (
