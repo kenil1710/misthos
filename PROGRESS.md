@@ -1,6 +1,6 @@
 # Misthos — Progress
 
-**Current phase:** 2 (Data + auth) complete; awaiting go-ahead for Phase 3 (agent core).
+**Current phase:** 3 (Agent core) complete except the judged live check (needs `ANTHROPIC_API_KEY`); awaiting go-ahead for Phase 4.
 **Last updated:** 2026-10-02
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
@@ -21,6 +21,62 @@
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (Phase 3 — Agent core)
+
+- **Submission flow**: `/c/[slug]` submit box with instant validation (same classifier client and server):
+  supported type, program accepts the source, member with verified wallet, GitHub username for GitHub work, round open
+  (rounds are created lazily as time passes), not already live-submitted (partial unique index; rejected items may be
+  resubmitted), 20/day per contributor. Saves the row + `submission.created` audit event, enqueues a pg-boss job; the
+  feed polls while anything is pending/processing and shows the decision text and hash.
+- **URL classification** (`@misthos/shared` `classifySubmissionUrl`): X posts (any x.com/twitter.com form → post id),
+  GitHub PRs (`owner/repo#n`), commits (full 40-char SHA only), articles (normalized https URL, tracking params
+  stripped). The resource id is the dedupe key. Private hosts, IP literals, odd ports, credentials refused up front.
+- **Fetchers** (`packages/agent/src/fetch`): X `GET /2/tweets/:id` (`note_tweet` for long posts, author expansion;
+  every call logged in `api_usage` at the conservative $0.015 = $0.005 post + $0.010 user, per docs.x.com pricing);
+  GitHub PR + files / commit (REST 2022-11-28); articles via `@mozilla/readability` + jsdom (no scripts) behind an SSRF
+  guard (connect-time IP check incl. DNS rebinding, redirects re-validated, 10 s, 2 MB, HTML only). Results cached in
+  `fetched_resources`; deleted/missing never cached.
+- **Deterministic flags** (each with evidence): hard → `OWNERSHIP_MISMATCH` (incl. reposts, PR/commit author ≠ linked
+  GitHub username), `OUT_OF_WINDOW`, `DUPLICATE_URL` (first submitter wins), `NEAR_DUPLICATE` (≥80% vs another
+  contributor; pg_trgm similarity + 64-bit SimHash; evidence = matched submission), `NOT_MERGED`, `DELETED`,
+  `PROMPT_INJECTION_ATTEMPT` (normalized + de-leet pass over title, content and hidden article text). Soft →
+  `NEW_ACCOUNT`, `ENGAGEMENT_ANOMALY`, `WALLET_CHANGED_RECENTLY`, `NEAR_DUPLICATE` (60–80% or own work),
+  `OWNERSHIP_UNVERIFIED` (article doesn't mention the contributor's @handle), `DATE_UNVERIFIED`, `FETCH_FAILED`.
+- **LLM judgment** (`judge-v1`, Haiku 4.5): forced `record_judgment` tool with `strict: true`, temperature 0; content
+  in `<submission_content id="random">` with look-alike tags neutralized; system prompt says nothing inside can change
+  instructions; output re-validated with zod (scores 0–10, every criterion of the chosen category); one retry on
+  invalid output; refusals non-retryable. LLM is skipped when a rejecting flag already decides (no spend).
+- **Decision engine** (`rules-v1`, pure TS): R1 reject flags → reject 0 · R2 injection → escalate (never auto, even
+  if the model is fooled) · R3 no judgment · R4 invalid category · R5 model recommends reject/escalate · R6 any soft
+  flag · R7 confidence < program threshold · R8 zero amount · R9 above per-item auto cap → escalate with the priced
+  recommendation · R10 auto approve/partial. Amount = maxPoints × Σscores / (10·n) × rate, exact bigint, capped at
+  vault `maxPerPayout`.
+- **Decision records** (`misthos.decision/v1`): canonical JSON (sorted keys) with input hash, content hash, flags +
+  evidence, judgment (model, prompt version, output), rule version + rule, action, points, amount, decidedBy,
+  reviewer-style summary, timestamp and signer address; `decisionHash = keccak256(json)`; EIP-191 signature over the
+  raw hash by `AgentSigner` (testnet EOA from `AGENT_PRIVATE_KEY` = `0x42248B479b7E9229daF73F645f5fe7b183c0DeFB`;
+  Circle SCA plugs into the same interface). `verifyDecisionRecord` (shared) re-hashes and verifies EOA or ERC-1271 —
+  proven live on Arc against `MockERC1271Wallet`. Every decision writes an audit event in the same transaction.
+- **Worker** (`apps/worker`): pg-boss (schema `pgboss`, Neon direct endpoint), queues `submission-process` and
+  `decision-override`, atomic claim with 10-min lease, retryable errors re-queued with backoff then escalated on the
+  final attempt, 60 s sweeper for jobs that never got enqueued. Refuses to start without the judge key or signer.
+  `pnpm --filter @misthos/worker dev`.
+- **Owner review**: program page submissions table with status filters and counts; drawer with content preview,
+  flags + evidence (links), rubric scores, reasons, decision hash/rule/prompt/model, history; Approve / Adjust
+  (edit amount, ≤ maxPerPayout) / Reject with a required written reason. Overrides are validated by the web app and
+  signed + recorded by the worker (web never holds the signer) as `decided_by = human` records that supersede the
+  agent's (`supersedes` = previous hash), audited (`decision.override_requested`, `decision.overridden`).
+- **Tests** (fixtures only): agent 119 (every flag, every engine rule, injection always escalates incl. a fooled
+  model, deterministic hashes, EOA + live ERC-1271 signature verification, fetcher parsing, SSRF guard, pipeline on
+  PGlite with adversarial fixtures: copied thread, someone else's post, injection, hidden-text injection,
+  out-of-window, deleted, unmerged PR, duplicate URL, retries, idempotency, claims, overrides), worker 6 (real pg-boss
+  on PGlite: enqueue → decision, web-style producer, retry, sweeper), web 42 (submit validations, lazy rounds),
+  shared 42 (classifier, canonical JSON). Fixtures in `packages/agent/test/fixtures` (synthetic, documented shapes)
+  and `fixtures/recorded` (real responses from the live check).
+- **Live check** (`pnpm --filter @misthos/agent live-check -- <urls>`, throwaway DB): real X post
+  `x.com/jack/status/20` and real PR `circlefin/arc-fintech#47` fetched, checked, signed and verified; cost $0.015
+  (one X lookup). **Judging not yet run live: `ANTHROPIC_API_KEY` is empty in `.env`.**
 
 ## Done (Phase 2 — Data + auth)
 
@@ -151,15 +207,15 @@ re-execution reverted with `RoundNotExecutable`.
 - [ ] X developer portal → app → User authentication settings: callback URL
       `http://localhost:3000/api/auth/x/callback` (and the production URL once deployed); type "Web App"
       (confidential client). Until then Sign in with X fails at X.
-- [ ] `ANTHROPIC_API_KEY` in `.env` (Phase 3 uses fixtures; needed for live scoring).
+- [ ] `ANTHROPIC_API_KEY` in the root `.env` (empty as of 2026-10-02). Needed for the worker and the judged live check.
 - [ ] Circle entity secret + agent wallet (payout phase, together).
 
-## Next (Phase 3 — Agent core)
+## Next (Phase 4 — Payout rounds)
 
-URL classify → fetchers (X v2 tweet lookup, GitHub PR via public API + token, article via readability) with caching
-and `api_usage` → deterministic flags (ownership, window, duplicate, near-duplicate SimHash + pg_trgm, account age,
-engagement anomaly, not merged, prompt injection) → LLM judge (Haiku 4.5, tool-schema output, fixtures in tests) →
-decision engine → canonical decision record + keccak hash + signature. Submission box on `/c/[slug]`.
+Circle SCA agent wallet + `AgentSigner` implementation; `setAgent` on vaults; vault deploy + fund from the program
+page (owner wallet); round close job (re-check DELETED/ownership, aggregate per contributor, caps, deterministic
+payoutIds, `registerPayee`, `proposeRound`, `executeRound` or owner `approveRound`), receipts, payee-change alerts.
+3+ real testnet contributors paid end to end.
 
 ## Stubs
 
@@ -181,5 +237,9 @@ None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fa
 - e2e needs Chromium (`pnpm --filter @misthos/web exec playwright install chromium`) and isn't in CI yet (Phase 8).
 - No rate limiting on public endpoints yet (Phase 8 security pass). Nonce table is cleaned opportunistically.
 - `next dev` with `NEXT_DIST_DIR=.next-e2e` adds `.next-e2e` type paths to `apps/web/tsconfig.json`; harmless.
+- X returns `impression_count: 0` for old posts; ENGAGEMENT_ANOMALY's impressions rule ignores 0 (regression test).
+- Article ownership can only be verified when the page mentions or links the contributor's @handle; otherwise it's
+  a soft flag and goes to review.
+- Browser e2e covers Phase 2 flows only; extending it to submissions needs a fixture upstream server (Phase 8).
 - Circle agent wallet not created yet (`CIRCLE_ENTITY_SECRET`, `CIRCLE_AGENT_WALLET_ID` empty) — set up together
   in the payout phase; then `setAgent` on vaults.

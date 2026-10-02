@@ -9,7 +9,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "lint": "prettier --check src test"
+    "lint": "prettier --check src test scripts",
+    "live-check": "tsx --env-file=../../.env scripts/live-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -26,6 +27,7 @@
     "@electric-sql/pglite": "0.5.8",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^22",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^4"
   }

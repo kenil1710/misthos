@@ -1,5 +1,6 @@
 import "server-only";
 import { normalizeDatabaseUrl } from "@misthos/db";
+import { PRODUCER_OPTIONS } from "@misthos/shared";
 import { PgBoss } from "pg-boss";
 import { env } from "./env";
 
@@ -11,12 +12,8 @@ const g = globalThis as unknown as { __misthosBoss?: Promise<PgBoss> };
 function boss(): Promise<PgBoss> {
   g.__misthosBoss ??= (async () => {
     const b = new PgBoss({
+      ...PRODUCER_OPTIONS,
       connectionString: normalizeDatabaseUrl(env().DATABASE_URL),
-      schema: "pgboss",
-      supervise: false,
-      schedule: false,
-      migrate: false,
-      createSchema: false,
       max: 2,
     });
     b.on("error", (e) => console.error("pg-boss producer error", e.message));

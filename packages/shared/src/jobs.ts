@@ -21,3 +21,15 @@ export const OverrideDecisionJob = z.object({
   reason: z.string().trim().min(10).max(1000),
 });
 export type OverrideDecisionJob = z.infer<typeof OverrideDecisionJob>;
+
+/** pg-boss schema shared by producer (web) and consumer (worker). */
+export const QUEUE_SCHEMA = "pgboss";
+
+/** Web-side producer: sends only. The worker owns the schema, migrations, maintenance and scheduling. */
+export const PRODUCER_OPTIONS = {
+  schema: QUEUE_SCHEMA,
+  supervise: false,
+  schedule: false,
+  migrate: false,
+  createSchema: false,
+} as const;

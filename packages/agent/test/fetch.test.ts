@@ -34,6 +34,20 @@ describe("X fetcher", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer t");
   });
 
+  it("parses a real recorded X response (impression_count 0 on old posts)", async () => {
+    const recorded = fixture<{ body: unknown }>("recorded/x-2-tweets-20.json").body;
+    const r = await fetchXPost("20", {
+      bearerToken: "t",
+      fetch: fixtureFetch({ "/2/tweets/": { json: recorded } }),
+    });
+    if (r.outcome.status !== "ok") throw new Error("expected ok");
+    expect(r.outcome.resource).toMatchObject({
+      text: "just setting up my twttr",
+      author: { id: "12", handle: "jack" },
+      x: { impressions: 0 },
+    });
+  });
+
   it("maps X's not-found problem to not_found", async () => {
     const r = await fetchXPost("1840000000000000005", { bearerToken: "t", fetch: x("deleted") });
     expect(r.outcome.status).toBe("not_found");

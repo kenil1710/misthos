@@ -233,6 +233,18 @@ describe("runChecks", () => {
       )?.severity,
     ).toBe("soft");
     expect(only(ctx(), "ENGAGEMENT_ANOMALY")).toBeUndefined();
+    // X reports impression_count 0 for old posts; that must not look "impossible".
+    expect(
+      only(
+        ctx({
+          resource: R({
+            author: { ...R().author, followers: 12_000_000 },
+            x: { ...R().x!, likes: 309_042, reposts: 124_660, impressions: 0 },
+          }),
+        }),
+        "ENGAGEMENT_ANOMALY",
+      ),
+    ).toBeUndefined();
   });
 
   it("NOT_MERGED (hard) when every PR category requires merging", () => {
