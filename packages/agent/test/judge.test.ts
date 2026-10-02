@@ -10,7 +10,25 @@ import {
   type JudgeInput,
 } from "../src/judge";
 import type { Resource } from "../src/types";
+import { Rubric } from "@misthos/shared";
 import { CATEGORIES, fakeClaude, fixture } from "./helpers";
+
+/** The rubric the live check used (scripts/live-check.ts). */
+const CATEGORIES_LIVE = Rubric.parse({
+  categories: [
+    {
+      key: "code",
+      name: "Code contributions",
+      description: "Merged pull requests or commits",
+      sourceTypes: ["github_pr", "github_commit"],
+      maxPoints: 20,
+      criteria: [
+        { key: "impact", name: "Impact", description: "Meaningful" },
+        { key: "quality", name: "Quality", description: "Readable" },
+      ],
+    },
+  ],
+}).categories;
 
 const resource: Resource = {
   sourceType: "x_post",
@@ -106,6 +124,15 @@ describe("createJudge", () => {
     await expect(createJudge({ client, model: "m" })(input)).rejects.toMatchObject({
       retryable: false,
     });
+  });
+
+  it("keeps a sound real judgment that returned 7 reasons (recorded live) instead of retrying", () => {
+    const m = fixture<{ body: Anthropic.Message }>(
+      "recorded/anthropic-msg_011Cfcz7o1X29aitgYQJxLAL.json",
+    ).body;
+    const out = parseJudgment(m, CATEGORIES_LIVE);
+    expect(out.reasons).toHaveLength(6);
+    expect(out.rubric_scores).toEqual({ impact: 8, quality: 7 });
   });
 
   it("rejects scores outside 0–10 even if the API returned them", () => {

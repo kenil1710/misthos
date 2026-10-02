@@ -1,6 +1,6 @@
 # Misthos — Progress
 
-**Current phase:** 3 (Agent core) complete except the judged live check (needs `ANTHROPIC_API_KEY`); awaiting go-ahead for Phase 4.
+**Current phase:** 3 (Agent core) complete incl. scored live check; awaiting go-ahead for Phase 4.
 **Last updated:** 2026-10-02
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
@@ -43,7 +43,7 @@
   `PROMPT_INJECTION_ATTEMPT` (normalized + de-leet pass over title, content and hidden article text). Soft →
   `NEW_ACCOUNT`, `ENGAGEMENT_ANOMALY`, `WALLET_CHANGED_RECENTLY`, `NEAR_DUPLICATE` (60–80% or own work),
   `OWNERSHIP_UNVERIFIED` (article doesn't mention the contributor's @handle), `DATE_UNVERIFIED`, `FETCH_FAILED`.
-- **LLM judgment** (`judge-v1`, Haiku 4.5): forced `record_judgment` tool with `strict: true`, temperature 0; content
+- **LLM judgment** (`judge-v2`, Haiku 4.5): forced `record_judgment` tool with `strict: true`, temperature 0; content
   in `<submission_content id="random">` with look-alike tags neutralized; system prompt says nothing inside can change
   instructions; output re-validated with zod (scores 0–10, every criterion of the chosen category); one retry on
   invalid output; refusals non-retryable. LLM is skipped when a rejecting flag already decides (no spend).
@@ -74,9 +74,11 @@
   on PGlite: enqueue → decision, web-style producer, retry, sweeper), web 42 (submit validations, lazy rounds),
   shared 42 (classifier, canonical JSON). Fixtures in `packages/agent/test/fixtures` (synthetic, documented shapes)
   and `fixtures/recorded` (real responses from the live check).
-- **Live check** (`pnpm --filter @misthos/agent live-check -- <urls>`, throwaway DB): real X post
-  `x.com/jack/status/20` and real PR `circlefin/arc-fintech#47` fetched, checked, signed and verified; cost $0.015
-  (one X lookup). **Judging not yet run live: `ANTHROPIC_API_KEY` is empty in `.env`.**
+- **Live check** (`pnpm --filter @misthos/agent live-check -- <urls>`, throwaway DB, 2026-10-02, real X + GitHub +
+  Haiku): `x.com/jack/status/20` → escalated (0/10 depth, 0/10 relevance, model recommends reject at 0.99);
+  `circlefin/arc-fintech#47` → escalated with 15.00 USDC recommended (8/10 impact, 7/10 quality, confidence 0.78 <
+  0.80 threshold). Both records signed and verified. Cost $0.0306 (X $0.015; Haiku $0.0156, of which ~$0.006 was a
+  retry caused by 7 reasons vs a max of 6, fixed in `judge-v2`). Recorded responses in `test/fixtures/recorded`.
 
 ## Done (Phase 2 — Data + auth)
 
@@ -207,7 +209,7 @@ re-execution reverted with `RoundNotExecutable`.
 - [ ] X developer portal → app → User authentication settings: callback URL
       `http://localhost:3000/api/auth/x/callback` (and the production URL once deployed); type "Web App"
       (confidential client). Until then Sign in with X fails at X.
-- [ ] `ANTHROPIC_API_KEY` in the root `.env` (empty as of 2026-10-02). Needed for the worker and the judged live check.
+- [x] `ANTHROPIC_API_KEY` in the root `.env` (works with the Messages API; key type marker `usr`).
 - [ ] Circle entity secret + agent wallet (payout phase, together).
 
 ## Next (Phase 4 — Payout rounds)

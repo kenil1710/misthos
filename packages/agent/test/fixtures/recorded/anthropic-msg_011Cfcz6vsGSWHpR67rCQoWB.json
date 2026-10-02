@@ -1,0 +1,59 @@
+{
+  "_note": "Recorded live on 2026-10-02T07:05:10.648Z",
+  "body": {
+    "model": "claude-haiku-4-5-20251001",
+    "id": "msg_011Cfcz6vsGSWHpR67rCQoWB",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_01CxGpXGz3JVTkWwLm1EPsGj",
+        "name": "record_judgment",
+        "input": {
+          "category": "posts",
+          "rubric_scores": [
+            {
+              "criterion": "depth",
+              "score": 0
+            },
+            {
+              "criterion": "relevance",
+              "score": 0
+            }
+          ],
+          "total_points": 0,
+          "quality_summary": "This is a casual personal post with no educational content. It contains no information about Arc, USDC, Circle developer tools, or any technical subject matter relevant to the program.",
+          "reasons": [
+            "No depth: the post is a single casual statement with no explanation of how or why anything works",
+            "No relevance: the post makes no mention of Arc, USDC, Circle, or any developer platform tooling",
+            "Does not meet program requirements: submission must be original educational content about Arc, USDC payments, or Circle developer tools"
+          ],
+          "soft_flags": [],
+          "confidence": 0.99,
+          "recommended_action": "reject"
+        },
+        "caller": {
+          "type": "direct"
+        }
+      }
+    ],
+    "container": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null,
+    "stop_details": null,
+    "usage": {
+      "input_tokens": 1733,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 297,
+      "service_tier": "standard",
+      "inference_geo": "not_available"
+    },
+    "diagnostics": null
+  }
+}

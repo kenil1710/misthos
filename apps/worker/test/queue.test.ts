@@ -80,7 +80,7 @@ const judge: Judge = async () => ({
     recommended_action: "approve",
   },
   model: "stub",
-  promptVersion: "judge-v1",
+  promptVersion: "judge-v2",
   usage: { provider: "anthropic", endpoint: "POST /v1/messages", units: 1, estCostUsd: 0 },
 });
 

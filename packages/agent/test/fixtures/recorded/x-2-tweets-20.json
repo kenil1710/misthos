@@ -1,20 +1,22 @@
 {
-  "_note": "Recorded live on 2026-10-02T06:43:24.797Z",
+  "_note": "Recorded live on 2026-10-02T07:05:01.637Z",
   "body": {
     "data": {
       "author_id": "12",
       "conversation_id": "20",
       "created_at": "2006-03-21T20:50:14.000Z",
-      "edit_history_tweet_ids": ["20"],
+      "edit_history_tweet_ids": [
+        "20"
+      ],
       "id": "20",
       "lang": "en",
       "public_metrics": {
         "bookmark_count": 21831,
         "impression_count": 0,
-        "like_count": 309042,
+        "like_count": 309027,
         "quote_count": 7251,
         "reply_count": 18066,
-        "retweet_count": 124660
+        "retweet_count": 124661
       },
       "text": "just setting up my twttr"
     },
@@ -25,7 +27,7 @@
           "id": "12",
           "name": "jack",
           "public_metrics": {
-            "followers_count": 12407738,
+            "followers_count": 12408009,
             "following_count": 3,
             "like_count": 40672,
             "listed_count": 33138,

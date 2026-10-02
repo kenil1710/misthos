@@ -232,7 +232,7 @@ describe("processSubmission", () => {
       categoryKey: "threads",
       decidedBy: "agent",
       model: "claude-haiku-4-5-20251001",
-      promptVersion: "judge-v1",
+      promptVersion: "judge-v2",
       ruleVersion: "rules-v1",
     });
     expect(dec.summary).toMatch(
@@ -244,7 +244,7 @@ describe("processSubmission", () => {
       schema: "misthos.decision/v1",
       rule: "R10_AUTO_APPROVE",
       decidedBy: { type: "agent" },
-      judgment: { promptVersion: "judge-v1" },
+      judgment: { promptVersion: "judge-v2" },
     });
     expect(record.contentHash).toMatch(/^0x[0-9a-f]{64}$/);
     expect(

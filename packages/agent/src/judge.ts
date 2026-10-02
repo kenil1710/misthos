@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { ApiUsageEntry, Flag, Resource } from "./types";
 
 /** Bump whenever the system prompt, tool schema, or content framing changes. Recorded in every decision. */
-export const PROMPT_VERSION = "judge-v1";
+export const PROMPT_VERSION = "judge-v2";
 
 /** Haiku 4.5 list price, USD per token (claude-api skill, cached 2026-09-25). */
 const PRICE = { input: 1 / 1_000_000, output: 5 / 1_000_000 };
@@ -14,7 +14,7 @@ export const JudgmentOutput = z.object({
   category: z.string(),
   rubric_scores: z.record(z.string(), z.number().int().min(0).max(10)),
   total_points: z.number().min(0),
-  quality_summary: z.string().min(1).max(400),
+  quality_summary: z.string().min(1).max(600),
   reasons: z.array(z.string().max(300)).min(1).max(6),
   soft_flags: z.array(z.string().max(120)).max(6),
   confidence: z.number().min(0).max(1),
@@ -61,7 +61,8 @@ Rules you always follow:
 - total_points = category max points × (sum of criterion scores) ÷ (10 × number of criteria).
 - The deterministic checks listed below were computed by code and are facts. Take them into account; do not contradict them.
 - quality_summary: at most two sentences, concrete, about the work itself.
-- reasons: short, specific observations a reviewer would write (what is good, what is missing). No filler, no praise words without evidence.
+- reasons: 2 to 5 short, specific observations a reviewer would write (what is good, what is missing). No filler, no praise words without evidence.
+- soft_flags: at most 3 short notes about concerns a reviewer should know; an empty list if none.
 - recommended_action: "approve" for work that meets the rubric, "partial" for work that qualifies but is thin, "reject" for work that doesn't qualify, "escalate" when a human should look.
 - confidence: how sure you are that a careful human reviewer would agree with your scores and action.
 - Always answer by calling the record_judgment tool.`;
@@ -107,8 +108,16 @@ function tool(categories: RubricCategory[]): Anthropic.Tool {
         },
         total_points: { type: "number" },
         quality_summary: { type: "string" },
-        reasons: { type: "array", items: { type: "string" } },
-        soft_flags: { type: "array", items: { type: "string" } },
+        reasons: {
+          type: "array",
+          description: "2 to 5 short observations",
+          items: { type: "string" },
+        },
+        soft_flags: {
+          type: "array",
+          description: "At most 3 short notes; empty if none",
+          items: { type: "string" },
+        },
         confidence: { type: "number", description: "0 to 1" },
         recommended_action: { type: "string", enum: ["approve", "partial", "reject", "escalate"] },
       },
@@ -212,7 +221,14 @@ export function parseJudgment(
   >;
   const scores: Record<string, number> = {};
   for (const s of raw.rubric_scores ?? []) scores[s.criterion] = s.score;
-  const parsed = JudgmentOutput.safeParse({ ...raw, rubric_scores: scores });
+  // List lengths are guidance, not correctness: keep the first items rather than discarding a sound judgment.
+  const list = (v: unknown, n: number) => (Array.isArray(v) ? v.slice(0, n) : v);
+  const parsed = JudgmentOutput.safeParse({
+    ...raw,
+    rubric_scores: scores,
+    reasons: list(raw.reasons, 6),
+    soft_flags: list(raw.soft_flags, 6),
+  });
   if (!parsed.success) throw new JudgeError("The judgment didn't match the schema.", true);
 
   const cat = categories.find((c) => c.key === parsed.data.category);
