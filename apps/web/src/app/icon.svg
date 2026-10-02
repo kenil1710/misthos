@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .bg { fill: #1c1917; }
+    .fg { stroke: #fafaf9; fill: none; }
+    .dot { fill: #fafaf9; }
+  </style>
+  <rect class="bg" width="32" height="32" rx="7"/>
+  <g transform="translate(4 4)">
+    <path class="fg" d="M5 13.5a7 7 0 0 1 14 0" stroke-width="2.25" stroke-linecap="round"/>
+    <path class="fg" d="M5 18h14" stroke-width="2.25" stroke-linecap="round"/>
+    <circle class="dot" cx="12" cy="13.5" r="1.9"/>
+  </g>
+</svg>

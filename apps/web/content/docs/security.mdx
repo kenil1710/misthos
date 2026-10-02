@@ -1,0 +1,46 @@
+---
+title: Security and privacy
+description: The controls that protect funds, keys, and contributors' data.
+---
+
+## Funds
+
+- **You own the vault.** Misthos never takes custody. You can withdraw at any time, even while the vault is paused.
+- **The agent is limited by the contract.** It can only register payout wallets and propose and execute rounds, and
+  every payout is checked against your caps. See [Guardrails](/docs/guardrails).
+- **Hijacked accounts can't redirect pay on the spot.** New or changed payout wallets wait out a cooldown.
+
+## Keys
+
+- The agent is a **Circle developer-controlled smart-contract wallet** with gas sponsored by Circle Gas Station. No raw
+  agent private key runs in production.
+- The web app never holds a signing key. Human overrides are validated by the web app and signed by the worker.
+- Secrets live only in the hosting provider's secret store and are never logged.
+
+## The agent
+
+- Submitted content is untrusted. It's fenced in a per-request random boundary, and the model's output must match a
+  strict schema.
+- Attempts to instruct the grader are detected in code and always go to a person.
+- The model never decides alone: plain rules turn flags and scores into actions, and facts like authorship override
+  anything the model says.
+
+## The web app
+
+- Owners sign in with Sign-In with Ethereum (domain, chain, freshness and single-use nonce checked; EOA or ERC-1271).
+- Contributors sign in with X (OAuth 2.0 with PKCE). The X token is revoked right after reading the profile.
+- Payout wallets are proven with a signature over a message bound to the program, X account, wallet, chain and a
+  single-use nonce.
+- Every state-changing request checks its origin, validates input and checks program membership.
+- Fetching submitted articles is guarded against server-side request forgery: public http(s) only, every resolved
+  address checked, redirects re-validated, size and time limits.
+
+## Privacy
+
+Misthos reads only the links contributors submit. It keeps the fetched content to evaluate it, the contributor's X id,
+handle and account age, GitHub username, and payout wallet. Public audit pages show handles, wallets, amounts,
+summaries and hashes.
+
+## Reporting a vulnerability
+
+Report privately through a GitHub security advisory on the repository rather than a public issue.

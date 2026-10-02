@@ -1,0 +1,74 @@
+---
+title: Quickstart for owners
+description: From an empty wallet to your first paid round.
+---
+
+You need a wallet on Arc testnet with some test USDC. Arc uses USDC for gas, so the same balance pays for your
+transactions. Get test USDC from the [Circle faucet](https://faucet.circle.com).
+
+<Steps>
+<Step>
+
+### Sign in with your wallet
+
+Open [the app](/app) and connect your wallet. You sign a message (no transaction) to prove it's yours.
+
+</Step>
+<Step>
+
+### Create a program
+
+Choose **New program** and fill in the four steps:
+
+1. **Basics**: name, description, and the public link (`/join/your-program`).
+2. **Rubric**: categories of work (for example *Threads* or *Pull requests*), the source types each accepts, and the
+   criteria the agent scores from 0 to 10. A category's points are the average of its criteria.
+3. **Budget**: the rate per point in USDC and how long a round lasts.
+4. **Limits**: the caps the vault enforces. See [Guardrails](/docs/guardrails) for what each one does. Keep the
+   wallet cooldown at 24 hours or more unless you have a reason not to.
+
+![The program settings page with the vault and its limits](/screens/new-program.png)
+
+</Step>
+<Step>
+
+### Deploy and fund the vault
+
+On **Settings**, deploy the vault: one transaction from your wallet creates a vault owned by you, with the Misthos
+agent as its only other role. Then deposit USDC (an approval and a deposit). The program goes live once the vault
+holds funds.
+
+![Vault settings with deploy, deposit and limits](/screens/settings.png)
+
+</Step>
+<Step>
+
+### Share the join link
+
+Contributors join at `/join/your-program`. They sign in with X and prove their payout wallet with a signature.
+
+</Step>
+<Step>
+
+### Review what the agent sends you
+
+Most submissions are decided automatically. The rest wait in **Submissions** with the agent's reasons, the flags it
+raised and a recommended amount. Approve, change the amount, or reject with a reason the contributor will see.
+
+![Reviewing an escalated submission](/screens/review-drawer.png)
+
+</Step>
+<Step>
+
+### Pay the round
+
+When the round ends (or when you choose **Close round now**), the agent re-checks every approved item, registers
+payout wallets, and proposes the round to the vault. Rounds at or below your approval threshold are paid
+automatically. Above it, you approve the round with one transaction and the agent pays it.
+
+![A paid round with its transactions and decision records](/screens/round-detail.png)
+
+</Step>
+</Steps>
+
+Every step is in the program's **Audit log**, and every payout is on the public audit page at `/p/your-program`.

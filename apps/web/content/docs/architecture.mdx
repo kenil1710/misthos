@@ -1,0 +1,105 @@
+---
+title: Architecture
+description: The pieces, and how a submission becomes a payout.
+---
+
+<Mermaid
+  chart={`flowchart TB
+  subgraph People
+    O[Program owner]
+    C[Contributor]
+    P[Anyone]
+  end
+  subgraph Web[Web app]
+    UI[Owner app, contributor pages, public audit]
+    API[API routes]
+  end
+  DB[(Postgres)]
+  Q[[Job queue]]
+  subgraph Worker
+    PIPE[Submission pipeline]
+    ROUND[Round job]
+  end
+  SRC[X, GitHub, articles]
+  LLM[Claude Haiku 4.5]
+  CIRCLE[Circle agent wallet]
+  subgraph Arc
+    F[Vault factory]
+    V[Program vault]
+  end
+  O --> UI
+  C --> UI
+  P --> UI
+  UI --> API --> DB
+  API --> Q --> PIPE
+  Q --> ROUND
+  PIPE --> SRC
+  PIPE --> LLM
+  PIPE --> DB
+  ROUND --> CIRCLE --> V
+  O -- deploy, fund, limits, approve --> F
+  O --> V`}
+/>
+
+## Components
+
+| Component | Role |
+| --- | --- |
+| Web app (Next.js) | Owner app, contributor pages, public audit pages and verification, APIs. Holds no signing key. |
+| Worker | Runs the submission pipeline and the round job from a Postgres-backed queue. Owns the agent wallet. |
+| Postgres | Programs, submissions, decisions, payouts, and an append-only audit log. |
+| Circle | The agent's smart-contract wallet, gas sponsorship, and contract execution with idempotency keys. |
+| Arc | The vault factory and one vault per program. Payouts and gas in USDC. |
+
+## A submission
+
+<Mermaid
+  chart={`sequenceDiagram
+  participant C as Contributor
+  participant W as Web app
+  participant K as Worker
+  participant S as X / GitHub / web
+  participant M as Claude
+  C->>W: Submit link
+  W->>W: Validate, store, enqueue
+  K->>S: Fetch the resource
+  K->>K: Deterministic checks
+  K->>M: Score against the rubric
+  K->>K: Rules decide, record signed
+  W-->>C: Decision and reasons`}
+/>
+
+## A round
+
+<Mermaid
+  chart={`sequenceDiagram
+  participant K as Worker
+  participant A as Agent wallet (Circle)
+  participant V as Vault
+  participant O as Owner
+  K->>K: Re-check approved work
+  K->>A: registerPayee for each wallet
+  A->>V: registerPayee
+  K->>K: Plan payouts within the caps
+  K->>A: proposeRound
+  A->>V: proposeRound(payouts, decision root)
+  alt Above the approval threshold
+    O->>V: approveRound
+  end
+  K->>A: executeRound
+  A->>V: executeRound
+  V-->>V: PayoutExecuted for each payout`}
+/>
+
+Every step reads the chain and the database before acting, so a crashed or retried job resumes where it stopped without
+paying twice.
+
+## Identifiers
+
+| Value | Derivation |
+| --- | --- |
+| `programId`, `roundId`, `contributorId` | `keccak256("misthos:<kind>:" + uuid)` |
+| `payoutId` | `keccak256(abi.encode(programId, roundId, contributorId))` |
+| `decisionHash` | `keccak256` of the record's canonical JSON |
+| Payout `decisionHash` | `keccak256` of the sorted record hashes it pays, concatenated |
+| Round `decisionRoot` | The same, over every record in the round |

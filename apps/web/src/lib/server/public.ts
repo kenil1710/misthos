@@ -194,11 +194,18 @@ export async function publicDecisions(programId: string, limit = 25) {
 export async function decisionRecord(hash: string) {
   if (!/^0x[0-9a-f]{64}$/.test(hash)) return null;
   const [d] = await getDb()
-    .select({ json: decisions.decisionJson, programStatus: programs.status })
+    .select({
+      json: decisions.decisionJson,
+      signature: decisions.signature,
+      signer: decisions.signerAddress,
+      programStatus: programs.status,
+    })
     .from(decisions)
     .innerJoin(submissions, eq(submissions.id, decisions.submissionId))
     .innerJoin(programs, eq(programs.id, submissions.programId))
     .where(eq(decisions.decisionHash, hash))
     .limit(1);
-  return d && d.programStatus !== "draft" ? d.json : null;
+  return d && d.programStatus !== "draft"
+    ? { json: d.json, signature: d.signature, signer: d.signer }
+    : null;
 }

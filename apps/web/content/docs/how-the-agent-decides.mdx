@@ -1,0 +1,71 @@
+---
+title: How the agent decides
+description: Every check, every flag, and the rules that turn them into a decision.
+---
+
+A submission goes through four stages. Only the third uses a model.
+
+1. **Fetch.** One request for the submitted resource: the X API for posts, the GitHub API for pull requests and
+   commits, and a guarded HTTP fetch for articles. Nothing else is crawled.
+2. **Deterministic checks.** Code compares the resource with the contributor, the round and every earlier submission
+   in the program, and raises flags.
+3. **Judge.** Claude Haiku 4.5 scores the work against your rubric through a strict tool schema (`judge-v2`). It
+   returns a category, a score per criterion, a confidence, a recommendation and its reasons. It doesn't set amounts.
+4. **Decision engine.** Plain TypeScript rules (`rules-v2`) combine the flags and the judgment into an action and an
+   amount, and write the explanation the contributor sees.
+
+## Flags
+
+**Hard** flags are facts. Most of them reject on their own. **Soft** flags are signals that something needs a
+person's eyes; they send the submission to review.
+
+| Flag | Severity | Raised when |
+| --- | --- | --- |
+| `OWNERSHIP_MISMATCH` | hard, rejects | The post, PR or commit belongs to a different account than the contributor's, or it's a repost. |
+| `OUT_OF_WINDOW` | hard, rejects | The work was published before the round started or after it ended. |
+| `DUPLICATE_URL` | hard, rejects | The same resource was already submitted in this program. |
+| `NEAR_DUPLICATE` | hard or soft | The text is similar to an earlier submission (pg_trgm similarity, or SimHash within 3 bits). At 80% or more against **someone else's** work it's hard and rejects; otherwise (60%+, or your own earlier work) it's soft. |
+| `NOT_MERGED` | hard, rejects | A pull request isn't merged and the category pays only for merged work. |
+| `DELETED` | hard, rejects | The content no longer exists. Also checked again before payout. |
+| `PROMPT_INJECTION_ATTEMPT` | hard, escalates | The content tries to instruct the grader, including in hidden article text. Always goes to a person, even if the model wasn't fooled. |
+| `OWNERSHIP_UNVERIFIED` | soft | An article doesn't mention or link the contributor's X handle, so authorship can't be confirmed in code. |
+| `DATE_UNVERIFIED` | soft | No publication date was found, so the round window can't be confirmed. |
+| `NEW_ACCOUNT` | soft | The X account is younger than the program's minimum account age. |
+| `ENGAGEMENT_ANOMALY` | soft | Likes and reposts far beyond the account's reach (more than 5× followers and over 200), or more than half of impressions. |
+| `WALLET_CHANGED_RECENTLY` | soft | The payout wallet changed within the program's cooldown. |
+| `FETCH_FAILED` | soft | The content couldn't be fetched after retries. |
+
+## Rules
+
+The engine applies these in order and stops at the first match. The rule that decided is part of the signed record.
+
+| Rule | Action |
+| --- | --- |
+| `R1_REJECT_FLAG` | Any hard flag in the reject set → **reject**. |
+| `R2_INJECTION` | `PROMPT_INJECTION_ATTEMPT` → **review**, whatever the model said. |
+| `R3_NO_JUDGMENT` | The judge produced no valid output → **review**. |
+| `R4_CATEGORY_INVALID` | The judged category doesn't exist or doesn't accept this source type → **review**. |
+| `R5A_CLEAR_SPAM` | The judge recommends rejecting with confidence ≥ 0.9 and every criterion scores ≤ 1 → **reject** (you can override). |
+| `R5_AGENT_RECOMMENDS_REVIEW` | The judge recommends rejecting or reviewing → **review**. |
+| `R6_SOFT_FLAGS` | Any soft flag → **review**. |
+| `R7_LOW_CONFIDENCE` | Confidence below the program's auto-approve confidence → **review**. |
+| `R8_ZERO_AMOUNT` | The work scores zero points → **review**. |
+| `R9_ABOVE_AUTO_CAP` | The amount is above the program's auto-approve cap per item → **review**. |
+| `R10_AUTO_APPROVE` | Otherwise → **approve** (or **partial** when the judge recommends it). |
+
+## Amounts
+
+`amount = points × rate per point`, where points are the average of the category's criterion scores. The amount is
+capped at the per-payout limit. Items are paid whole: if a contributor's total for a round would pass a cap, the items
+that don't fit carry over to the next round, with the reason recorded.
+
+## Untrusted content
+
+Submitted content is data, never instructions. The judge receives it inside a per-request random boundary, look-alike
+boundary tags are neutralized, and the output is re-validated against the schema. Injection is detected in code
+before the model sees anything, so being fooled can't approve a submission: R2 runs before any approval rule.
+
+## Overrides
+
+Owners can approve, change the amount, or reject any decision before it's paid. An override is a new signed record
+that references the agent's decision, so the history is never rewritten.

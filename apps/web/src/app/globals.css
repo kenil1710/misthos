@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -30,6 +32,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
+  --color-soft: var(--soft);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
@@ -58,28 +61,29 @@
 
 /*
  * Misthos design tokens.
- * Neutral: zinc (hue ~286, near-zero chroma). Accent: deep emerald (hue ~163).
+ * Neutral: warm stone (hue ~60-106, near-zero chroma); light #FAFAF9, dark ~#111110 with layered surfaces.
+ * Accent: deep emerald (hue ~163), used sparingly. Text: foreground / soft / muted, all AA.
  * Semantic colors are reserved for states: approved/success, escalated/warning,
  * rejected/danger. "Paid" uses neutral + check icon.
  */
 :root {
-  --background: oklch(0.995 0 0);
-  --foreground: oklch(0.21 0.006 285.9);
+  --background: oklch(0.985 0.001 106.4);
+  --foreground: oklch(0.216 0.006 56);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.006 285.9);
+  --card-foreground: oklch(0.216 0.006 56);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.006 285.9);
+  --popover-foreground: oklch(0.216 0.006 56);
   --primary: oklch(0.43 0.09 163);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.4);
-  --secondary-foreground: oklch(0.21 0.006 285.9);
-  --muted: oklch(0.967 0.001 286.4);
-  --muted-foreground: oklch(0.5 0.014 285.9);
-  --accent: oklch(0.967 0.001 286.4);
-  --accent-foreground: oklch(0.21 0.006 285.9);
+  --secondary: oklch(0.97 0.001 106.4);
+  --secondary-foreground: oklch(0.216 0.006 56);
+  --muted: oklch(0.96 0.002 75);
+  --muted-foreground: oklch(0.52 0.01 58);
+  --accent: oklch(0.96 0.002 75);
+  --accent-foreground: oklch(0.216 0.006 56);
   --destructive: oklch(0.55 0.2 27);
-  --border: oklch(0.92 0.004 286.3);
-  --input: oklch(0.92 0.004 286.3);
+  --border: oklch(0.915 0.004 70);
+  --input: oklch(0.89 0.005 70);
   --ring: oklch(0.43 0.09 163);
   --brand: oklch(0.43 0.09 163);
   --brand-subtle: oklch(0.96 0.025 163);
@@ -95,36 +99,38 @@
   --chart-4: oklch(0.7 0.01 285.9);
   --chart-5: oklch(0.85 0.005 285.9);
   --radius: 0.5rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.21 0.006 285.9);
+  --sidebar: oklch(0.98 0.001 106.4);
+  --sidebar-foreground: oklch(0.216 0.006 56);
   --sidebar-primary: oklch(0.43 0.09 163);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.955 0.002 286.3);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.9);
-  --sidebar-border: oklch(0.92 0.004 286.3);
+  --sidebar-accent: oklch(0.955 0.002 75);
+  --sidebar-accent-foreground: oklch(0.216 0.006 56);
+  --sidebar-border: oklch(0.915 0.004 70);
   --sidebar-ring: oklch(0.43 0.09 163);
+  /* Secondary text: between foreground and muted. */
+  --soft: oklch(0.42 0.009 58);
 }
 
 .dark {
-  --background: oklch(0.155 0.004 285.9);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.185 0.005 285.9);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.2 0.005 285.9);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.72 0.12 163);
+  --background: oklch(0.155 0.002 70);
+  --foreground: oklch(0.935 0.003 80);
+  --card: oklch(0.19 0.003 70);
+  --card-foreground: oklch(0.935 0.003 80);
+  --popover: oklch(0.215 0.003 70);
+  --popover-foreground: oklch(0.935 0.003 80);
+  --primary: oklch(0.7 0.1 163);
   --primary-foreground: oklch(0.18 0.03 163);
-  --secondary: oklch(0.25 0.006 285.9);
-  --secondary-foreground: oklch(0.97 0 0);
-  --muted: oklch(0.25 0.006 285.9);
-  --muted-foreground: oklch(0.71 0.013 286);
-  --accent: oklch(0.25 0.006 285.9);
-  --accent-foreground: oklch(0.97 0 0);
+  --secondary: oklch(0.235 0.004 70);
+  --secondary-foreground: oklch(0.935 0.003 80);
+  --muted: oklch(0.235 0.004 70);
+  --muted-foreground: oklch(0.69 0.008 70);
+  --accent: oklch(0.235 0.004 70);
+  --accent-foreground: oklch(0.935 0.003 80);
   --destructive: oklch(0.7 0.17 25);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 13%);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.72 0.12 163);
-  --brand: oklch(0.72 0.12 163);
+  --brand: oklch(0.7 0.1 163);
   --brand-subtle: oklch(0.72 0.12 163 / 12%);
   --success: oklch(0.76 0.14 150);
   --success-subtle: oklch(0.76 0.14 150 / 12%);
@@ -137,14 +143,15 @@
   --chart-3: oklch(0.71 0.013 286);
   --chart-4: oklch(0.55 0.013 286);
   --chart-5: oklch(0.4 0.01 286);
-  --sidebar: oklch(0.175 0.005 285.9);
-  --sidebar-foreground: oklch(0.97 0 0);
+  --sidebar: oklch(0.175 0.003 70);
+  --sidebar-foreground: oklch(0.935 0.003 80);
   --sidebar-primary: oklch(0.72 0.12 163);
   --sidebar-primary-foreground: oklch(0.18 0.03 163);
-  --sidebar-accent: oklch(0.25 0.006 285.9);
-  --sidebar-accent-foreground: oklch(0.97 0 0);
-  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-accent: oklch(0.235 0.004 70);
+  --sidebar-accent-foreground: oklch(0.935 0.003 80);
+  --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.72 0.12 163);
+  --soft: oklch(0.8 0.005 75);
 }
 
 @layer base {
@@ -185,4 +192,49 @@
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* Docs (Fumadocs) use the app's tokens so /docs looks like the rest of Misthos. */
+:root,
+.dark {
+  --color-fd-background: var(--background);
+  --color-fd-foreground: var(--foreground);
+  --color-fd-card: var(--card);
+  --color-fd-card-foreground: var(--card-foreground);
+  --color-fd-popover: var(--popover);
+  --color-fd-popover-foreground: var(--popover-foreground);
+  --color-fd-primary: var(--brand);
+  --color-fd-primary-foreground: var(--primary-foreground);
+  --color-fd-secondary: var(--secondary);
+  --color-fd-secondary-foreground: var(--secondary-foreground);
+  --color-fd-muted: var(--muted);
+  --color-fd-muted-foreground: var(--muted-foreground);
+  --color-fd-accent: var(--accent);
+  --color-fd-accent-foreground: var(--accent-foreground);
+  --color-fd-border: var(--border);
+  --color-fd-ring: var(--ring);
+}
+
+/* Landing: scroll reveal (see components/landing/reveal.tsx). Only hidden once JS has marked it pending. */
+.reveal[data-reveal] {
+  transition:
+    opacity 220ms ease-out,
+    transform 220ms ease-out;
+}
+.reveal[data-reveal="pending"] {
+  opacity: 0;
+  transform: translateY(8px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal[data-reveal] {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Docs sidebar footer: only the theme toggle lives there, so drop the empty bordered tray around it. */
+div:has(> [data-theme-toggle]) {
+  border-color: transparent;
+  background: transparent;
 }

@@ -1,0 +1,36 @@
+---
+title: Introduction
+description: Contributor payroll, run by an agent you can audit.
+---
+
+Misthos runs payroll for contributor programs: ambassador programs, open-source bounties, community writing. Contributors
+submit links to their work. An AI agent checks each one, scores it against your rubric and explains its decision. At the
+end of each round, USDC goes out on Arc from a vault you own, inside limits the contract enforces.
+
+## What it does
+
+- **Checks the work in code first.** Who posted it, whether it's inside the round, whether it was copied, merged,
+  deleted or submitted before. Things code can prove never depend on a model.
+- **Scores it with Claude.** Against the categories and criteria you write, through a strict output schema.
+- **Decides with plain rules.** Hard problems reject, uncertain cases come to you, clear work under your auto-approve
+  cap is approved. [Every rule and flag](/docs/how-the-agent-decides).
+- **Pays from your vault.** Caps per payout, per round and per day, your approval above a threshold, and a cooldown on
+  new payout wallets, all enforced on-chain. [Guardrails](/docs/guardrails).
+- **Signs everything.** Each decision is a record hashed and signed by the agent's wallet, and each payout on Arc
+  carries a hash of the records it pays. [Verify one yourself](/docs/audit-trail).
+
+## Who it's for
+
+<Cards>
+  <Card title="Program owners" href="/docs/quickstart">
+    Create a program, deploy and fund its vault, and share the join link.
+  </Card>
+  <Card title="Contributors" href="/docs/contributors">
+    Join a program, link your wallet, submit work and get paid.
+  </Card>
+</Cards>
+
+## Status
+
+Misthos runs on **Arc testnet** with test USDC. Contract addresses are on the [Guardrails](/docs/guardrails#deployed-contracts)
+page.

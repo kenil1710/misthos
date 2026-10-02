@@ -1,0 +1,73 @@
+---
+title: Audit trail and verification
+description: How to check a decision and its payment without trusting Misthos.
+---
+
+Every decision, by the agent or by a person overriding it, becomes a **decision record**: a JSON document with the
+submission, the contributor, the round, the flags, the model's output, the rule that decided and the amount.
+
+## How a record is sealed
+
+1. The record is serialized as **canonical JSON**: keys sorted at every level, no whitespace, amounts as decimal
+   strings of USDC base units (6 decimals).
+2. Its `decisionHash` is `keccak256` of those UTF-8 bytes.
+3. The agent's wallet signs the hash (EIP-191 over the raw 32 bytes). The agent is a Circle smart-contract wallet, so
+   the signature is checked with ERC-1271 `isValidSignature` on Arc.
+4. Each payout on-chain carries a `decisionHash` of its own: `keccak256` of the sorted hashes of the records it pays,
+   concatenated. The `PayoutExecuted` event records it next to the amount and the recipient.
+
+## Verify in the browser
+
+Open a program's public audit page (`/p/program-name`) and choose **Verify** next to any decision. The page checks the
+hash, that the record was published, the signature, the payout it belongs to, and the `PayoutExecuted` event on Arc.
+
+## Verify it yourself
+
+The public API returns the exact bytes that were hashed, with the signature and signer as headers:
+
+```bash
+curl -i https://<app>/api/public/decisions/<decisionHash>
+# X-Decision-Signature: 0x…
+# X-Decision-Signer: 0x74a6…78a1
+```
+
+Then, with [viem](https://viem.sh):
+
+```ts
+import { createPublicClient, http, keccak256, toBytes, concat, parseEventLogs, parseAbi } from "viem";
+
+const res = await fetch(`https://<app>/api/public/decisions/${hash}`);
+const body = await res.text();
+
+// 1. The record hashes to the decision hash.
+console.log(keccak256(toBytes(body)) === hash);
+
+// 2. The agent signed it. verifyMessage handles both EOAs and ERC-1271 smart-contract wallets.
+const client = createPublicClient({ transport: http("https://rpc.testnet.arc.io") });
+console.log(
+  await client.verifyMessage({
+    address: res.headers.get("x-decision-signer") as `0x${string}`,
+    message: { raw: hash },
+    signature: res.headers.get("x-decision-signature") as `0x${string}`,
+  }),
+);
+
+// 3. The payout commits to it. `recordHashes` are the decision hashes listed for that payout on the audit page.
+const payoutHash = keccak256(concat([...recordHashes].map((h) => h.toLowerCase() as `0x${string}`).sort()));
+
+// 4. And the payout happened on Arc with that hash.
+const receipt = await client.getTransactionReceipt({ hash: txHash });
+const [event] = parseEventLogs({
+  abi: parseAbi([
+    "event PayoutExecuted(bytes32 indexed roundId, bytes32 indexed payoutId, address indexed to, uint256 amount, bytes32 decisionHash)",
+  ]),
+  logs: receipt.logs,
+}).filter((l) => l.args.decisionHash === payoutHash);
+console.log(event?.args.to, event?.args.amount);
+```
+
+## What's in the audit log
+
+The owner's **Audit log** lists every event in the program: submissions, decisions, overrides, vault deposits and
+limit changes, round proposals, approvals and payouts, with transactions linked to the explorer. It can be exported
+as CSV. The table is append-only at the database level: updates and deletes are blocked by triggers.

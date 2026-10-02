@@ -1,0 +1,38 @@
+---
+title: FAQ
+description: Short answers to common questions.
+---
+
+### Who holds the money?
+
+You do. Each program's vault is owned by your wallet, and you can withdraw at any time.
+
+### Is this on mainnet?
+
+Not yet. Misthos runs on Arc testnet with test USDC. Get some from the [Circle faucet](https://faucet.circle.com).
+
+### Which model does the agent use?
+
+Claude Haiku 4.5 for scoring. The model version, prompt version and rule version are part of every signed record.
+
+### What if the agent is wrong?
+
+Uncertain cases come to you before they're paid, and you can override any decision before the round pays. The
+override is a new signed record that references the original.
+
+### Can a contributor change their payout wallet?
+
+Yes, by signing with the new wallet. The program's cooldown applies before the new wallet can be paid.
+
+### What happens to approved work that doesn't fit under a cap?
+
+It carries over to the next round, with the reason recorded. Items are never split.
+
+### Why do some submissions take longer?
+
+The agent retries when X, GitHub or a website is slow or rate-limited. After the last retry, the submission goes to
+the owner rather than failing.
+
+### Can I see the code that makes decisions?
+
+Yes. The rules are on [How the agent decides](/docs/how-the-agent-decides), and their version is in every record.

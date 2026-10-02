@@ -1,0 +1,16 @@
+{
+  "title": "Misthos",
+  "pages": [
+    "index",
+    "quickstart",
+    "contributors",
+    "---How it works---",
+    "how-the-agent-decides",
+    "guardrails",
+    "audit-trail",
+    "---Reference---",
+    "security",
+    "architecture",
+    "faq"
+  ]
+}

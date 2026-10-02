@@ -47,6 +47,9 @@ async function context(browser: Awaited<ReturnType<typeof chromium.launch>>, the
   return ctx;
 }
 
+const LANDING = path.join(root, "apps/web/src/assets/landing");
+const DOCS = path.join(root, "apps/web/public/screens");
+
 async function shot(ctx: BrowserContext, name: string, url: string, prepare?: (p: Page) => Promise<void>) {
   const page = await ctx.newPage();
   await page.goto(BASE + url, { waitUntil: "networkidle" });
@@ -55,6 +58,30 @@ async function shot(ctx: BrowserContext, name: string, url: string, prepare?: (p
   await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: true });
   await page.close();
   console.log(`  ${name}.png`);
+}
+
+/** A cropped capture for the landing page or docs: one element, or the first viewport. */
+async function crop(ctx: BrowserContext, file: string, url: string, opts: { selector?: string; prepare?: (p: Page) => Promise<void> } = {}) {
+  const page = await ctx.newPage();
+  await page.goto(BASE + url, { waitUntil: "networkidle" });
+  if (opts.prepare) await opts.prepare(page);
+  await page.waitForTimeout(400);
+  if (opts.selector) await page.locator(opts.selector).first().screenshot({ path: file });
+  else await page.screenshot({ path: file });
+  await page.close();
+  console.log(`  ${path.relative(root, file)}`);
+}
+
+/** Scroll through the page so scroll-reveal sections are shown before a full-page capture. */
+async function revealAll(page: Page) {
+  await page.evaluate(async () => {
+    for (let y = 0; y < document.body.scrollHeight; y += 400) {
+      window.scrollTo(0, y);
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(400);
 }
 
 async function main() {
@@ -79,12 +106,40 @@ async function main() {
     });
     await shot(anon, `public-round-receipt-${theme}`, `/p/${show.slug}/rounds/${show.round1}`);
     await shot(anon, `join-${theme}`, `/join/${show.slug}`);
+    await shot(anon, `landing-${theme}`, "/", revealAll);
+    await shot(anon, `docs-${theme}`, "/docs");
+    await shot(anon, `docs-agent-${theme}`, "/docs/how-the-agent-decides");
+    await crop(anon, path.join(LANDING, `verify-${theme}.png`), `/p/${show.slug}#verify?d=${verifyHash}`, {
+      selector: '#verify [aria-live="polite"]',
+      prepare: async (pg) => {
+        await pg.getByText(/^Verified:/).waitFor({ timeout: 30_000 });
+        // The panel stretches to the height of the record editor beside it; crop to its content.
+        await pg.locator('#verify [aria-live="polite"]').evaluate((el) => {
+          (el as HTMLElement).style.alignSelf = "start";
+          (el as HTMLElement).style.height = "auto";
+        });
+      },
+    });
+    if (theme === "light") await crop(anon, path.join(DOCS, "join.png"), `/join/${show.slug}`);
     await anon.close();
 
     const owner = await context(browser, theme, 1440, "owner");
     await shot(owner, `app-overview-${theme}`, "/app");
     await shot(owner, `program-overview-${theme}`, p);
     await shot(owner, `submissions-${theme}`, `${p}/submissions`);
+    await shot(owner, `new-program-${theme}`, "/app/programs/new");
+    await crop(owner, path.join(LANDING, `hero-${theme}.png`), `${p}/submissions`, { selector: "main" });
+    if (theme === "light") {
+      await crop(owner, path.join(DOCS, "new-program.png"), "/app/programs/new");
+      await crop(owner, path.join(DOCS, "settings.png"), `${p}/settings`);
+      await crop(owner, path.join(DOCS, "round-detail.png"), `${p}/rounds/${show.round1}`);
+      await crop(owner, path.join(DOCS, "review-drawer.png"), `${p}/submissions?status=escalated`, {
+        prepare: async (pg) => {
+          await pg.getByRole("button", { name: /Review submission by @eve_tests/ }).click();
+          await pg.getByRole("dialog").getByText("Your decision").waitFor();
+        },
+      });
+    }
     await shot(owner, `review-drawer-${theme}`, `${p}/submissions?status=escalated`, async (pg) => {
       await pg.getByRole("button", { name: /Review submission by @eve_tests/ }).click();
       await pg.getByRole("dialog").getByText("Your decision").waitFor();
@@ -101,13 +156,19 @@ async function main() {
 
     const contributor = await context(browser, theme, 1440, "contributor");
     await shot(contributor, `contributor-home-${theme}`, `/c/${show.slug}`);
+    if (theme === "light") await crop(contributor, path.join(DOCS, "contributor-home.png"), `/c/${show.slug}`);
     await contributor.close();
   }
 
   console.log("mobile (375px)");
   const mAnon = await context(browser, "light", 375, "anon");
   await shot(mAnon, "mobile-public-audit", `/p/${show.slug}`);
+  await shot(mAnon, "mobile-landing-light", "/", revealAll);
   await mAnon.close();
+  const mAnonDark = await context(browser, "dark", 375, "anon");
+  await shot(mAnonDark, "mobile-landing-dark", "/", revealAll);
+  await shot(mAnonDark, "mobile-docs-dark", "/docs");
+  await mAnonDark.close();
   const mOwner = await context(browser, "light", 375, "owner");
   await shot(mOwner, "mobile-app-overview", "/app");
   await mOwner.close();

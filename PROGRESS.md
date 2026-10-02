@@ -1,6 +1,6 @@
 # Misthos — Progress
 
-**Current phase:** 5 (App UI polish) complete; awaiting go-ahead for Phase 6 (landing + docs).
+**Current phase:** 6 (Landing + docs) complete; awaiting go-ahead for Phase 7 (deployment).
 **Last updated:** 2026-10-02
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
@@ -21,6 +21,43 @@
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (Phase 6 — Landing + docs)
+
+- **Screenshot-review fixes (10):** "N items waiting for you"; truthful vault status for contributors ("Not in vault
+  yet" / "Wallet change pending in vault"; the old "registering" label assumed a pending registration that only
+  happens after approved work or a round); "Signing as 0x…" instead of Connect when the owner is connected; 0h
+  cooldown warning in the wizard and settings (default stays 24h); word-boundary wrapping in the review drawer
+  (hashes only break anywhere); audit log in USDC with explorer and Verify links; round detail tx + per-record Verify
+  links; "—" for no GitHub; relative feed times with UTC on hover; receipt Work link styled as a link.
+- **Design system:** warm stone neutrals (light #FAFAF9, dark ~#111110 with layered surfaces, no pure white text),
+  three text levels (`foreground`, `soft`, `muted`), emerald used sparingly and calmed in dark mode.
+- **Landing** (`/`): centered hero with the real submissions screen in a theme-aware frame (cropped to a readable
+  width on mobile), metrics strip from non-demo data only (hidden at zero; currently hidden), problem, 4-step how it
+  works, two real signed decisions (one approved, one rejected) with Verify links, guardrails with the featured
+  vault's real caps, audit trail with a real verified decision, Arc + Circle (only what's used), FAQ, final CTA,
+  footer. ISR every 5 min; renders without a database. Subtle reveal on scroll (220ms, reduced-motion safe),
+  count-up only on metrics.
+- **SEO:** metadata base, canonical, Open Graph + Twitter card, designed OG image (`opengraph-image.tsx`, Geist
+  vendored under OFL), SVG favicon + apple icon, theme-color, sitemap (static pages + real published programs),
+  robots.
+- **Docs** (Fumadocs 16 at `/docs`, app tokens): Introduction, Quickstart for owners (screenshots), Guide for
+  contributors, How the agent decides (every flag with severity, every rule R1–R10), Guardrails and the vault
+  (roles, limits with revert names, testnet addresses + explorer links), Audit trail and verification (viem recipe
+  to recompute the hash, check the signature, the payout hash and the event), Security and privacy, Architecture
+  (Mermaid, theme-aware), FAQ.
+- `GET /api/public/decisions/:hash` now also returns `X-Decision-Signature` and `X-Decision-Signer` headers so anyone
+  can verify without the UI.
+- **Repo docs:** README for judges, ARCHITECTURE.md, SECURITY.md, complete `.env.example`.
+- **Lighthouse** (production build): landing 90/100/100/100 mobile, 100/100/100/100 desktop; docs 92+/100/100/100.
+  Fixes made: hero images eager + high priority, quality 70; no prefetch of `/app` (it pulled ConnectKit into the
+  landing's network); list semantics.
+- **Screenshots:** one combined reseed (vault topped up 1.2 test USDC,
+  [deposit](https://explorer.testnet.arc.io/tx/0xa81df9a21a0fab45b1ad750f1df56ee0b8026c884840e2ae5a658c65547204f4);
+  round 1 paid on Arc,
+  [execute](https://explorer.testnet.arc.io/tx/0x5e8af1570d3bd69b3ca02fddbb11ac4a2311f1eba7629c29e741c3b89ecda611)).
+  `docs/screenshots/` now also has landing (light/dark, desktop/mobile), docs and the new-program wizard; landing
+  crops in `apps/web/src/assets/landing/`, docs crops in `apps/web/public/screens/`.
 
 ## Done (Phase 5 — App UI polish)
 
@@ -291,11 +328,10 @@ re-execution reverted with `RoundNotExecutable`.
 - [x] `ANTHROPIC_API_KEY` in the root `.env` (works with the Messages API; key type marker `usr`).
 - [x] Circle entity secret + agent SCA (done 2026-10-02). **Back up `~/misthos-circle-recovery/` somewhere safe.**
 
-## Next (Phase 6 — Landing + docs)
+## Next (Phase 7 — Deployment)
 
-Landing page (§9) with live metrics strip (hidden at zero), real agent decision card linking to a public audit page,
-guardrails, audit trail, Arc + Circle section (only shipped items), FAQ; short docs at /docs (§10, reduced); README
-with screenshots; mark the owner's browser-test programs as demo once confirmed.
+Vercel (web) + Railway (worker) + Neon; production env vars; X callback URL; replace "added in deployment" in the
+README with the live URL. Waiting for the owner's browser test before marking any of their programs as demo.
 
 ## Stubs
 
@@ -315,6 +351,8 @@ None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fa
   forge 1.7.1 here (CLI parse error).
 - forge-lint reports 3 `block-timestamp` warnings in `MisthosVault` — intentional (hour-scale cooldown / 24h window).
 - e2e needs Chromium (`pnpm --filter @misthos/web exec playwright install chromium`) and isn't in CI yet (Phase 8).
+- The showcase program uses a 0h wallet cooldown so its seeded round can pay immediately; its settings screenshot
+  shows the new 0h warning.
 - No rate limiting on public endpoints yet (Phase 8 security pass). Nonce table is cleaned opportunistically.
 - `next dev` with `NEXT_DIST_DIR=.next-e2e` adds `.next-e2e` type paths to `apps/web/tsconfig.json`; harmless.
 - X returns `impression_count: 0` for old posts; ENGAGEMENT_ANOMALY's impressions rule ignores 0 (regression test).
