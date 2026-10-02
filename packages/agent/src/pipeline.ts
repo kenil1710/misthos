@@ -297,6 +297,7 @@ export async function processSubmission(
         xUserId: contributor.xUserId,
         xHandle: contributor.xHandle,
         githubLogin: contributor.githubLogin,
+        githubUserId: contributor.githubUserId,
         walletChangedAt: contributor.walletChangedAt,
       },
       round: { startsAt: round.startsAt, endsAt: round.endsAt },

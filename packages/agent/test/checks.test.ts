@@ -41,6 +41,7 @@ const ctx = (over: Partial<CheckContext> = {}): CheckContext => ({
     xUserId: "1000000001",
     xHandle: "alice_builds",
     githubLogin: "alice-dev",
+    githubUserId: "4242",
     walletChangedAt: null,
   },
   round: { startsAt: new Date("2026-10-05T00:00:00Z"), endsAt: new Date("2026-10-19T00:00:00Z") },
@@ -84,7 +85,7 @@ describe("runChecks", () => {
     expect(f?.message).toMatch(/repost/);
   });
 
-  it("OWNERSHIP_MISMATCH for a PR by another GitHub user or with no linked username", () => {
+  it("GitHub ownership is the verified account id, never a typed username (spoofing)", () => {
     const pr = R({
       sourceType: "github_pr",
       author: { id: "1", handle: "mallory", name: null, createdAt: null, followers: null },
@@ -100,25 +101,22 @@ describe("runChecks", () => {
         files: [],
       },
     });
-    expect(
-      only(ctx({ sourceType: "github_pr", resource: pr }), "OWNERSHIP_MISMATCH")?.severity,
-    ).toBe("hard");
-    const noLogin = ctx({
-      sourceType: "github_pr",
-      resource: { ...pr, author: { ...pr.author, handle: "alice-dev" } },
-    });
-    noLogin.contributor.githubLogin = null;
-    expect(only(noLogin, "OWNERSHIP_MISMATCH")).toBeTruthy();
-    // case-insensitive match passes
-    expect(
-      only(
-        ctx({
-          sourceType: "github_pr",
-          resource: { ...pr, author: { ...pr.author, handle: "Alice-Dev" } },
-        }),
-        "OWNERSHIP_MISMATCH",
-      ),
-    ).toBeUndefined();
+    const as = (author: { id: string | null; handle: string }) =>
+      ctx({ sourceType: "github_pr", resource: { ...pr, author: { ...pr.author, ...author } } });
+    // Someone else's PR.
+    expect(only(as({ id: "1", handle: "mallory" }), "OWNERSHIP_MISMATCH")?.severity).toBe("hard");
+    // Spoof: the PR author's login equals the username the contributor claims, but it's a different account.
+    expect(only(as({ id: "9999", handle: "alice-dev" }), "OWNERSHIP_MISMATCH")?.severity).toBe(
+      "hard",
+    );
+    // Unverified contributor: even their own login doesn't count until GitHub is connected.
+    const unverified = as({ id: "4242", handle: "alice-dev" });
+    unverified.contributor.githubUserId = null;
+    expect(only(unverified, "OWNERSHIP_MISMATCH")?.message).toMatch(/Connect your GitHub/);
+    // The verified id matches: paid, even if the account was renamed since.
+    expect(only(as({ id: "4242", handle: "alice-renamed" }), "OWNERSHIP_MISMATCH")).toBeUndefined();
+    // A commit with no linked GitHub account can't be attributed.
+    expect(only(as({ id: null, handle: "" }), "OWNERSHIP_MISMATCH")).toBeTruthy();
   });
 
   it("OWNERSHIP_UNVERIFIED (soft) for articles that don't mention the contributor", () => {

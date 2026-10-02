@@ -32,7 +32,6 @@ export function ChangeWallet({
       <WalletLink
         programSlug={programSlug}
         mode="change"
-        showGithub={false}
         cooldownHours={cooldownHours}
         currentWallet={currentWallet}
         onDone={() => setOpen(false)}

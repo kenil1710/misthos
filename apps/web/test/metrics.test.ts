@@ -102,21 +102,19 @@ async function program(isDemo: boolean) {
         createdAt: new Date(Date.now() - 60_000),
       })
       .returning();
-    await db
-      .insert(decisions)
-      .values({
-        submissionId: s!.id,
-        flagsJson: flags,
-        action,
-        amount: 0n,
-        summary: "s",
-        decisionJson: JSON.stringify({ rule }),
-        decisionHash: keccak256(toBytes(`d${n}`)),
-        signature: "0x",
-        signerAddress: "0x",
-        ruleVersion: "rules-v2",
-        decidedBy: "agent",
-      });
+    await db.insert(decisions).values({
+      submissionId: s!.id,
+      flagsJson: flags,
+      action,
+      amount: 0n,
+      summary: "s",
+      decisionJson: JSON.stringify({ rule }),
+      decisionHash: keccak256(toBytes(`d${n}`)),
+      signature: "0x",
+      signerAddress: "0x",
+      ruleVersion: "rules-v2",
+      decidedBy: "agent",
+    });
   };
   await mk("R10_AUTO_APPROVE", "approve", [], "paid");
   await mk("R1_REJECT_FLAG", "reject", [{ code: "NEAR_DUPLICATE", severity: "hard" }], "rejected");
@@ -126,18 +124,16 @@ async function program(isDemo: boolean) {
     [{ code: "PROMPT_INJECTION_ATTEMPT", severity: "hard" }],
     "escalated",
   );
-  await db
-    .insert(payouts)
-    .values({
-      roundId: r!.id,
-      contributorId: c!.id,
-      payoutIdBytes32: keccak256(toBytes(`p${n}`)),
-      toAddress: "0x",
-      amount: 2_000_000n,
-      decisionHash: "0x",
-      status: "executed",
-      txHash: "0x1",
-    });
+  await db.insert(payouts).values({
+    roundId: r!.id,
+    contributorId: c!.id,
+    payoutIdBytes32: keccak256(toBytes(`p${n}`)),
+    toAddress: "0x",
+    amount: 2_000_000n,
+    decisionHash: "0x",
+    status: "executed",
+    txHash: "0x1",
+  });
   await db
     .insert(apiUsage)
     .values({ provider: "x", endpoint: "e", units: 1, estCostUsd: "0.015000", programId: p!.id });

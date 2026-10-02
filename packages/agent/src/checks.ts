@@ -28,6 +28,8 @@ export interface CheckContext {
     xUserId: string;
     xHandle: string;
     githubLogin: string | null;
+    /** Verified through GitHub OAuth; null means the contributor hasn't connected GitHub. */
+    githubUserId: string | null;
     walletChangedAt: Date | null;
   };
   round: { startsAt: Date; endsAt: Date };
@@ -84,16 +86,24 @@ export function runChecks(ctx: CheckContext): Flag[] {
       });
     }
   } else if (r.sourceType === "github_pr" || r.sourceType === "github_commit") {
-    const linked = ctx.contributor.githubLogin?.toLowerCase() ?? null;
-    const author = r.author.handle?.toLowerCase() ?? null;
-    if (!linked || author !== linked) {
+    // Only a GitHub account connected through OAuth counts; usernames are never trusted (anyone can type one).
+    const verified = ctx.contributor.githubUserId;
+    const authorId = r.author.id;
+    if (!verified || !authorId || authorId !== verified) {
       flags.push({
         code: "OWNERSHIP_MISMATCH",
         severity: "hard",
-        message: author
-          ? `Authored by GitHub user ${r.author.handle}, not the linked username ${ctx.contributor.githubLogin ?? "(none)"}.`
-          : "The commit isn't linked to a GitHub account, so authorship can't be confirmed.",
-        evidence: { githubAuthor: r.author.handle, linkedGithubLogin: ctx.contributor.githubLogin },
+        message: !verified
+          ? "Connect your GitHub account to submit GitHub work; it couldn't be matched to you."
+          : !authorId
+            ? "The commit isn't linked to a GitHub account, so authorship can't be confirmed."
+            : `Authored by GitHub user ${r.author.handle ?? authorId}, not the connected account ${ctx.contributor.githubLogin ?? ""}.`.trim(),
+        evidence: {
+          githubAuthor: r.author.handle,
+          githubAuthorId: authorId,
+          connectedGithub: ctx.contributor.githubLogin,
+          connectedGithubId: verified,
+        },
       });
     }
   } else if (r.sourceType === "article") {

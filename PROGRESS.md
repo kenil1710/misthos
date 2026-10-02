@@ -1,7 +1,7 @@
 # Misthos — Progress
 
-**Current phase:** 6.5 (UX redesign + live QA) complete; awaiting go-ahead for Phase 7 (deployment).
-**Last updated:** 2026-10-02
+**Current phase:** 6.5 + owner-feedback fixes complete; awaiting the owner's contributor test, then Phase 7.
+**Last updated:** 2026-10-03
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
 ## Reduced scope (owner decision, 2026-10-02)
@@ -10,7 +10,7 @@
   GitHub PRs via public API, articles), agent pipeline (fetch, deterministic checks, LLM scoring, prompt-injection
   defense, decision engine, signed decision records), review queue, testnet payout rounds, public audit page with
   "Verify a decision", simple landing page, short docs, metrics page.
-- **Cut:** GitHub OAuth (contributor types their GitHub username), treasury/USYC, CCTP, EURC, keyboard shortcuts,
+- **Cut:** treasury/USYC, CCTP, EURC, keyboard shortcuts,
   notifications, Discord/YouTube.
 - Phase 3 tests use saved fixtures (no API spend). Both agent models: `claude-haiku-4-5-20251001`.
 
@@ -21,6 +21,35 @@
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (owner-feedback fixes, 2026-10-03)
+
+Everything from the owner's hand test of the owner flow, tracked as OF-1 … OF-19, SEC-1 and CJ-1 … CJ-4 in
+`docs/UX_AUDIT.md` with a test for each. Before/after screenshots: `docs/screenshots/owner-fixes/{before,after}/`.
+
+- **Round scheduling (blocker):** wizard defaults Round 1 to "Now" (or a scheduled start shown as local · UTC ·
+  starts in); Settings "Round schedule" card edits length/start and can "Start round N now" (audited
+  `round.started_early` / `program.schedule_updated`); scheduled rounds show "Scheduled · starts in X" and can't be
+  closed (UI disabled, API 409). **kency-arc-creators Round 1 was started early on 2026-10-02 17:03 UTC** via
+  `apps/web/scripts/start-round-now.mts` (audited as `support:misthos` with a reason); it ends 2026-10-09 17:03 UTC.
+- **Wizard:** step in the URL and a draft saved on this device (survives back/reload), 640 px column + live join
+  page preview, slug filled from the name, "how a score becomes USDC", limits derived from the rubric until edited,
+  7-day rounds, inline limit warnings.
+- **Shell:** switcher lists drafts immediately, wallet reconnects on load (allowed wallets discovered synchronously),
+  new sidebar footer, dev badge off, focus ring only on keyboard focus, curated wallet list (MetaMask, Rabby,
+  Coinbase Wallet, WalletConnect) with Arc Testnet added on switch.
+- **Screens:** submissions empty state, audit log with actor and human labels, treasury send-to/copy/explorer and
+  reasons on disabled buttons (24 h bar turns amber near the cap), one wallet status per page, richer welcome.
+- **Security — GitHub ownership via OAuth:** "Connect GitHub" (no scopes, state + PKCE bound to the session,
+  token revoked right after reading the profile). Verified GitHub id/login stored on the user and copied to every
+  membership; the agent pays GitHub work only when the PR/commit author id equals the verified id; GitHub links
+  are refused until connected; a typed username is ignored. Migration `0004_github_oauth` **applied to Neon**.
+  Callback: `${NEXT_PUBLIC_APP_URL}/api/auth/github/callback` (registered as `http://localhost:3000/...`).
+- **Contributor journey:** "Share on X" (overview, checklist, settings), "You're in. Here's what to do next" with
+  the program rules, round countdown + "This round so far", join page "How it works" (4 steps) + an example of good
+  work.
+- Tests: web unit + `e2e/owner-ux.spec.ts` (new) and `e2e/owner-and-join.spec.ts` green; agent spoofing cases;
+  full `turbo typecheck lint test build` green.
 
 ## Done (Phase 6.5 — UX redesign + full live QA)
 
@@ -350,6 +379,8 @@ re-execution reverted with `RoundNotExecutable`.
       `http://localhost:3000/api/auth/x/callback` (and the production URL once deployed); type "Web App"
       (confidential client). Until then Sign in with X fails at X.
 - [x] `ANTHROPIC_API_KEY` in the root `.env` (works with the Messages API; key type marker `usr`).
+- [x] GitHub OAuth app with callback `http://localhost:3000/api/auth/github/callback` (add the production URL in
+      Phase 7). Please try "Connect GitHub" on your contributor page with your real account.
 - [x] Circle entity secret + agent SCA (done 2026-10-02). **Back up `~/misthos-circle-recovery/` somewhere safe.**
 
 ## Next (Phase 7 — Deployment)
@@ -385,7 +416,8 @@ None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fa
 - Article ownership can only be verified when the page mentions or links the contributor's @handle; otherwise it's
   a soft flag and goes to review.
 - The browser e2e env has no worker, so `payee-sync` enqueues fail there (logged); joins still succeed by design.
-- The live vault used for the showcase holds ~0.05 USDC after the showcase round; top up before reusing it.
+- The live vault used for the showcase holds ~0.47 test USDC after the 2026-10-03 reseed (each seed pays ~0.25–0.65);
+  top up before it runs low.
 - Browser e2e covers Phase 2 flows only; extending it to submissions needs a fixture upstream server (Phase 8).
 - Arc RPC `eth_getLogs` rejects ranges above ~10k blocks (~1.4 h); treasury uses vault totals + recorded events
   instead of log scans. Deposits made outside Misthos show in totals but not in the deposit list.

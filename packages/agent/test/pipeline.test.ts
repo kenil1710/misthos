@@ -154,6 +154,8 @@ beforeEach(async () => {
         xUserId: xid,
         xHandle: handle,
         githubLogin: gh,
+        // alice connected GitHub (fixtures' PR author id 5501); bob only has a login, which no longer counts.
+        githubUserId: handle === "alice_builds" ? "5501" : null,
         walletAddress: `0x${wallet.padStart(40, "0")}`,
       })
       .returning();

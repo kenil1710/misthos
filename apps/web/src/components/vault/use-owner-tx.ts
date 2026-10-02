@@ -36,7 +36,7 @@ export class SessionExpiredError extends Error {
  * confirmed. Every failure becomes one sentence and a toast; a failed run can be retried from the failed step.
  */
 export function useOwnerTx(ownerAddress: string) {
-  const { address, chainId, isConnected } = useAccount();
+  const { address, chainId, isConnected, status } = useAccount();
   const client = usePublicClient({ chainId: chain.id });
   const router = useRouter();
   const [steps, setSteps] = useState<StepView[]>([]);
@@ -52,7 +52,7 @@ export function useOwnerTx(ownerAddress: string) {
 
   const wrongWallet = isConnected && address?.toLowerCase() !== ownerAddress.toLowerCase();
   const wrongChain = isConnected && chainId !== chain.id;
-  const ready = isConnected && !wrongWallet && !wrongChain;
+  const ready = status === "connected" && !wrongWallet && !wrongChain;
 
   const patch = (i: number, s: Partial<StepView>) =>
     setSteps((prev) => prev.map((x, j) => (j === i ? { ...x, ...s } : x)));

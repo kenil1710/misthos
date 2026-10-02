@@ -164,16 +164,22 @@ export function AppSidebar({
         <NavItem href="/docs" icon={BookOpen} label="Docs" path={path} onNavigate={onNavigate} />
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-2 border-t px-2 pt-4">
-        <div className="min-w-0">
-          <p className="text-muted-foreground text-xs">Signed in</p>
-          <p className="truncate font-mono text-[13px]" title={address}>
-            {shortHex(address)}
-          </p>
-        </div>
-        <div className="flex items-center">
+      <div className="mt-auto border-t pt-3">
+        <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
+          <WalletAvatar address={address} />
+          <div className="min-w-0 flex-1">
+            <p className="text-muted-foreground text-xs leading-tight">Signed in</p>
+            <p className="truncate font-mono text-[13px] leading-tight" title={address}>
+              {shortHex(address)}
+            </p>
+          </div>
           <ThemeToggle />
-          <SignOutButton kind="owner" />
+        </div>
+        <div className="px-2 pt-1">
+          <SignOutButton
+            kind="owner"
+            className="text-muted-foreground hover:text-foreground h-8 w-full justify-start px-0"
+          />
         </div>
       </div>
     </div>
@@ -245,6 +251,22 @@ function ProgramSwitcher({
   );
 }
 
+/** A small deterministic identicon from the wallet address: two stone tones, no colour noise. */
+function WalletAvatar({ address }: { address: string }) {
+  const bits = parseInt(address.slice(2, 10), 16);
+  const cells = Array.from({ length: 9 }, (_, i) => (bits >> i) & 1);
+  return (
+    <span
+      aria-hidden="true"
+      className="bg-muted grid size-7 shrink-0 grid-cols-3 gap-px overflow-hidden rounded-full border p-1.5"
+    >
+      {cells.map((on, i) => (
+        <span key={i} className={on ? "bg-foreground/55 rounded-[1px]" : ""} />
+      ))}
+    </span>
+  );
+}
+
 function NavItem({
   href,
   icon: Icon,
@@ -266,10 +288,14 @@ function NavItem({
   return (
     <Link
       href={href}
-      onClick={onNavigate}
+      onClick={(e) => {
+        // A mouse click shouldn't leave a focus ring behind (some browsers show one); keyboard focus keeps it.
+        if (e.detail > 0) e.currentTarget.blur();
+        onNavigate?.();
+      }}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "focus-visible:ring-ring/50 flex h-8 items-center gap-2.5 rounded-md px-2 text-sm transition-colors outline-none focus-visible:ring-3",
+        "focus-visible:ring-foreground/20 flex h-8 items-center gap-2.5 rounded-md px-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:outline-none",
         active
           ? "bg-sidebar-accent text-foreground font-medium"
           : "text-soft hover:bg-sidebar-accent/60 hover:text-foreground",

@@ -37,6 +37,9 @@ Misthos moves money on behalf of other people's programs. These are the controls
 
 - Owners sign in with SIWE (domain, URI, chain, freshness, single-use nonce; EOA or ERC-1271). Contributors sign in
   with X OAuth 2.0 PKCE (S256); the X token is revoked immediately after reading the profile and never stored.
+- GitHub ownership is proven with "Connect GitHub" (OAuth, no scopes; the token is revoked right after reading the
+  profile). Pull requests and commits are paid only when their author's numeric GitHub id equals the connected one;
+  a typed username is never trusted, and one GitHub account can be connected to only one Misthos user.
 - Wallet ownership is proven by signing a server-built message bound to the program, X account, wallet, chain and a
   single-use nonce.
 - Sessions are HS256 JWTs in httpOnly, SameSite=Lax cookies. Every state-changing route checks the `Origin` header,
@@ -49,7 +52,7 @@ Misthos moves money on behalf of other people's programs. These are the controls
 ## Data
 
 We read only the links contributors submit (never crawl or search), store the fetched content to evaluate it, and
-keep X identity (id, handle, account age), GitHub username and payout wallet. Decision records published on audit
+keep X identity (id, handle, account age), the connected GitHub account (id and login) and payout wallet. Decision records published on audit
 pages contain handles, wallets and hashes, not the content itself.
 
 ## Reporting

@@ -28,6 +28,7 @@ export function TxAction({
   success,
   confirm,
   disabled = false,
+  disabledReason,
   variant = "default",
 }: {
   owner: string;
@@ -37,6 +38,8 @@ export function TxAction({
   success: string;
   confirm?: ConfirmSpec;
   disabled?: boolean;
+  /** Shown under a disabled button so it's never a mystery why it can't be pressed. */
+  disabledReason?: string;
   variant?: "default" | "outline" | "destructive";
 }) {
   const tx = useOwnerTx(owner);
@@ -52,8 +55,11 @@ export function TxAction({
         >
           {tx.busy ? busyLabel : label}
         </Button>
-        <OwnerWallet owner={owner} />
+        <OwnerWallet owner={owner} compact />
       </div>
+      {disabled && !tx.busy && disabledReason ? (
+        <p className="text-muted-foreground -mt-1 text-xs">{disabledReason}</p>
+      ) : null}
       <TxProgress
         steps={tx.steps}
         error={tx.error}

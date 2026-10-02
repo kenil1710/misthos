@@ -160,3 +160,13 @@ The only flow not automated, because it needs a real X account.
    reason. A post from before the round starts is rejected as outside the round; that's expected.
 7. Sign out, sign in again: it should go straight through (no second X consent screen is fine either way).
 8. If anything fails, the join page shows a plain message (cancelled, expired, X unavailable). Note which one.
+9. Under **Account → GitHub**, click **Connect GitHub** and approve. You should come back with "Connected as
+   @yourlogin". GitHub only shows your public profile; Misthos asks for no scopes and revokes the token right away.
+   Then submit one of your own pull requests: it's checked against your verified GitHub id.
+
+## Update 2026-10-03: GitHub ownership
+
+C-05 and B2 above used a typed GitHub username. That trusted whatever the contributor typed, so someone could claim
+another person's pull requests. It's replaced by **Connect GitHub** (OAuth, verified numeric id): GitHub links are
+refused until connected, and the agent pays only when the PR or commit author id matches the verified id. The typed
+username editor and `POST /api/contributor/github` are gone. See SEC-1 in `docs/UX_AUDIT.md`.

@@ -1,0 +1,44 @@
+/**
+ * Unambiguous times: the viewer's local time with its zone, the same moment in UTC, and how far away it is.
+ * e.g. "Fri 2 Oct 2026, 8:00 PM GMT+5:30 · 14:30 UTC". Local formatting needs the browser's zone: call from client
+ * components only.
+ */
+export function localAndUtc(d: Date): string {
+  const local = new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZoneName: "short",
+  })
+    .format(d)
+    .replace(/ at /, ", ")
+    .replace(/\b(am|pm)\b/, (m) => m.toUpperCase());
+  return `${local} · ${d.toISOString().slice(11, 16)} UTC`;
+}
+
+/** "in 6 days", "in 3 hours", "in 12 minutes", "now", "2 days ago". */
+export function fromNow(d: Date, now: number = Date.now()): string {
+  const ms = d.getTime() - now;
+  const abs = Math.abs(ms);
+  const unit =
+    abs >= 86_400_000
+      ? ([Math.round(abs / 86_400_000), "day"] as const)
+      : abs >= 3_600_000
+        ? ([Math.round(abs / 3_600_000), "hour"] as const)
+        : abs >= 60_000
+          ? ([Math.round(abs / 60_000), "minute"] as const)
+          : null;
+  if (!unit) return "now";
+  const text = `${unit[0]} ${unit[1]}${unit[0] === 1 ? "" : "s"}`;
+  return ms > 0 ? `in ${text}` : `${text} ago`;
+}
+
+/** Value for <input type="datetime-local"> in the viewer's zone. */
+export function toLocalInput(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}

@@ -6,8 +6,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useAccount, useDisconnect, useSignMessage } from "wagmi";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { WalletButton } from "@/components/web3/wallet-button";
 
 const ERRORS: Record<string, string> = {
@@ -27,16 +25,12 @@ const ERRORS: Record<string, string> = {
 export function WalletLink({
   programSlug,
   mode,
-  initialGithub = "",
-  showGithub = true,
   cooldownHours = 0,
   currentWallet,
   onDone,
 }: {
   programSlug: string;
   mode: "join" | "change";
-  initialGithub?: string;
-  showGithub?: boolean;
   cooldownHours?: number;
   currentWallet?: string | null;
   onDone?: () => void;
@@ -45,7 +39,6 @@ export function WalletLink({
   const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
   const router = useRouter();
-  const [github, setGithub] = useState(initialGithub);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ text: string; signIn?: boolean } | null>(null);
   const same =
@@ -84,7 +77,6 @@ export function WalletLink({
           nonce: challenge.nonce,
           issuedAt: challenge.issuedAt,
           signature,
-          ...(showGithub ? { githubLogin: github.trim() } : {}),
         }),
       });
       const body = (await res.json()) as { ok: boolean; error?: string };
@@ -134,23 +126,6 @@ export function WalletLink({
           className="w-full sm:w-auto"
         />
       )}
-      {showGithub && isConnected ? (
-        <div className="grid gap-1.5">
-          <Label htmlFor="github">
-            GitHub username <span className="text-muted-foreground font-normal">(optional)</span>
-          </Label>
-          <Input
-            id="github"
-            value={github}
-            onChange={(e) => setGithub(e.target.value)}
-            placeholder="octocat"
-            autoComplete="off"
-          />
-          <p className="text-muted-foreground text-xs">
-            Only needed if you&apos;ll submit pull requests or commits.
-          </p>
-        </div>
-      ) : null}
       {isConnected ? (
         <Button onClick={link} disabled={busy || same} className="w-full sm:w-auto">
           {busy

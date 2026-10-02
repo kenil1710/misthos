@@ -13,6 +13,7 @@ import {
 import { Card, EmptyState, PageHeader, Stat, TableFrame } from "@/components/ui-kit";
 import { Term } from "@/components/ui-kit/term";
 import { FundVault } from "@/components/vault/fund-vault";
+import { OwnerWallet } from "@/components/vault/owner-wallet";
 import { PauseVault, WithdrawVault } from "@/components/vault/vault-controls";
 import { getProgramForMember } from "@/lib/server/queries";
 import { treasuryActivity } from "@/lib/server/rounds-view";
@@ -57,6 +58,7 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
       <PageHeader
         crumbs={crumbs}
         title="Treasury"
+        actions={owner ? <OwnerWallet owner={me} /> : null}
         description={
           <>
             Read live from the <Term k="vault">vault</Term> on Arc:{" "}
@@ -107,10 +109,21 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
           aria-label="Rolling 24-hour limit used"
         >
           <div
-            className="bg-brand h-full rounded-full"
+            className={`${capPct >= 80 ? "bg-warning" : "bg-brand"} h-full rounded-full`}
             style={{ width: `${Math.min(100, capPct)}%` }}
           />
         </div>
+        {capPct >= 80 ? (
+          <p className="text-warning mt-3 text-sm">
+            Only {formatUsdc(state.limits.maxPerDay - state.spentInWindow)} left in this window.
+            Approved work that doesn&apos;t fit is carried to a later round. To pay more now, raise
+            the limit in{" "}
+            <Link href={`${base}/settings`} className="underline underline-offset-4">
+              Settings
+            </Link>
+            .
+          </p>
+        ) : null}
       </Card>
 
       {owner ? (

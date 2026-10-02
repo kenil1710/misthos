@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { ReviewTable } from "@/components/review/review-table";
-import { PageHeader } from "@/components/ui-kit";
+import { Inbox } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EmptyState, PageHeader } from "@/components/ui-kit";
+import { CopyField } from "@/components/ui-kit/copy-field";
+import { appOrigin } from "@/lib/server/env";
 import {
   getProgramForMember,
   isReviewStatus,
@@ -27,6 +31,8 @@ export default async function SubmissionsPage({
     submissionCounts(id),
   ]);
   const total = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
+  const published = row.program.status === "active" || row.program.status === "paused";
+  const joinUrl = `${appOrigin()}/join/${row.program.slug}`;
   const filters = [
     [undefined, "All", total],
     ["escalated", "Needs review", counts.escalated ?? 0],
@@ -60,12 +66,40 @@ export default async function SubmissionsPage({
           </Link>
         ))}
       </nav>
-      <ReviewTable
-        rows={rows.filter(
-          (r) => status !== "pending" || r.status === "pending" || r.status === "processing",
-        )}
-        maxPerPayout={row.program.limitsJson.maxPerPayout}
-      />
+      {total === 0 ? (
+        <section className="bg-card grid justify-items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
+          <Inbox className="text-muted-foreground size-6" strokeWidth={1.5} aria-hidden="true" />
+          <h2 className="font-medium">No submissions yet</h2>
+          <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
+            Contributors join with your link, sign in with X and paste links to their work. Each
+            submission shows up here within a minute, with the agent&apos;s decision and reasons.
+          </p>
+          {published ? (
+            <div className="w-full max-w-md">
+              <CopyField
+                value={joinUrl}
+                label="join link"
+                display={joinUrl.replace(/^https?:\/\//, "")}
+              />
+            </div>
+          ) : (
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/app/programs/${id}/settings`}>Publish the join page</Link>
+            </Button>
+          )}
+        </section>
+      ) : rows.length === 0 ? (
+        <EmptyState action={{ label: "Show all submissions", href: "?" }}>
+          Nothing is {filters.find(([k]) => k === status)?.[1].toLowerCase() ?? "here"} right now.
+        </EmptyState>
+      ) : (
+        <ReviewTable
+          rows={rows.filter(
+            (r) => status !== "pending" || r.status === "pending" || r.status === "processing",
+          )}
+          maxPerPayout={row.program.limitsJson.maxPerPayout}
+        />
+      )}
     </div>
   );
 }

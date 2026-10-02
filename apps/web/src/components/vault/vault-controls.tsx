@@ -1,14 +1,17 @@
 "use client";
 
-import { formatUsdc, misthosVaultAbi, parseUsdc, shortHex } from "@misthos/shared";
+import { formatUsdc, getChainConfig, misthosVaultAbi, parseUsdc, shortHex } from "@misthos/shared";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { useWriteContract } from "wagmi";
+import { HexValue } from "@/components/hex-value";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UsdcInput } from "@/components/ui-kit/usdc-input";
 import { recordTx } from "./use-owner-tx";
 import { TxAction } from "./tx-action";
+
+const explorerAddress = (a: string) => `${getChainConfig().explorerUrl}/address/${a}`;
 
 const record =
   (programId: string, action: "withdraw" | "pause" | "unpause") => (hash: `0x${string}`) =>
@@ -24,6 +27,7 @@ export function WithdrawVault(p: {
   const { writeContractAsync } = useWriteContract();
   const [amount, setAmount] = useState("");
   const [to, setTo] = useState<string>(p.owner);
+  const [editingTo, setEditingTo] = useState(false);
   const balance = BigInt(p.balance);
   let units: bigint | null = null;
   try {
@@ -66,17 +70,34 @@ export function WithdrawVault(p: {
             </>
           }
         />
-        <div className="grid gap-1.5">
+        <div className="grid content-start gap-1.5">
           <Label htmlFor="withdraw-to">Send to</Label>
-          <Input
-            id="withdraw-to"
-            className="font-mono text-[13px]"
-            value={to}
-            onChange={(e) => setTo(e.target.value.trim())}
-            aria-invalid={!!toError}
-          />
+          {editingTo ? (
+            <Input
+              id="withdraw-to"
+              autoFocus
+              className="font-mono text-[13px]"
+              value={to}
+              onChange={(e) => setTo(e.target.value.trim())}
+              onBlur={() => isAddress(to) && setEditingTo(false)}
+              aria-invalid={!!toError}
+            />
+          ) : (
+            <div className="flex h-8 items-center justify-between gap-2 rounded-lg border px-2.5">
+              <HexValue value={to} label="recipient" href={explorerAddress(to)} />
+              <button
+                type="button"
+                id="withdraw-to"
+                className="text-muted-foreground hover:text-foreground rounded-sm text-xs underline-offset-4 hover:underline"
+                onClick={() => setEditingTo(true)}
+              >
+                Change
+              </button>
+            </div>
+          )}
           <p className={toError ? "text-danger text-xs" : "text-muted-foreground text-xs"}>
-            {toError ?? "Defaults to your own wallet."}
+            {toError ??
+              (to.toLowerCase() === p.owner.toLowerCase() ? "Your own wallet." : "Another wallet.")}
           </p>
         </div>
       </div>
@@ -86,6 +107,9 @@ export function WithdrawVault(p: {
         label="Withdraw"
         busyLabel="Withdrawing…"
         disabled={!valid}
+        disabledReason={
+          !amount ? "Enter an amount to withdraw." : (amountError ?? toError ?? undefined)
+        }
         success={`Withdrew ${units ? formatUsdc(units) : ""} from the vault.`}
         confirm={{
           title: `Withdraw ${units ? formatUsdc(units) : ""}`,

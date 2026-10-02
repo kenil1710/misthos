@@ -9,6 +9,9 @@ const ServerEnv = z.object({
   ARC_RPC_URL: z.string().optional(),
   X_CLIENT_ID: z.string().min(1),
   X_CLIENT_SECRET: z.string().min(1),
+  /** GitHub OAuth app for verifying contributors' GitHub accounts (optional: GitHub work is refused without it). */
+  GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
+  GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
 });
 export type ServerEnv = z.infer<typeof ServerEnv>;
 

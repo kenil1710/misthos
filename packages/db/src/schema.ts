@@ -83,6 +83,10 @@ export const users = pgTable("users", {
   xUserId: text("x_user_id").unique(),
   xHandle: text("x_handle"),
   xCreatedAt: timestamp("x_created_at", { withTimezone: true }),
+  /** Verified through GitHub OAuth (never typed): the numeric id is what ownership checks compare. */
+  githubUserId: text("github_user_id").unique(),
+  githubLogin: text("github_login"),
+  githubVerifiedAt: timestamp("github_verified_at", { withTimezone: true }),
   name: text("name"),
   email: text("email"),
   isFounder: boolean("is_founder").notNull().default(false),
@@ -163,8 +167,10 @@ export const contributors = pgTable(
       .references(() => users.id),
     xUserId: text("x_user_id").notNull(),
     xHandle: text("x_handle").notNull(),
-    /** Typed by the contributor (no GitHub OAuth in this scope); checked against PR authors. */
+    /** GitHub identity copied from the user's verified OAuth connection; the id is what ownership checks use. */
     githubLogin: text("github_login"),
+    githubUserId: text("github_user_id"),
+    githubVerifiedAt: timestamp("github_verified_at", { withTimezone: true }),
     walletAddress: text("wallet_address"),
     walletVerifiedAt: timestamp("wallet_verified_at", { withTimezone: true }),
     walletChangedAt: timestamp("wallet_changed_at", { withTimezone: true }),

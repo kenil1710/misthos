@@ -123,13 +123,17 @@ describe("createSubmission", () => {
     expect(enqueue).not.toHaveBeenCalled();
   });
 
-  it("requires a GitHub username for GitHub work", async () => {
+  it("refuses GitHub work until GitHub is connected; a typed username doesn't count (spoofing)", async () => {
     const r = await submit("https://github.com/a/b/pull/1");
-    expect(r).toEqual({
+    expect(r).toMatchObject({
       ok: false,
-      error: "Add your GitHub username before submitting GitHub work.",
+      error: expect.stringMatching(/Connect your GitHub account/),
     });
-    await db.update(contributors).set({ githubLogin: "alice-dev" });
+    // Someone types another person's username: still refused.
+    await db.update(contributors).set({ githubLogin: "torvalds" });
+    expect((await submit("https://github.com/a/b/pull/1")).ok).toBe(false);
+    // Connected through OAuth (verified id): accepted.
+    await db.update(contributors).set({ githubUserId: "4242", githubLogin: "alice-dev" });
     expect((await submit("https://github.com/a/b/pull/1")).ok).toBe(true);
   });
 

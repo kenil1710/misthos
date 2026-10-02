@@ -37,3 +37,11 @@ export function recentlyChanged<C extends { walletChangedAt: Date | null }>(
       now - c.walletChangedAt.getTime() < Math.max(cooldownSeconds, 3600) * 1000,
   );
 }
+
+/** A round whose window hasn't begun yet (shown as "Scheduled", can't be closed). */
+export function isScheduled(
+  r: { startsAt: Date; status: string },
+  now: number = Date.now(),
+): boolean {
+  return r.status === "open" && r.startsAt.getTime() > now;
+}

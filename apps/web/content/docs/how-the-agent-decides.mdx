@@ -21,7 +21,7 @@ person's eyes; they send the submission to review.
 
 | Flag | Severity | Raised when |
 | --- | --- | --- |
-| `OWNERSHIP_MISMATCH` | hard, rejects | The post, PR or commit belongs to a different account than the contributor's, or it's a repost. |
+| `OWNERSHIP_MISMATCH` | hard, rejects | The post belongs to a different X account, or it's a repost; or the PR/commit author isn't the GitHub account the contributor connected (checked by GitHub's numeric id, never a typed username). |
 | `OUT_OF_WINDOW` | hard, rejects | The work was published before the round started or after it ended. |
 | `DUPLICATE_URL` | hard, rejects | The same resource was already submitted in this program. |
 | `NEAR_DUPLICATE` | hard or soft | The text is similar to an earlier submission (pg_trgm similarity, or SimHash within 3 bits). At 80% or more against **someone else's** work it's hard and rejects; otherwise (60%+, or your own earlier work) it's soft. |

@@ -1,5 +1,10 @@
 import { formatUsdc } from "@misthos/shared";
+import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
+import heroDark from "@/assets/landing/hero-dark.png";
+import heroLight from "@/assets/landing/hero-light.png";
+import { ProductFrame } from "@/components/landing/product-frame";
+import { exampleAuditSlug } from "@/lib/server/landing";
 import { ProgramStatus } from "@/components/app/program-status";
 import { ActionBadge } from "@/components/public/action-badge";
 import { Button } from "@/components/ui/button";
@@ -39,37 +44,57 @@ export default async function OverviewPage() {
   const o = await ownerOverview(session.sub);
 
   if (!o) {
+    const example = await exampleAuditSlug();
     return (
       <div className="grid gap-8">
         <PageHeader
           title="Welcome to Misthos"
           description="Set up a contributor program once; the agent reviews every submission and pays approved work from a vault you own."
         />
-        <section className="bg-card rounded-xl border p-6 sm:p-8">
-          <h2 className="text-base font-medium">Your first program takes about five minutes</h2>
-          <ol className="text-soft mt-4 grid gap-3 text-sm sm:grid-cols-3">
-            {[
-              ["Write the rules", "What you pay for, how it's scored, and your limits."],
-              ["Deploy and fund the vault", "One transaction to create it, one to deposit USDC."],
-              [
-                "Share the join link",
-                "Contributors sign in with X and submit links to their work.",
-              ],
-            ].map(([t, d], i) => (
-              <li key={t} className="flex gap-3">
-                <span className="text-muted-foreground mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums">
-                  {i + 1}
-                </span>
-                <span>
-                  <span className="text-foreground block font-medium">{t}</span>
-                  {d}
-                </span>
-              </li>
-            ))}
-          </ol>
-          <Button asChild className="mt-6">
-            <Link href="/app/programs/new">Create your first program</Link>
-          </Button>
+        <section className="bg-card grid items-center gap-8 overflow-hidden rounded-xl border p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+          <div>
+            <h2 className="text-base font-medium">Your first program takes about five minutes</h2>
+            <ol className="text-soft mt-4 grid gap-3 text-sm">
+              {[
+                ["Write the rules", "What you pay for, how it's scored, and your limits."],
+                ["Deploy and fund the vault", "One transaction to create it, one to deposit USDC."],
+                [
+                  "Share the join link",
+                  "Contributors sign in with X and submit links to their work.",
+                ],
+              ].map(([t, d], i) => (
+                <li key={t} className="flex gap-3">
+                  <span className="text-muted-foreground mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums">
+                    {i + 1}
+                  </span>
+                  <span>
+                    <span className="text-foreground block font-medium">{t}</span>
+                    {d}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              <Button asChild>
+                <Link href="/app/programs/new">Create your first program</Link>
+              </Button>
+              {example ? (
+                <Button asChild variant="ghost">
+                  <Link href={`/p/${example}`} target="_blank">
+                    See a live example
+                    <ArrowUpRight className="size-3.5" strokeWidth={1.5} />
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <ProductFrame
+            light={heroLight}
+            dark={heroDark}
+            sizes="(min-width: 1024px) 560px, 100vw"
+            className="lg:-mr-12"
+            alt="The review queue: every submission with the agent's decision, its reasons, and the amount."
+          />
         </section>
       </div>
     );

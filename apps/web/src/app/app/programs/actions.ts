@@ -28,7 +28,12 @@ export async function createProgramAction(raw: unknown): Promise<CreateProgramSt
     input: parsed.data,
   });
   if (!result.ok)
-    return { error: "That URL name is taken.", fieldErrors: { "basics.slug": "Already taken" } };
+    return {
+      error: "That join link is taken. Pick another.",
+      fieldErrors: { "basics.slug": "Already taken" },
+    };
+  // The sidebar's program switcher lives in the /app layout: refresh it so the new draft shows up right away.
+  revalidatePath("/app", "layout");
   redirect(`/app/programs/${result.programId}`);
 }
 
@@ -38,6 +43,6 @@ export async function setProgramStatusAction(programId: string, status: "active"
   const id = z.uuid().safeParse(programId);
   if (!id.success) return { ok: false as const };
   const ok = await setProgramStatus(getDb(), { programId: id.data, userId: session.sub, status });
-  revalidatePath(`/app/programs/${id.data}`);
+  revalidatePath("/app", "layout");
   return { ok };
 }

@@ -15,6 +15,8 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@misthos/shared", "@misthos/db"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
+  // The dev-only badge sat on top of the app's sidebar footer.
+  devIndicators: false,
   images: { qualities: [70, 75] },
   // Lets the e2e dev server run beside a normal `next dev` without sharing .next.
   distDir: process.env.NEXT_DIST_DIR || ".next",

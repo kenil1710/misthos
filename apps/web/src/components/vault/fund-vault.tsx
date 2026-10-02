@@ -82,6 +82,7 @@ export function FundVault(p: { programId: string; vault: Address; usdc: Address;
         label="Fund vault"
         busyLabel="Funding…"
         disabled={!valid}
+        disabledReason={!amount ? "Enter an amount to deposit." : (error ?? undefined)}
         success={`Deposited ${units ? formatUsdc(units) : ""} into the vault.`}
         confirm={{
           title: `Deposit ${units ? formatUsdc(units) : ""}`,

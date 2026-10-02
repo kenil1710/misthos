@@ -29,6 +29,7 @@ export async function linkContributorWallet(
     programSlug: string;
     user: { id: string; xUserId: string; xHandle: string };
     address: string;
+    /** Ignored: GitHub is only linked through "Connect GitHub" (OAuth). Kept so old clients don't break. */
     githubLogin?: string | null;
     nonce: string;
     issuedAt: Date;
@@ -85,6 +86,16 @@ export async function linkContributorWallet(
       };
 
       if (!existing) {
+        // GitHub identity only ever comes from the user's verified OAuth connection, never from typed input.
+        const [u] = await tx
+          .select({
+            ghId: users.githubUserId,
+            ghLogin: users.githubLogin,
+            ghAt: users.githubVerifiedAt,
+          })
+          .from(users)
+          .where(eq(users.id, p.user.id))
+          .limit(1);
         const [c] = await tx
           .insert(contributors)
           .values({
@@ -92,7 +103,9 @@ export async function linkContributorWallet(
             userId: p.user.id,
             xUserId: p.user.xUserId,
             xHandle: p.user.xHandle,
-            githubLogin: p.githubLogin ?? null,
+            githubLogin: u?.ghLogin ?? null,
+            githubUserId: u?.ghId ?? null,
+            githubVerifiedAt: u?.ghAt ?? null,
             walletAddress: address,
             ...proof,
           })
@@ -103,7 +116,7 @@ export async function linkContributorWallet(
           action: "contributor.joined",
           entity: "contributor",
           entityId: c!.id,
-          data: { xHandle: p.user.xHandle, wallet: address, githubLogin: p.githubLogin ?? null },
+          data: { xHandle: p.user.xHandle, wallet: address, githubLogin: u?.ghLogin ?? null },
         });
         return { ok: true as const, contributorId: c!.id, joined: true, walletChanged: false };
       }
@@ -114,7 +127,6 @@ export async function linkContributorWallet(
         .set({
           walletAddress: address,
           xHandle: p.user.xHandle,
-          ...(p.githubLogin !== undefined ? { githubLogin: p.githubLogin } : {}),
           ...proof,
           ...(walletChanged ? { walletChangedAt: now } : {}),
         })

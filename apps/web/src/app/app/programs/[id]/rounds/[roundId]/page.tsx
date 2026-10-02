@@ -13,17 +13,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { OwnerWallet } from "@/components/vault/owner-wallet";
 import { ApproveRound, CloseRoundNow } from "@/components/vault/round-actions";
 import { getProgramForMember } from "@/lib/server/queries";
 import { getRoundDetail, listRounds } from "@/lib/server/rounds-view";
 import { Card, Notice, PageHeader, Stat } from "@/components/ui-kit";
 import { Term } from "@/components/ui-kit/term";
 import { utc } from "@/lib/time";
+import { isScheduled } from "@/lib/rounds";
 import { getOwnerSession } from "@/lib/server/session";
 import { explorerAddress, explorerTx, readVault } from "@/lib/server/vault";
 
 const ROUND_STATUS_TEXT: Record<string, string> = {
   open: "Open for submissions",
+  scheduled: "Scheduled",
   closed: "Closed: preparing payouts",
   proposed: "Proposed on Arc",
   approved: "Approved",
@@ -77,10 +80,12 @@ export default async function RoundPage({
           { label: `Round ${round.number}` },
         ]}
         title={`Round ${round.number}`}
-        meta={<RoundStatus status={round.status} />}
+        meta={<RoundStatus status={isScheduled(round) ? "scheduled" : round.status} />}
         description={`${utc(round.startsAt)} to ${utc(round.endsAt)}`}
         actions={
-          round.status === "open" && row.role === "owner" && vault ? (
+          needsApproval && row.role === "owner" ? (
+            <OwnerWallet owner={session.addr} />
+          ) : round.status === "open" && !isScheduled(round) && row.role === "owner" && vault ? (
             <CloseRoundNow
               roundId={round.id}
               roundNumber={round.number}

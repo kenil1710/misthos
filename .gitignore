@@ -7,6 +7,8 @@ coverage
 *.tsbuildinfo
 .env
 .env.*
+# Any .env-like file (e.g. a stray copy such as .envyy) never gets committed.
+.env*
 !.env.example
 .vercel
 .DS_Store

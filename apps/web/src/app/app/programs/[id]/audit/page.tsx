@@ -14,6 +14,8 @@ import { EmptyState, PageHeader, TableFrame } from "@/components/ui-kit";
 import { AUDIT_GROUPS, auditLog, type AuditGroup } from "@/lib/server/contributors-view";
 import { getProgramForMember } from "@/lib/server/queries";
 import { getOwnerSession } from "@/lib/server/session";
+import { actorFallback, actorNames } from "@/lib/server/actors";
+import { auditLabel } from "@/lib/audit-labels";
 
 export const metadata = { title: "Audit log" };
 
@@ -41,6 +43,10 @@ export default async function AuditPage({
   const actor =
     sp.actor === "agent" || sp.actor === "user" || sp.actor === "system" ? sp.actor : undefined;
   const rows = await auditLog(id, { group, actor, limit: 300 });
+  const people = await actorNames(
+    rows.map((r) => r.actor),
+    session.sub,
+  );
   const link = (g?: string, a?: string) => {
     const q = new URLSearchParams();
     if (g) q.set("group", g);
@@ -126,10 +132,11 @@ export default async function AuditPage({
                     {r.createdAt.toISOString().slice(0, 19).replace("T", " ")}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {r.actor === "agent" ? "Agent" : r.actor === "system" ? "System" : "Person"}
+                    {people.get(r.actor) ?? actorFallback(r.actor)}
                   </TableCell>
-                  <TableCell className="font-mono text-[12px] whitespace-nowrap">
-                    {r.action}
+                  <TableCell className="whitespace-nowrap">
+                    <span className="block">{auditLabel(r.action)}</span>
+                    <span className="text-muted-foreground font-mono text-[11px]">{r.action}</span>
                   </TableCell>
                   <TableCell className="max-w-[640px] text-[13px] whitespace-normal">
                     <AuditDetails data={r.dataJson} explorer={explorer} verifyBase={verifyBase} />

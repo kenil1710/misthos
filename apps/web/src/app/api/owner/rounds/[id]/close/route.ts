@@ -14,6 +14,11 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/rounds/[i
   if (!program.vaultAddress)
     return jsonError("Deploy and fund the vault before closing a round.", 409);
   if (round.status !== "open") return jsonError("This round is already closed.", 409);
+  if (round.startsAt > new Date())
+    return jsonError(
+      "This round hasn't started yet. Start it now from Settings, or wait until it opens.",
+      409,
+    );
   const ok = await enqueue(
     QUEUES.runRound,
     { roundId: round.id, force: true },

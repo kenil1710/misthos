@@ -29,6 +29,8 @@ description: The controls that protect funds, keys, and contributors' data.
 
 - Owners sign in with Sign-In with Ethereum (domain, chain, freshness and single-use nonce checked; EOA or ERC-1271).
 - Contributors sign in with X (OAuth 2.0 with PKCE). The X token is revoked right after reading the profile.
+- GitHub accounts are proven with "Connect GitHub" (OAuth, no scopes, token revoked immediately). Pull requests and
+  commits are paid only when the author's GitHub id matches the connected account; typed usernames aren't trusted.
 - Payout wallets are proven with a signature over a message bound to the program, X account, wallet, chain and a
   single-use nonce.
 - Every state-changing request checks its origin, validates input and checks program membership.
@@ -38,7 +40,7 @@ description: The controls that protect funds, keys, and contributors' data.
 ## Privacy
 
 Misthos reads only the links contributors submit. It keeps the fetched content to evaluate it, the contributor's X id,
-handle and account age, GitHub username, and payout wallet. Public audit pages show handles, wallets, amounts,
+handle and account age, the connected GitHub account (id and login), and payout wallet. Public audit pages show handles, wallets, amounts,
 summaries and hashes.
 
 ## Reporting a vulnerability

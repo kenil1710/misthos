@@ -130,9 +130,11 @@ describe("linkContributorWallet", () => {
     const r = await link(user, { verify });
     expect(r).toMatchObject({ ok: true, joined: true, walletChanged: false });
     const [c] = await db.select().from(contributors);
+    // A typed GitHub username is never trusted; GitHub is only linked through OAuth.
     expect(c).toMatchObject({
       xUserId: "42",
-      githubLogin: "alice-dev",
+      githubLogin: null,
+      githubUserId: null,
       walletAddress: "0x00000000000000000000000000000000000000b1",
     });
     expect(c!.walletProofMessage).toBe(verify.mock.calls[0]![0].message);

@@ -6,12 +6,16 @@ import { Card, EmptyState, Notice, PageHeader } from "@/components/ui-kit";
 import { CopyField } from "@/components/ui-kit/copy-field";
 import { Term } from "@/components/ui-kit/term";
 import { LimitsForm } from "@/components/vault/limits-form";
+import { OwnerWallet } from "@/components/vault/owner-wallet";
 import { unitsToInput } from "@/lib/units";
 import { appOrigin } from "@/lib/server/env";
-import { getProgramForMember } from "@/lib/server/queries";
+import { getProgramForMember, getRounds } from "@/lib/server/queries";
+import { RoundSchedule } from "@/components/app/round-schedule";
 import { getOwnerSession } from "@/lib/server/session";
 import { explorerAddress, readVault } from "@/lib/server/vault";
 import { PublishButton } from "../publish-button";
+import { ShareOnX } from "@/components/app/share-on-x";
+import { shareOnXUrl } from "@/lib/share";
 
 export const metadata = { title: "Settings" };
 
@@ -40,13 +44,15 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
   const vault = row.program.vaultAddress as Address | null;
   const state = vault ? await readVault(vault) : null;
   const joinUrl = `${appOrigin()}/join/${row.program.slug}`;
+  const latest = (await getRounds(id)).at(-1) ?? null;
   const l = state?.limits;
   return (
     <div className="grid max-w-3xl gap-6">
       <PageHeader
         crumbs={crumbs}
         title="Settings"
-        description="The join page, the vault and the limits it enforces."
+        description="The join page, round schedule, vault and the limits it enforces."
+        actions={<OwnerWallet owner={session.addr} />}
       />
 
       <Card title="Join page" actions={<ProgramStatus status={row.program.status} />}>
@@ -57,10 +63,48 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
             label="join link"
             display={joinUrl.replace(/^https?:\/\//, "")}
           />
-          <div>
+          <div className="flex flex-wrap gap-2">
             <PublishButton programId={id} status={row.program.status} />
+            {row.program.status === "active" ? (
+              <ShareOnX
+                href={shareOnXUrl({
+                  name: row.program.name,
+                  joinUrl,
+                  sources: [
+                    ...new Set(row.program.rubricJson.categories.flatMap((c) => c.sourceTypes)),
+                  ],
+                  bestPayout: row.program.rubricJson.categories.reduce(
+                    (m, c) =>
+                      row.program.ratePerPoint * BigInt(c.maxPoints) > m
+                        ? row.program.ratePerPoint * BigInt(c.maxPoints)
+                        : m,
+                    0n,
+                  ),
+                })}
+              />
+            ) : null}
           </div>
         </div>
+      </Card>
+
+      <Card
+        id="schedule"
+        title="Round schedule"
+        description="When rounds start and how long they last. Approved work is paid when each round closes."
+      >
+        <RoundSchedule
+          programId={id}
+          roundLengthDays={row.program.roundLengthDays}
+          round={
+            latest
+              ? {
+                  number: latest.number,
+                  startsAt: latest.startsAt.toISOString(),
+                  endsAt: latest.endsAt.toISOString(),
+                }
+              : null
+          }
+        />
       </Card>
 
       <Card

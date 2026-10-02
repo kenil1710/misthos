@@ -58,6 +58,11 @@ export function LimitsForm(p: {
         label="Update limits"
         busyLabel="Updating…"
         disabled={!parsed.success || !changed}
+        disabledReason={
+          !changed
+            ? "Change a limit above to update the vault."
+            : "Fix the highlighted limits first."
+        }
         success="Vault limits updated."
         confirm={
           l

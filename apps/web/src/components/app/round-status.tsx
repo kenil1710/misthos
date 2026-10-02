@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 
 const styles: Record<string, string> = {
   open: "bg-secondary text-foreground",
+  scheduled: "bg-muted text-muted-foreground",
   closed: "bg-muted text-muted-foreground",
   proposed: "bg-warning-subtle text-warning",
   approved: "bg-brand-subtle text-brand",
@@ -11,6 +12,7 @@ const styles: Record<string, string> = {
 
 const LABELS: Record<string, string> = {
   open: "Open",
+  scheduled: "Scheduled",
   closed: "Closed",
   proposed: "Proposed",
   approved: "Approved",

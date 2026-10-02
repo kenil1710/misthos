@@ -29,6 +29,13 @@
       "when": 1790925296445,
       "tag": "0003_phase4_rounds",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790961463458,
+      "tag": "0004_github_oauth",
+      "breakpoints": true
     }
   ]
 }

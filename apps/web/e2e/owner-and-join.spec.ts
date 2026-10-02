@@ -84,8 +84,9 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await op.getByRole("button", { name: "Continue" }).click();
     await expect(op.getByText("Must be at least the per-payout cap")).toBeVisible();
     await op.getByLabel("Max per round").fill("1000");
+    await op.getByLabel("Max per rolling 24 hours").fill("2000");
     await op.getByRole("button", { name: "Continue" }).click();
-    await expect(op.getByText("Rounds above 250 USDC")).toBeVisible();
+    await expect(op.getByText(/rounds above 50\.00 USDC/)).toBeVisible();
     await op.getByRole("button", { name: "Create program" }).click();
 
     await expect(op).toHaveURL(/\/app\/programs\/[0-9a-f-]{36}$/);
@@ -112,11 +113,12 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await expect(cp.getByRole("heading", { name: "E2E Builders" })).toBeVisible();
     await expect(cp.getByText(`@${X.handle}`)).toBeVisible();
     await connectWallet(cp);
-    await cp.getByLabel("GitHub username (optional)").fill("e2e-alice");
     await cp.getByRole("button", { name: "Sign and join" }).click();
     await expect(cp).toHaveURL(new RegExp(`/c/${SLUG}$`));
     await expect(cp.getByRole("heading", { name: "Your contributions" })).toBeVisible();
-    await expect(cp.getByText("e2e-alice")).toBeVisible();
+    // GitHub is only ever linked through OAuth; a fresh contributor sees the connect button and can't
+    // submit GitHub work until they do.
+    await expect(cp.getByRole("link", { name: "Connect GitHub" })).toBeVisible();
 
     // ── Contributor switches to a second wallet ────────────────────────────
     const c2 = await browser.newContext();
@@ -142,7 +144,7 @@ test("owner creates and publishes a program; contributor joins and switches wall
     expect(c.rows).toHaveLength(1);
     expect(c.rows[0].wallet_address).toBe(wallet2.address.toLowerCase());
     expect(c.rows[0].wallet_changed_at).not.toBeNull();
-    expect(c.rows[0].github_login).toBe("e2e-alice");
+    expect(c.rows[0].github_login).toBeNull();
     expect(c.rows[0].wallet_proof_message).toContain(`@${X.handle} (${X.id})`);
 
     const owners = await db.query(

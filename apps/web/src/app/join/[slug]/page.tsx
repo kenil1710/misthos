@@ -1,4 +1,6 @@
+import { decisions, getDb, submissions } from "@misthos/db";
 import { formatUsdc, Slug, SOURCE_LABELS } from "@misthos/shared";
+import { and, desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { Check } from "lucide-react";
 import Link from "next/link";
@@ -19,6 +21,18 @@ const X_ERRORS: Record<string, string> = {
   state_mismatch: "The sign-in couldn't be verified. Try again.",
   x_unavailable: "X didn't respond. Try again in a minute.",
 };
+
+/** The highest-paid approved decision in this program, as a concrete example of what good work looks like. */
+async function bestDecision(programId: string) {
+  const [d] = await getDb()
+    .select({ summary: decisions.summary, amount: decisions.amount })
+    .from(decisions)
+    .innerJoin(submissions, eq(submissions.id, decisions.submissionId))
+    .where(and(eq(submissions.programId, programId), eq(decisions.action, "approve")))
+    .orderBy(desc(decisions.amount))
+    .limit(1);
+  return d ?? null;
+}
 
 async function load(slug: string) {
   const parsed = Slug.safeParse(slug);
@@ -74,6 +88,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   const membership = session ? await getContributorMembership(program.id, session.xid) : null;
   const rounds = await getRounds(program.id);
   const round = currentRound(rounds);
+  const example = await bestDecision(program.id);
 
   return (
     <Web3Provider>
@@ -112,12 +127,76 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
               <p className="mt-2 text-sm whitespace-pre-line">{program.rubricJson.generalRules}</p>
             </>
           ) : null}
-          <h2 className="mt-10 text-base font-medium">How you get paid</h2>
-          <p className="text-muted-foreground mt-2 text-sm">
-            An AI agent checks that the work is yours, original, and inside the round, scores it
-            against the rubric, and explains its decision. Payouts are sent in USDC on Arc from a
-            vault with on-chain limits. Every decision is published on the program&apos;s audit
-            page.
+          <h2 className="mt-10 text-base font-medium">How it works</h2>
+          <ol className="mt-4 grid gap-4 sm:grid-cols-2">
+            {[
+              [
+                "Join",
+                "Sign in with X and link the wallet you want to be paid in. It takes a minute and costs nothing.",
+              ],
+              [
+                "Do the work",
+                "Post, write or ship something this program pays for, from your own accounts.",
+              ],
+              [
+                "Submit the link",
+                "An AI agent checks it's yours, original and inside the round, scores it and tells you why.",
+              ],
+              [
+                "Get paid",
+                "Approved work is paid in USDC on Arc when the round closes. Every payout is public.",
+              ],
+            ].map(([t, d], i) => (
+              <li key={t} className="flex gap-3">
+                <span className="text-muted-foreground mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums">
+                  {i + 1}
+                </span>
+                <span className="text-sm">
+                  <span className="block font-medium">{t}</span>
+                  <span className="text-soft">{d}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+          <h2 className="mt-10 text-base font-medium">An example of good work</h2>
+          {example ? (
+            <figure className="bg-card mt-3 rounded-xl border p-4 text-sm">
+              <blockquote className="leading-relaxed">{example.summary}</blockquote>
+              <figcaption className="text-muted-foreground mt-2 text-xs">
+                A real decision from this program, paid {formatUsdc(example.amount)}.{" "}
+                <a
+                  href={`/p/${program.slug}`}
+                  className="text-foreground underline underline-offset-4"
+                >
+                  See every decision
+                </a>
+              </figcaption>
+            </figure>
+          ) : (
+            <div className="bg-card mt-3 rounded-xl border p-4 text-sm">
+              <p className="font-medium">
+                A 10/10 {program.rubricJson.categories[0]?.name.toLowerCase() ?? "submission"} earns{" "}
+                {formatUsdc(
+                  program.ratePerPoint * BigInt(program.rubricJson.categories[0]?.maxPoints ?? 0),
+                )}
+                :
+              </p>
+              <ul className="text-soft mt-2 grid list-disc gap-1 pl-5">
+                {(program.rubricJson.categories[0]?.criteria ?? []).map((k) => (
+                  <li key={k.key}>
+                    <span className="text-foreground">{k.name}:</span> {k.description}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="text-muted-foreground mt-6 text-sm">
+            Payouts come from a vault with limits enforced on-chain, and every decision is published
+            on the program&apos;s{" "}
+            <a href={`/p/${program.slug}`} className="text-foreground underline underline-offset-4">
+              audit page
+            </a>
+            .
           </p>
         </article>
 

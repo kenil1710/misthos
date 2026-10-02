@@ -50,9 +50,13 @@ export async function createSubmission(
     };
   if (
     (classified.sourceType === "github_pr" || classified.sourceType === "github_commit") &&
-    !me.githubLogin
+    !me.githubUserId
   ) {
-    return { ok: false, error: "Add your GitHub username before submitting GitHub work." };
+    return {
+      ok: false,
+      error:
+        "Connect your GitHub account before submitting GitHub work, so the agent can confirm it's yours.",
+    };
   }
 
   const round = await ensureCurrentRound(db, program, now);

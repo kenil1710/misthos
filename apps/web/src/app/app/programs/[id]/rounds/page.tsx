@@ -16,6 +16,9 @@ import { getProgramForMember } from "@/lib/server/queries";
 import { listRounds } from "@/lib/server/rounds-view";
 import { getOwnerSession } from "@/lib/server/session";
 import { utcDay } from "@/lib/time";
+import { isScheduled } from "@/lib/rounds";
+import { fromNow } from "@/lib/when";
+import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Rounds" };
 
@@ -27,6 +30,7 @@ export default async function RoundsPage({ params }: PageProps<"/app/programs/[i
   if (!row) return null;
   const rounds = await listRounds(id);
   const open = rounds.find((r) => r.status === "open");
+  const openScheduled = open ? isScheduled(open) : false;
   const base = `/app/programs/${id}`;
   return (
     <div className="grid gap-6">
@@ -41,7 +45,22 @@ export default async function RoundsPage({ params }: PageProps<"/app/programs/[i
           </>
         }
         actions={
-          open && row.role === "owner" && row.program.vaultAddress ? (
+          open && openScheduled && row.role === "owner" ? (
+            <div className="grid justify-items-end gap-1">
+              <Button variant="outline" disabled>
+                Close round now
+              </Button>
+              <p className="text-muted-foreground text-xs">
+                Round {open.number} hasn&apos;t started.{" "}
+                <Link
+                  href={`${base}/settings#schedule`}
+                  className="text-foreground underline underline-offset-4"
+                >
+                  Start it now
+                </Link>
+              </p>
+            </div>
+          ) : open && row.role === "owner" && row.program.vaultAddress ? (
             <CloseRoundNow
               roundId={open.id}
               roundNumber={open.number}
@@ -87,7 +106,12 @@ export default async function RoundsPage({ params }: PageProps<"/app/programs/[i
                   </TableCell>
                   <TableCell>
                     <span className="inline-flex flex-wrap items-center gap-2">
-                      <RoundStatus status={r.status} />
+                      <RoundStatus status={isScheduled(r) ? "scheduled" : r.status} />
+                      {isScheduled(r) ? (
+                        <span className="text-muted-foreground text-xs">
+                          starts {fromNow(r.startsAt)}
+                        </span>
+                      ) : null}
                       {r.status === "open" && r.approvedUnpaid ? (
                         <span className="text-muted-foreground text-xs">
                           {r.approvedUnpaid} approved, {formatUsdc(BigInt(r.approvedUnpaidAmount))}

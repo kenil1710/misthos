@@ -4,22 +4,25 @@ import { notFound, redirect } from "next/navigation";
 import { SignOutButton } from "@/components/app/sign-out-button";
 import { SiteHeader } from "@/components/app/site-header";
 import { ChangeWallet } from "@/components/contributor/change-wallet";
-import { GithubEditor } from "@/components/contributor/github-editor";
+import { GithubConnect } from "@/components/contributor/github-connect";
+import { formatUsdc as fmt, SOURCE_LABELS } from "@misthos/shared";
 import { Submissions } from "@/components/contributor/submissions";
 import { HexValue } from "@/components/hex-value";
 import { EmptyState, Notice } from "@/components/ui-kit";
 import { Web3Provider } from "@/components/web3/web3-provider";
-import { cooldownEndsAt, currentRound } from "@/lib/rounds";
+import { cooldownEndsAt, currentRound, isScheduled } from "@/lib/rounds";
 import { chainConfig } from "@/lib/server/chain";
 import { contributorDetail } from "@/lib/server/contributors-view";
 import { getContributorMembership, getProgramBySlug, getRounds } from "@/lib/server/queries";
 import { getContributorSession } from "@/lib/server/session";
 import { utc, utcDay } from "@/lib/time";
+import { fromNow } from "@/lib/when";
 
 export const metadata = { title: "Your contributions" };
 
-export default async function ContributorHome({ params }: PageProps<"/c/[slug]">) {
+export default async function ContributorHome({ params, searchParams }: PageProps<"/c/[slug]">) {
   const { slug } = await params;
+  const sp = await searchParams;
   const parsed = Slug.safeParse(slug);
   if (!parsed.success) notFound();
   const program = await getProgramBySlug(parsed.data);
@@ -36,7 +39,8 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
     getRounds(program.id),
   ]);
   const round = currentRound(rounds);
-  const roundOpen = round && round.status === "open";
+  const scheduled = round ? isScheduled(round) : false;
+  const roundOpen = round && round.status === "open" && !scheduled;
   const earned =
     detail?.payouts.filter((p) => p.p.status === "executed").reduce((s, p) => s + p.p.amount, 0n) ??
     0n;
@@ -45,6 +49,17 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
       .filter((s) => s.status === "approved" || s.status === "partial")
       .reduce((sum, s) => sum + (s.amount ?? 0n), 0n) ?? 0n;
   const explorer = chainConfig().explorerUrl;
+  const thisRound =
+    roundOpen && round
+      ? (detail?.submissions ?? [])
+          .filter(
+            (x) => x.roundId === round.id && ["approved", "partial", "paid"].includes(x.status),
+          )
+          .reduce((sum, x) => sum + (x.amount ?? 0n), 0n)
+      : 0n;
+  const submittedAny = (detail?.submissions.length ?? 0) > 0;
+  const sources = [...new Set(program.rubricJson.categories.flatMap((c) => c.sourceTypes))];
+  const wantsGithub = sources.some((t) => t === "github_pr" || t === "github_commit");
 
   return (
     <Web3Provider>
@@ -61,8 +76,10 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
           {round ? (
             <p className="text-soft mt-2 text-sm">
               {roundOpen
-                ? `Round ${round.number} is open until ${utc(round.endsAt)}. Approved work is paid when it closes.`
-                : `Round ${round.number}: ${utcDay(round.startsAt)} to ${utcDay(round.endsAt)}.`}
+                ? `Round ${round.number} ends ${fromNow(round.endsAt)} (${utc(round.endsAt)}). Approved work is paid when it closes.`
+                : scheduled
+                  ? `Round ${round.number} starts ${fromNow(round.startsAt)} (${utc(round.startsAt)}).`
+                  : `Round ${round.number}: ${utcDay(round.startsAt)} to ${utcDay(round.endsAt)}.`}
             </p>
           ) : null}
         </div>
@@ -71,14 +88,77 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
           <Notice>This program has paused new sign-ups. You can keep submitting.</Notice>
         ) : null}
 
+        {!submittedAny ? (
+          <section className="bg-card rounded-xl border p-4 sm:p-6" aria-labelledby="next-h">
+            <h2 id="next-h" className="font-medium">
+              You&apos;re in. Here&apos;s what to do next
+            </h2>
+            <ol className="text-soft mt-3 grid list-decimal gap-2 pl-5 text-sm leading-relaxed">
+              <li>
+                Create something this program pays for:{" "}
+                {sources
+                  .map((t) => SOURCE_LABELS[t].replace(/^(?!X )./, (c) => c.toLowerCase()))
+                  .join(", ")}
+                .{sources.includes("x_post") ? ` Post it on X from @${me.xHandle}.` : ""}
+              </li>
+              {wantsGithub && !me.githubUserId ? (
+                <li>
+                  For pull requests or commits, connect GitHub (Account, below) so the agent can
+                  confirm they&apos;re yours.
+                </li>
+              ) : null}
+              <li>
+                Paste the link below. The agent reviews it in about a minute and tells you why.
+              </li>
+              <li>Approved work is paid in USDC to your wallet when the round closes.</li>
+            </ol>
+            <details className="mt-4 text-sm" open>
+              <summary className="cursor-pointer font-medium">What this program pays for</summary>
+              <ul className="mt-2 grid gap-2">
+                {program.rubricJson.categories.map((c) => (
+                  <li key={c.key} className="rounded-lg border p-3">
+                    <span className="flex justify-between gap-3">
+                      <span className="font-medium">{c.name}</span>
+                      <span className="mono-num shrink-0">
+                        up to {fmt(program.ratePerPoint * BigInt(c.maxPoints))}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground mt-0.5 block">{c.description}</span>
+                    <span className="text-muted-foreground block text-xs">
+                      Scored on {c.criteria.map((k) => k.name.toLowerCase()).join(", ")}
+                    </span>
+                    {c.rules ? <span className="mt-1 block">{c.rules}</span> : null}
+                  </li>
+                ))}
+              </ul>
+              {program.rubricJson.generalRules ? (
+                <p className="text-soft mt-2 whitespace-pre-line">
+                  {program.rubricJson.generalRules}
+                </p>
+              ) : null}
+            </details>
+          </section>
+        ) : null}
+
         <dl
-          className="bg-card grid grid-cols-2 divide-x rounded-xl border"
+          className="bg-card grid grid-cols-2 divide-x rounded-xl border sm:grid-cols-3"
           aria-label="Your totals"
         >
           <div className="p-4">
             <dt className="text-muted-foreground text-xs">Paid to you</dt>
             <dd className="mono-num mt-1 text-xl">{formatUsdc(earned, { withSymbol: false })}</dd>
             <dd className="text-muted-foreground mt-1 text-xs">USDC</dd>
+          </div>
+          <div className="col-span-2 border-t p-4 sm:col-span-1 sm:border-t-0">
+            <dt className="text-muted-foreground text-xs">This round so far</dt>
+            <dd className="mono-num mt-1 text-xl">
+              {formatUsdc(thisRound, { withSymbol: false })}
+            </dd>
+            <dd className="text-muted-foreground mt-1 text-xs">
+              {roundOpen && round
+                ? `USDC approved, round ends ${fromNow(round.endsAt)}`
+                : "USDC approved"}
+            </dd>
           </div>
           <div className="p-4">
             <dt className="text-muted-foreground text-xs">Approved, not yet paid</dt>
@@ -145,7 +225,13 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
             <dd>@{me.xHandle}</dd>
             <dt className="text-muted-foreground">GitHub</dt>
             <dd>
-              <GithubEditor programSlug={program.slug} current={me.githubLogin} />
+              <GithubConnect
+                slug={program.slug}
+                login={me.githubLogin}
+                verified={!!me.githubUserId}
+                status={typeof sp.github === "string" ? sp.github : undefined}
+                error={typeof sp.github_error === "string" ? sp.github_error : undefined}
+              />
             </dd>
             <dt className="text-muted-foreground">Payout wallet</dt>
             <dd>

@@ -41,7 +41,6 @@ export async function POST(req: Request) {
     programSlug: b.programSlug,
     user: { id: session.sub, xUserId: session.xid, xHandle: session.xh },
     address: b.address,
-    githubLogin: b.githubLogin === undefined ? undefined : b.githubLogin || null,
     nonce: b.nonce,
     issuedAt: new Date(b.issuedAt),
     signature: b.signature as `0x${string}`,

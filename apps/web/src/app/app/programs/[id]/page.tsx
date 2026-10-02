@@ -14,6 +14,7 @@ import { CopyField } from "@/components/ui-kit/copy-field";
 import { Term } from "@/components/ui-kit/term";
 import { DeployVault } from "@/components/vault/deploy-vault";
 import { FundVault } from "@/components/vault/fund-vault";
+import { OwnerWallet } from "@/components/vault/owner-wallet";
 import { currentRound, recentlyChanged } from "@/lib/rounds";
 import { appOrigin } from "@/lib/server/env";
 import {
@@ -32,6 +33,8 @@ import {
 } from "@/lib/server/vault";
 import { utcDay } from "@/lib/time";
 import { PublishButton } from "./publish-button";
+import { ShareOnX } from "@/components/app/share-on-x";
+import { shareOnXUrl } from "@/lib/share";
 
 export default async function ProgramPage({ params }: PageProps<"/app/programs/[id]">) {
   const session = await getOwnerSession();
@@ -70,6 +73,18 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
   const needsReview = counts.escalated ?? 0;
   const approvedUnpaid = (counts.approved ?? 0) + (counts.partial ?? 0);
   const base = `/app/programs/${program.id}`;
+  const shareHref = shareOnXUrl({
+    name: program.name,
+    joinUrl,
+    sources: [...new Set(program.rubricJson.categories.flatMap((c) => c.sourceTypes))],
+    bestPayout: program.rubricJson.categories.reduce(
+      (m, c) =>
+        program.ratePerPoint * BigInt(c.maxPoints) > m
+          ? program.ratePerPoint * BigInt(c.maxPoints)
+          : m,
+      0n,
+    ),
+  });
 
   const steps: SetupStep[] = [
     {
@@ -145,6 +160,11 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
             <PublishButton programId={program.id} status={program.status} size="default" />
           ) : null}
           {published ? (
+            <div>
+              <ShareOnX href={shareHref} />
+            </div>
+          ) : null}
+          {published ? (
             <p className="text-muted-foreground text-xs">
               This step completes when the first contributor joins.
             </p>
@@ -183,6 +203,8 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
         description={program.description}
         actions={
           <>
+            {isOwner ? <OwnerWallet owner={session.addr} /> : null}
+            {published ? <ShareOnX href={shareHref} /> : null}
             {published ? (
               <Button asChild variant="ghost" size="sm">
                 <Link href={`/p/${program.slug}`} target="_blank">

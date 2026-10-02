@@ -106,3 +106,21 @@ export type Example = {
   sourceType: string;
   decidedBy: string;
 };
+
+/** A public audit page worth showing a new owner: a published program that has paid someone (demo ones are fine). */
+export async function exampleAuditSlug(): Promise<string | null> {
+  try {
+    const [row] = await getDb()
+      .select({ slug: programs.slug })
+      .from(programs)
+      .innerJoin(rounds, eq(rounds.programId, programs.id))
+      .innerJoin(payouts, and(eq(payouts.roundId, rounds.id), eq(payouts.status, "executed")))
+      .where(inArray(programs.status, ["active", "paused"]))
+      .groupBy(programs.id)
+      .orderBy(desc(sql`count(${payouts.id})`))
+      .limit(1);
+    return row?.slug ?? null;
+  } catch {
+    return null;
+  }
+}

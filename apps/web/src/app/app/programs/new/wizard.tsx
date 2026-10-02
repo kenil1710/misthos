@@ -4,7 +4,6 @@ import {
   BudgetInput,
   formatUsdc,
   LimitsInput,
-  parseUsdc,
   ProgramBasics,
   Rubric,
   SOURCE_LABELS,
@@ -12,15 +11,23 @@ import {
   type SourceType,
 } from "@misthos/shared";
 import { Plus, Trash2 } from "lucide-react";
-import { useState, useTransition, type ReactNode } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import type { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { CooldownWarning } from "@/components/vault/owner-wallet";
 import { LIMIT_HELP } from "@/lib/limits-help";
+import {
+  deriveDefaultLimits,
+  limitWarnings,
+  perfectPayout,
+  tryParseUsdc,
+} from "@/lib/program-math";
+import { cn } from "@/lib/utils";
+import { fromNow, localAndUtc, toLocalInput } from "@/lib/when";
 import { createProgramAction } from "../actions";
 
 // ─── Form state (strings, as typed) ─────────────────────────────────────────
@@ -35,24 +42,30 @@ type Category = {
   rules: string;
   requireMerged: boolean;
 };
+type Limits = {
+  maxPerPayout: string;
+  maxPerRound: string;
+  maxPerDay: string;
+  autoApproveThreshold: string;
+  payeeCooldownHours: string;
+};
 type Form = {
   basics: { name: string; slug: string; description: string; logoUrl: string };
   rubric: { categories: Category[]; generalRules: string };
   budget: {
     ratePerPoint: string;
     roundLengthDays: string;
+    startMode: "now" | "later";
+    /** datetime-local value in the owner's zone, only used when startMode is "later". */
     firstRoundStartsAt: string;
     autoApproveConfidence: string;
     maxAutoApproveItem: string;
     minAccountAgeDays: string;
   };
-  limits: {
-    maxPerPayout: string;
-    maxPerRound: string;
-    maxPerDay: string;
-    autoApproveThreshold: string;
-    payeeCooldownHours: string;
-  };
+  limits: Limits;
+  /** Until the owner edits a limit, limits follow the rubric (see deriveDefaultLimits). */
+  limitsEdited: boolean;
+  slugEdited: boolean;
 };
 
 /** A starting rubric the owner edits; it is a template, not data. */
@@ -87,32 +100,41 @@ const STARTER_CATEGORIES: Category[] = [
   },
 ];
 
-function defaultStart(): string {
-  const d = new Date(Date.now() + 24 * 3600 * 1000);
-  d.setMinutes(0, 0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
-}
-
 const initialForm = (): Form => ({
   basics: { name: "", slug: "", description: "", logoUrl: "" },
   rubric: { categories: STARTER_CATEGORIES, generalRules: "" },
   budget: {
-    ratePerPoint: "2",
-    roundLengthDays: "14",
-    firstRoundStartsAt: defaultStart(),
+    ratePerPoint: "0.5",
+    roundLengthDays: "7",
+    startMode: "now",
+    firstRoundStartsAt: "",
     autoApproveConfidence: "0.8",
-    maxAutoApproveItem: "20",
+    maxAutoApproveItem: "",
     minAccountAgeDays: "30",
   },
   limits: {
-    maxPerPayout: "50",
-    maxPerRound: "1000",
-    maxPerDay: "2000",
-    autoApproveThreshold: "250",
+    maxPerPayout: "",
+    maxPerRound: "",
+    maxPerDay: "",
+    autoApproveThreshold: "",
     payeeCooldownHours: "24",
   },
+  limitsEdited: false,
+  slugEdited: false,
 });
+
+const DRAFT_KEY = "misthos:new-program-draft:v1";
+
+function loadDraft(): { form: Form; savedAt: string } | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as { form: Form; savedAt: string };
+    return d?.form?.basics && d.form.rubric?.categories ? d : null;
+  } catch {
+    return null;
+  }
+}
 
 const toKey = (s: string, i: number) =>
   s
@@ -130,8 +152,39 @@ const toSlug = (s: string) =>
     .replace(/^-|-$/g, "")
     .slice(0, 40);
 
+/** Rate, best perfect payout and the limits in effect (derived until the owner edits them). */
+function effective(f: Form) {
+  const rate = tryParseUsdc(f.budget.ratePerPoint);
+  const perfect = f.rubric.categories.map((c) =>
+    rate !== null && Number(c.maxPoints) > 0 ? perfectPayout(Number(c.maxPoints), rate) : null,
+  );
+  const maxItem = perfect.reduce<bigint>((m, p) => (p !== null && p > m ? p : m), 0n);
+  const derived = deriveDefaultLimits(maxItem);
+  const limits: Limits = f.limitsEdited
+    ? f.limits
+    : {
+        maxPerPayout: derived.maxPerPayout,
+        maxPerRound: derived.maxPerRound,
+        maxPerDay: derived.maxPerDay,
+        autoApproveThreshold: derived.autoApproveThreshold,
+        payeeCooldownHours: f.limits.payeeCooldownHours,
+      };
+  const maxAutoApproveItem = f.limitsEdited
+    ? f.budget.maxAutoApproveItem
+    : derived.maxAutoApproveItem;
+  return { rate, perfect, maxItem, limits, maxAutoApproveItem };
+}
+
+function startDate(f: Form, now: Date): Date | null {
+  if (f.budget.startMode === "now") return now;
+  const t = Date.parse(f.budget.firstRoundStartsAt);
+  return Number.isNaN(t) ? null : new Date(t);
+}
+
 /** Convert typed strings into the shape the shared zod schemas expect. */
-function toPayload(f: Form) {
+function toPayload(f: Form, now: Date) {
+  const e = effective(f);
+  const start = startDate(f, now);
   return {
     basics: f.basics,
     rubric: {
@@ -152,12 +205,14 @@ function toPayload(f: Form) {
       })),
     },
     budget: {
-      ...f.budget,
-      firstRoundStartsAt: Number.isNaN(Date.parse(f.budget.firstRoundStartsAt))
-        ? ""
-        : new Date(f.budget.firstRoundStartsAt).toISOString(),
+      ratePerPoint: f.budget.ratePerPoint,
+      roundLengthDays: f.budget.roundLengthDays,
+      firstRoundStartsAt: start ? start.toISOString() : "",
+      autoApproveConfidence: f.budget.autoApproveConfidence,
+      maxAutoApproveItem: e.maxAutoApproveItem,
+      minAccountAgeDays: f.budget.minAccountAgeDays,
     },
-    limits: f.limits,
+    limits: e.limits,
   };
 }
 
@@ -168,7 +223,7 @@ function issues(schema: z.ZodType, value: unknown, prefix: string): Record<strin
   return out;
 }
 
-const STEPS = ["Basics", "Rubric", "Budget and limits", "Review"] as const;
+const STEPS = ["Basics", "Rubric", "Budget and schedule", "Review"] as const;
 
 /** Field ids → the error keys the schemas report, for validating a field when the owner leaves it. */
 const ID_KEYS: Record<string, string> = {
@@ -198,69 +253,117 @@ function Field({
   label,
   hint,
   error,
+  warning,
   children,
 }: {
   id: string;
-  label: string;
-  hint?: string;
+  label: ReactNode;
+  hint?: ReactNode;
   error?: string;
+  warning?: string;
   children: ReactNode;
 }) {
   return (
-    <div className="grid gap-1.5">
+    <div className="grid content-start gap-1.5">
       <Label htmlFor={id}>{label}</Label>
       {children}
       {error ? (
-        <p id={`${id}-error`} className="text-danger text-xs">
+        <p id={`${id}-error`} role="alert" className="text-danger text-xs">
           {error}
         </p>
-      ) : hint ? (
-        <p className="text-muted-foreground text-xs">{hint}</p>
       ) : null}
+      {warning && !error ? <p className="text-warning text-xs leading-relaxed">{warning}</p> : null}
+      {hint ? <p className="text-muted-foreground text-xs leading-relaxed">{hint}</p> : null}
     </div>
   );
 }
 
-function UsdcField(props: {
+function UnitInput(props: {
   id: string;
-  label: string;
-  hint?: string;
-  error?: string;
   value: string;
   onChange: (v: string) => void;
+  unit: string;
+  placeholder?: string;
+  invalid?: boolean;
 }) {
   return (
-    <Field id={props.id} label={props.label} hint={props.hint} error={props.error}>
-      <div className="relative">
-        <Input
-          id={props.id}
-          inputMode="decimal"
-          value={props.value}
-          onChange={(e) => props.onChange(e.target.value)}
-          aria-invalid={!!props.error}
-          className="pr-14 font-mono tabular-nums"
-        />
-        <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs">
-          USDC
-        </span>
-      </div>
-    </Field>
+    <div className="relative">
+      <Input
+        id={props.id}
+        inputMode="decimal"
+        autoComplete="off"
+        placeholder={props.placeholder}
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        aria-invalid={props.invalid}
+        className="pr-16 font-mono tabular-nums"
+      />
+      <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs">
+        {props.unit}
+      </span>
+    </div>
   );
 }
 
 // ─── Wizard ─────────────────────────────────────────────────────────────────
 
 export function ProgramWizard() {
-  const [form, setForm] = useState<Form>(initialForm);
-  const [step, setStep] = useState(0);
+  const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams();
+  // Rendered client-only (see wizard-loader), so the saved draft can seed the first render.
+  const [restored] = useState(() => loadDraft());
+  const [form, setForm] = useState<Form>(() => restored?.form ?? initialForm());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [slugTouched, setSlugTouched] = useState(false);
   const [touched, setTouched] = useState<Set<string>>(() => new Set());
+  const [savedAt, setSavedAt] = useState<string | null>(restored?.savedAt ?? null);
+  const dirty = savedAt !== null || JSON.stringify(form) !== JSON.stringify(initialForm());
   const [pending, startTransition] = useTransition();
+  const submitting = useRef(false);
 
-  const payload = toPayload(form);
-  const update = <K extends keyof Form>(section: K, patch: Partial<Form[K]>) =>
+  const requested = Math.min(STEPS.length, Math.max(1, Number(search.get("step")) || 1)) - 1;
+  const [now] = useState(() => new Date());
+  const payload = toPayload(form, now);
+  const eff = effective(form);
+
+  function validate(s: number): Record<string, string> {
+    if (s === 0) return issues(ProgramBasics, payload.basics, "basics");
+    if (s === 1) return issues(Rubric, payload.rubric, "rubric");
+    if (s === 2) {
+      const out = {
+        ...issues(BudgetInput, payload.budget, "budget"),
+        ...issues(LimitsInput, payload.limits, "limits"),
+      };
+      if (form.budget.startMode === "later") {
+        const t = Date.parse(form.budget.firstRoundStartsAt);
+        if (Number.isNaN(t)) out["budget.firstRoundStartsAt"] = "Pick a date and time.";
+        else if (t < now.getTime() - 60_000)
+          out["budget.firstRoundStartsAt"] = "That's in the past. Pick a later time or start now.";
+      }
+      return out;
+    }
+    return {};
+  }
+  // A link straight to a later step only works once the earlier steps are complete.
+  const firstInvalid = [0, 1, 2].find((s) => Object.keys(validate(s)).length > 0) ?? 3;
+  const step = Math.min(requested, firstInvalid);
+
+  // Keep a draft so a refresh or a browser Back doesn't lose anything. Saved on every change (not debounced): a
+  // step change can remount the wizard right after a keystroke.
+  useEffect(() => {
+    if (submitting.current) return;
+    try {
+      const at = new Date().toISOString();
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ form, savedAt: at }));
+    } catch {
+      /* storage unavailable: the form still works, it just isn't saved */
+    }
+  }, [form]);
+
+  const goTo = (s: number) => router.push(`${pathname}?step=${s + 1}`, { scroll: true });
+
+  const update = <K extends "basics" | "rubric" | "budget">(section: K, patch: Partial<Form[K]>) =>
     setForm((f) => ({ ...f, [section]: { ...f[section], ...patch } }));
   const updateCategory = (i: number, patch: Partial<Category>) =>
     setForm((f) => ({
@@ -270,19 +373,24 @@ export function ProgramWizard() {
         categories: f.rubric.categories.map((c, j) => (j === i ? { ...c, ...patch } : c)),
       },
     }));
-
-  function validate(s: number): Record<string, string> {
-    if (s === 0) return issues(ProgramBasics, payload.basics, "basics");
-    if (s === 1) return issues(Rubric, payload.rubric, "rubric");
-    if (s === 2)
+  /** The first edit to any limit freezes the derived values so they stop following the rubric. */
+  const editLimit = (patch: Partial<Limits> & { maxAutoApproveItem?: string }) =>
+    setForm((f) => {
+      const e = effective(f);
+      const { maxAutoApproveItem, ...limits } = patch;
       return {
-        ...issues(BudgetInput, payload.budget, "budget"),
-        ...issues(LimitsInput, payload.limits, "limits"),
+        ...f,
+        limitsEdited: true,
+        limits: { ...(f.limitsEdited ? f.limits : e.limits), ...limits },
+        budget: {
+          ...f.budget,
+          maxAutoApproveItem:
+            maxAutoApproveItem ??
+            (f.limitsEdited ? f.budget.maxAutoApproveItem : e.maxAutoApproveItem),
+        },
       };
-    return {};
-  }
+    });
 
-  /** Validate a field as soon as the owner leaves it, so mistakes show up where they were made. */
   function onFieldBlur(ev: React.FocusEvent) {
     const key = ID_KEYS[(ev.target as HTMLElement).id];
     if (!key) return;
@@ -302,559 +410,839 @@ export function ProgramWizard() {
   function next() {
     const e = validate(step);
     setErrors(e);
-    if (Object.keys(e).length === 0) setStep((s) => s + 1);
+    if (Object.keys(e).length === 0) goTo(step + 1);
+  }
+
+  function discardDraft() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+    setForm(initialForm());
+    setErrors({});
+    setSavedAt(null);
+    goTo(0);
   }
 
   function submit() {
     setFormError(null);
+    submitting.current = true;
     startTransition(async () => {
-      const res = await createProgramAction(payload);
-      // On success the action redirects; anything returned is an error.
+      const res = await createProgramAction(toPayload(form, new Date()));
+      // On success the action redirects (and the draft is cleared below); anything returned is an error.
+      submitting.current = false;
       if (res?.fieldErrors) {
         setErrors(res.fieldErrors);
         const keys = Object.keys(res.fieldErrors);
         const first = ["basics", "rubric", "budget"].findIndex((p) =>
           keys.some((k) => k.startsWith(p) || (p === "budget" && k.startsWith("limits"))),
         );
-        if (first >= 0) setStep(first);
+        if (first >= 0) goTo(first);
       }
       if (res?.error) setFormError(res.error);
     });
   }
+  // The redirect after a successful create unmounts the wizard mid-transition: clear the draft then.
+  useEffect(
+    () => () => {
+      if (submitting.current)
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+        } catch {
+          /* ignore */
+        }
+    },
+    [],
+  );
 
   const e = errors;
-  const rate = (() => {
-    try {
-      return parseUsdc(form.budget.ratePerPoint);
-    } catch {
-      return null;
-    }
-  })();
+  const warnings = limitWarnings({
+    maxCategoryPayout: eff.maxItem > 0n ? eff.maxItem : null,
+    maxAutoApproveItem: tryParseUsdc(eff.maxAutoApproveItem),
+    maxPerPayout: tryParseUsdc(eff.limits.maxPerPayout),
+    maxPerRound: tryParseUsdc(eff.limits.maxPerRound),
+    maxPerDay: tryParseUsdc(eff.limits.maxPerDay),
+    autoApproveThreshold: tryParseUsdc(eff.limits.autoApproveThreshold),
+  });
+  const warn = (field: string) => warnings.find((w) => w.field === field)?.text;
+  const start = startDate(form, now);
+  const len = Number(form.budget.roundLengthDays);
+  const end = start && len > 0 ? new Date(start.getTime() + len * 86_400_000) : null;
 
   return (
-    <div className="mt-8">
-      <ol className="flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="Steps">
-        {STEPS.map((label, i) => (
-          <li
-            key={label}
-            aria-current={i === step ? "step" : undefined}
-            className={cn(
-              "flex items-center gap-2",
-              i === step ? "text-foreground font-medium" : "text-muted-foreground",
-            )}
-          >
-            <span
-              className={cn(
-                "flex size-5 items-center justify-center rounded-full border text-[11px] tabular-nums",
-                i < step && "bg-brand border-brand text-white",
-                i === step && "border-foreground",
-              )}
-            >
-              {i + 1}
-            </span>
-            {label}
-          </li>
-        ))}
-      </ol>
-
-      <div className="mt-8 grid gap-6" onBlur={onFieldBlur}>
-        {step === 0 ? (
-          <>
-            <Field id="name" label="Program name" error={e["basics.name"]}>
-              <Input
-                id="name"
-                value={form.basics.name}
-                onChange={(ev) => {
-                  const name = ev.target.value;
-                  update("basics", slugTouched ? { name } : { name, slug: toSlug(name) });
-                }}
-                aria-invalid={!!e["basics.name"]}
-              />
-            </Field>
-            <Field
-              id="slug"
-              label="Join link"
-              hint={`Contributors join at ${APP_HOST}/join/${form.basics.slug || "your-program"}. Lowercase letters, numbers and dashes.`}
-              error={e["basics.slug"]}
-            >
-              <Input
-                id="slug"
-                value={form.basics.slug}
-                onChange={(ev) => {
-                  setSlugTouched(true);
-                  update("basics", { slug: ev.target.value });
-                }}
-                className="font-mono"
-                aria-invalid={!!e["basics.slug"]}
-              />
-            </Field>
-            <Field
-              id="description"
-              label="Description"
-              hint="Shown on the join page. Say what you pay for and who it's for."
-              error={e["basics.description"]}
-            >
-              <Textarea
-                id="description"
-                rows={4}
-                value={form.basics.description}
-                onChange={(ev) => update("basics", { description: ev.target.value })}
-                aria-invalid={!!e["basics.description"]}
-              />
-            </Field>
-            <Field
-              id="logo"
-              label="Logo URL (optional)"
-              hint="An https image URL."
-              error={e["basics.logoUrl"]}
-            >
-              <Input
-                id="logo"
-                type="url"
-                value={form.basics.logoUrl}
-                onChange={(ev) => update("basics", { logoUrl: ev.target.value })}
-                aria-invalid={!!e["basics.logoUrl"]}
-              />
-            </Field>
-          </>
-        ) : null}
-
-        {step === 1 ? (
-          <>
-            <p className="text-muted-foreground text-sm">
-              Each category says what kind of work counts, how it&apos;s scored, and the most it can
-              earn. The agent scores every criterion from 0 to 10 and explains why.
-            </p>
-            {form.rubric.categories.map((c, i) => (
-              <fieldset key={i} className="grid gap-4 rounded-lg border p-4">
-                <div className="flex items-center justify-between">
-                  <legend className="text-sm font-medium">Category {i + 1}</legend>
-                  {form.rubric.categories.length > 1 ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setForm((f) => ({
-                          ...f,
-                          rubric: {
-                            ...f.rubric,
-                            categories: f.rubric.categories.filter((_, j) => j !== i),
-                          },
-                        }))
-                      }
-                    >
-                      <Trash2 className="size-4" aria-hidden="true" />
-                      Remove
-                    </Button>
-                  ) : null}
-                </div>
-                <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
-                  <Field
-                    id={`c${i}-name`}
-                    label="Name"
-                    error={e[`rubric.categories.${i}.name`] ?? e[`rubric.categories.${i}.key`]}
-                  >
-                    <Input
-                      id={`c${i}-name`}
-                      value={c.name}
-                      onChange={(ev) => updateCategory(i, { name: ev.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    id={`c${i}-max`}
-                    label="Max points"
-                    error={e[`rubric.categories.${i}.maxPoints`]}
-                  >
-                    <Input
-                      id={`c${i}-max`}
-                      inputMode="numeric"
-                      className="font-mono tabular-nums"
-                      value={c.maxPoints}
-                      onChange={(ev) => updateCategory(i, { maxPoints: ev.target.value })}
-                    />
-                  </Field>
-                </div>
-                <Field
-                  id={`c${i}-desc`}
-                  label="What counts"
-                  error={e[`rubric.categories.${i}.description`]}
+    <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,640px)_minmax(0,1fr)]">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <ol className="flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Steps">
+            {STEPS.map((label, i) => (
+              <li
+                key={label}
+                aria-current={i === step ? "step" : undefined}
+                className={cn(
+                  "flex items-center gap-2",
+                  i === step ? "text-foreground font-medium" : "text-muted-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-5 items-center justify-center rounded-full border text-[11px] tabular-nums",
+                    i === step && "border-foreground",
+                    i < step && "bg-foreground text-background border-foreground",
+                  )}
                 >
-                  <Textarea
-                    id={`c${i}-desc`}
-                    rows={2}
-                    value={c.description}
-                    onChange={(ev) => updateCategory(i, { description: ev.target.value })}
+                  {i + 1}
+                </span>
+                {i < step ? (
+                  <button
+                    type="button"
+                    className="hover:text-foreground rounded-sm"
+                    onClick={() => goTo(i)}
+                  >
+                    {label}
+                  </button>
+                ) : (
+                  label
+                )}
+              </li>
+            ))}
+          </ol>
+          {dirty ? (
+            <p className="text-muted-foreground text-xs" aria-live="polite">
+              Draft saved on this device ·{" "}
+              <button
+                type="button"
+                className="hover:text-foreground underline underline-offset-4"
+                onClick={discardDraft}
+              >
+                Discard draft
+              </button>
+            </p>
+          ) : null}
+        </div>
+
+        <div className="mt-8 grid gap-6" onBlur={onFieldBlur}>
+          {step === 0 ? (
+            <>
+              <Field id="name" label="Program name" error={e["basics.name"]}>
+                <Input
+                  id="name"
+                  placeholder="Arc Creators"
+                  value={form.basics.name}
+                  onChange={(ev) => {
+                    const name = ev.target.value;
+                    setForm((f) => ({
+                      ...f,
+                      basics: {
+                        ...f.basics,
+                        name,
+                        ...(f.slugEdited ? {} : { slug: toSlug(name) }),
+                      },
+                    }));
+                  }}
+                  aria-invalid={!!e["basics.name"]}
+                />
+              </Field>
+              <Field
+                id="slug"
+                label="Join link"
+                hint="Filled in from the name. Lowercase letters, numbers and dashes."
+                error={e["basics.slug"]}
+              >
+                <div
+                  className={cn(
+                    "border-input focus-within:border-ring focus-within:ring-ring/50 flex h-8 items-center overflow-hidden rounded-lg border focus-within:ring-3 dark:bg-input/30",
+                    e["basics.slug"] && "border-destructive",
+                  )}
+                >
+                  <span className="text-muted-foreground bg-muted/50 flex h-full shrink-0 items-center border-r px-2.5 font-mono text-[13px]">
+                    {APP_HOST}/join/
+                  </span>
+                  <input
+                    id="slug"
+                    placeholder="arc-creators"
+                    value={form.basics.slug}
+                    onChange={(ev) =>
+                      setForm((f) => ({
+                        ...f,
+                        slugEdited: true,
+                        basics: { ...f.basics, slug: ev.target.value },
+                      }))
+                    }
+                    className="placeholder:text-muted-foreground h-full min-w-0 flex-1 bg-transparent px-2.5 font-mono text-sm outline-none"
+                    aria-invalid={!!e["basics.slug"]}
                   />
-                </Field>
-                <div className="grid gap-1.5">
-                  <span className="text-sm font-medium">Accepted sources</span>
-                  <div className="flex flex-wrap gap-4">
-                    {SOURCE_TYPES.map((t) => (
-                      <label key={t} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          className="accent-brand size-4"
-                          checked={c.sourceTypes.includes(t)}
-                          onChange={(ev) =>
-                            updateCategory(i, {
-                              sourceTypes: ev.target.checked
-                                ? [...c.sourceTypes, t]
-                                : c.sourceTypes.filter((x) => x !== t),
-                            })
-                          }
-                        />
-                        {SOURCE_LABELS[t]}
-                      </label>
-                    ))}
-                  </div>
-                  {e[`rubric.categories.${i}.sourceTypes`] ? (
-                    <p className="text-danger text-xs">Pick at least one source.</p>
-                  ) : null}
                 </div>
-                {c.sourceTypes.includes("github_pr") ? (
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      className="accent-brand size-4"
-                      checked={c.requireMerged}
-                      onChange={(ev) => updateCategory(i, { requireMerged: ev.target.checked })}
-                    />
-                    Only pay merged pull requests
-                  </label>
-                ) : null}
-                <div className="grid gap-2">
-                  <span className="text-sm font-medium">Scoring criteria</span>
-                  {c.criteria.map((k, j) => (
-                    <div key={j} className="grid gap-2 sm:grid-cols-[180px_1fr_auto]">
-                      <Input
-                        aria-label={`Criterion ${j + 1} name`}
-                        placeholder="Name"
-                        value={k.name}
-                        onChange={(ev) =>
-                          updateCategory(i, {
-                            criteria: c.criteria.map((x, m) =>
-                              m === j ? { ...x, name: ev.target.value } : x,
-                            ),
-                          })
-                        }
-                      />
-                      <Input
-                        aria-label={`Criterion ${j + 1} description`}
-                        placeholder="What a 10 looks like"
-                        value={k.description}
-                        onChange={(ev) =>
-                          updateCategory(i, {
-                            criteria: c.criteria.map((x, m) =>
-                              m === j ? { ...x, description: ev.target.value } : x,
-                            ),
-                          })
-                        }
-                      />
+              </Field>
+              <Field
+                id="description"
+                label="Description"
+                hint="Shown on the join page. Say what you pay for and who it's for."
+                error={e["basics.description"]}
+              >
+                <Textarea
+                  id="description"
+                  rows={4}
+                  placeholder="Pays builders for original threads, guides and pull requests that help others ship on Arc."
+                  value={form.basics.description}
+                  onChange={(ev) => update("basics", { description: ev.target.value })}
+                  aria-invalid={!!e["basics.description"]}
+                />
+              </Field>
+              <Field
+                id="logo"
+                label="Logo URL (optional)"
+                hint="A square https image."
+                error={e["basics.logoUrl"]}
+              >
+                <Input
+                  id="logo"
+                  type="url"
+                  placeholder="https://example.com/logo.png"
+                  value={form.basics.logoUrl}
+                  onChange={(ev) => update("basics", { logoUrl: ev.target.value })}
+                  aria-invalid={!!e["basics.logoUrl"]}
+                />
+              </Field>
+            </>
+          ) : null}
+
+          {step === 1 ? (
+            <>
+              <ScoringExplainer rate={eff.rate} />
+              {form.rubric.categories.map((c, i) => (
+                <fieldset key={i} className="bg-card grid gap-4 rounded-xl border p-5">
+                  <div className="flex items-center justify-between">
+                    <legend className="text-sm font-medium">Category {i + 1}</legend>
+                    {form.rubric.categories.length > 1 ? (
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        aria-label={`Remove criterion ${j + 1}`}
-                        disabled={c.criteria.length === 1}
+                        size="sm"
                         onClick={() =>
-                          updateCategory(i, { criteria: c.criteria.filter((_, m) => m !== j) })
+                          setForm((f) => ({
+                            ...f,
+                            rubric: {
+                              ...f.rubric,
+                              categories: f.rubric.categories.filter((_, j) => j !== i),
+                            },
+                          }))
                         }
                       >
                         <Trash2 className="size-4" aria-hidden="true" />
+                        Remove
                       </Button>
-                    </div>
-                  ))}
-                  {Object.keys(e).some((k) => k.startsWith(`rubric.categories.${i}.criteria`)) ? (
-                    <p className="text-danger text-xs">
-                      Each criterion needs a unique name and a description.
-                    </p>
-                  ) : null}
-                  {c.criteria.length < 8 ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="justify-self-start"
-                      onClick={() =>
-                        updateCategory(i, {
-                          criteria: [...c.criteria, { name: "", description: "" }],
-                        })
-                      }
+                    ) : null}
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-[1fr_150px]">
+                    <Field
+                      id={`c${i}-name`}
+                      label="Name"
+                      error={e[`rubric.categories.${i}.name`] ?? e[`rubric.categories.${i}.key`]}
                     >
-                      <Plus className="size-4" aria-hidden="true" />
-                      Add criterion
-                    </Button>
+                      <Input
+                        id={`c${i}-name`}
+                        placeholder="Threads and posts"
+                        value={c.name}
+                        onChange={(ev) => updateCategory(i, { name: ev.target.value })}
+                      />
+                    </Field>
+                    <Field
+                      id={`c${i}-max`}
+                      label="Max points"
+                      error={e[`rubric.categories.${i}.maxPoints`]}
+                    >
+                      <UnitInput
+                        id={`c${i}-max`}
+                        unit="points"
+                        placeholder="10"
+                        value={c.maxPoints}
+                        onChange={(v) => updateCategory(i, { maxPoints: v })}
+                      />
+                    </Field>
+                  </div>
+                  <p className="bg-muted/50 rounded-md px-3 py-2 text-sm">
+                    A perfect submission earns{" "}
+                    <span className="mono-num font-medium">
+                      {eff.perfect[i] !== null && eff.perfect[i] !== undefined
+                        ? formatUsdc(eff.perfect[i]!)
+                        : "—"}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      ({c.maxPoints || "0"} points ×{" "}
+                      {eff.rate !== null ? formatUsdc(eff.rate) : "rate"} per point). A 7/10 average
+                      earns 70% of that.
+                    </span>
+                  </p>
+                  <Field
+                    id={`c${i}-desc`}
+                    label="What counts"
+                    error={e[`rubric.categories.${i}.description`]}
+                  >
+                    <Textarea
+                      id={`c${i}-desc`}
+                      rows={2}
+                      placeholder="Original posts or threads that teach something about building on Arc."
+                      value={c.description}
+                      onChange={(ev) => updateCategory(i, { description: ev.target.value })}
+                    />
+                  </Field>
+                  <div className="grid gap-1.5">
+                    <span className="text-sm font-medium">Accepted sources</span>
+                    <div className="flex flex-wrap gap-4">
+                      {SOURCE_TYPES.map((t) => (
+                        <label key={t} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="accent-brand size-4"
+                            checked={c.sourceTypes.includes(t)}
+                            onChange={(ev) =>
+                              updateCategory(i, {
+                                sourceTypes: ev.target.checked
+                                  ? [...c.sourceTypes, t]
+                                  : c.sourceTypes.filter((x) => x !== t),
+                              })
+                            }
+                          />
+                          {SOURCE_LABELS[t]}
+                        </label>
+                      ))}
+                    </div>
+                    {e[`rubric.categories.${i}.sourceTypes`] ? (
+                      <p className="text-danger text-xs">Pick at least one source.</p>
+                    ) : null}
+                  </div>
+                  {c.sourceTypes.includes("github_pr") ? (
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="accent-brand size-4"
+                        checked={c.requireMerged}
+                        onChange={(ev) => updateCategory(i, { requireMerged: ev.target.checked })}
+                      />
+                      Only pay merged pull requests
+                    </label>
                   ) : null}
-                </div>
-                <Field
-                  id={`c${i}-rules`}
-                  label="Rules (plain language)"
-                  error={e[`rubric.categories.${i}.rules`]}
-                >
-                  <Textarea
+                  <div className="grid gap-2">
+                    <span className="text-sm font-medium">Scoring criteria</span>
+                    <p className="text-muted-foreground -mt-1 text-xs">
+                      The agent scores each from 0 to 10 and explains why. The category&apos;s
+                      points are their average ÷ 10 × max points.
+                    </p>
+                    {c.criteria.map((k, j) => (
+                      <div key={j} className="grid gap-2 sm:grid-cols-[160px_1fr_auto]">
+                        <Input
+                          aria-label={`Criterion ${j + 1} name`}
+                          placeholder={["Depth", "Clarity", "Originality"][j] ?? "Criterion"}
+                          value={k.name}
+                          onChange={(ev) =>
+                            updateCategory(i, {
+                              criteria: c.criteria.map((x, m) =>
+                                m === j ? { ...x, name: ev.target.value } : x,
+                              ),
+                            })
+                          }
+                        />
+                        <Input
+                          aria-label={`Criterion ${j + 1} description`}
+                          placeholder="What a 10 looks like, e.g. explains how and why"
+                          value={k.description}
+                          onChange={(ev) =>
+                            updateCategory(i, {
+                              criteria: c.criteria.map((x, m) =>
+                                m === j ? { ...x, description: ev.target.value } : x,
+                              ),
+                            })
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remove criterion ${j + 1}`}
+                          disabled={c.criteria.length === 1}
+                          onClick={() =>
+                            updateCategory(i, { criteria: c.criteria.filter((_, m) => m !== j) })
+                          }
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    ))}
+                    {Object.keys(e).some((k) => k.startsWith(`rubric.categories.${i}.criteria`)) ? (
+                      <p className="text-danger text-xs">
+                        Each criterion needs a unique name and a description.
+                      </p>
+                    ) : null}
+                    {c.criteria.length < 8 ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="justify-self-start"
+                        onClick={() =>
+                          updateCategory(i, {
+                            criteria: [...c.criteria, { name: "", description: "" }],
+                          })
+                        }
+                      >
+                        <Plus className="size-4" aria-hidden="true" />
+                        Add criterion
+                      </Button>
+                    ) : null}
+                  </div>
+                  <Field
                     id={`c${i}-rules`}
-                    rows={2}
-                    value={c.rules}
-                    onChange={(ev) => updateCategory(i, { rules: ev.target.value })}
-                  />
-                </Field>
-              </fieldset>
-            ))}
-            {form.rubric.categories.length < 10 ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="justify-self-start"
-                onClick={() =>
-                  setForm((f) => ({
-                    ...f,
-                    rubric: {
-                      ...f.rubric,
-                      categories: [
-                        ...f.rubric.categories,
-                        {
-                          name: "",
-                          description: "",
-                          sourceTypes: ["article"],
-                          maxPoints: "10",
-                          criteria: [{ name: "", description: "" }],
-                          rules: "",
-                          requireMerged: true,
-                        },
-                      ],
-                    },
-                  }))
-                }
-              >
-                <Plus className="size-4" aria-hidden="true" />
-                Add category
-              </Button>
-            ) : null}
-            <Field
-              id="general"
-              label="Rules for every submission (optional)"
-              error={e["rubric.generalRules"]}
-            >
-              <Textarea
+                    label="Rules (plain language, optional)"
+                    error={e[`rubric.categories.${i}.rules`]}
+                  >
+                    <Textarea
+                      id={`c${i}-rules`}
+                      rows={2}
+                      placeholder="Threads should be at least 3 posts. Memes and reposts are not paid."
+                      value={c.rules}
+                      onChange={(ev) => updateCategory(i, { rules: ev.target.value })}
+                    />
+                  </Field>
+                </fieldset>
+              ))}
+              {form.rubric.categories.length < 10 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-self-start"
+                  onClick={() =>
+                    setForm((f) => ({
+                      ...f,
+                      rubric: {
+                        ...f.rubric,
+                        categories: [
+                          ...f.rubric.categories,
+                          {
+                            name: "",
+                            description: "",
+                            sourceTypes: ["article"],
+                            maxPoints: "10",
+                            criteria: [{ name: "", description: "" }],
+                            rules: "",
+                            requireMerged: true,
+                          },
+                        ],
+                      },
+                    }))
+                  }
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                  Add category
+                </Button>
+              ) : null}
+              <Field
                 id="general"
-                rows={3}
-                value={form.rubric.generalRules}
-                onChange={(ev) => update("rubric", { generalRules: ev.target.value })}
-              />
-            </Field>
-          </>
-        ) : null}
+                label="Rules for every submission (optional)"
+                error={e["rubric.generalRules"]}
+              >
+                <Textarea
+                  id="general"
+                  rows={3}
+                  placeholder="English only. Original work about building on Arc."
+                  value={form.rubric.generalRules}
+                  onChange={(ev) => update("rubric", { generalRules: ev.target.value })}
+                />
+              </Field>
+            </>
+          ) : null}
 
-        {step === 2 ? (
-          <>
-            <section className="grid gap-4">
-              <h2 className="text-base font-medium">Budget</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <UsdcField
+          {step === 2 ? (
+            <>
+              <section className="grid gap-4" aria-labelledby="schedule-h">
+                <h2 id="schedule-h" className="text-base font-medium">
+                  Schedule
+                </h2>
+                <div className="grid gap-1.5">
+                  <span className="text-sm font-medium" id="start-label">
+                    First round starts
+                  </span>
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="start-label"
+                    className="flex flex-wrap gap-2"
+                  >
+                    {(
+                      [
+                        ["now", "Now"],
+                        ["later", "Schedule for later"],
+                      ] as const
+                    ).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        role="radio"
+                        aria-checked={form.budget.startMode === mode}
+                        onClick={() =>
+                          update("budget", {
+                            startMode: mode,
+                            ...(mode === "later" && !form.budget.firstRoundStartsAt
+                              ? {
+                                  firstRoundStartsAt: toLocalInput(
+                                    new Date(Date.now() + 86_400_000),
+                                  ),
+                                }
+                              : {}),
+                          })
+                        }
+                        className={cn(
+                          "h-8 rounded-lg border px-3 text-sm transition-colors",
+                          form.budget.startMode === mode
+                            ? "border-foreground bg-foreground text-background"
+                            : "hover:bg-muted",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {form.budget.startMode === "later" ? (
+                  <Field
+                    id="start"
+                    label="Start date and time (your local time)"
+                    error={e["budget.firstRoundStartsAt"]}
+                    hint={start ? `${localAndUtc(start)} · starts ${fromNow(start)}` : undefined}
+                  >
+                    <Input
+                      id="start"
+                      type="datetime-local"
+                      value={form.budget.firstRoundStartsAt}
+                      onChange={(ev) => update("budget", { firstRoundStartsAt: ev.target.value })}
+                    />
+                  </Field>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    Round 1 opens as soon as you create the program. Contributors can submit once
+                    the join page is published.
+                  </p>
+                )}
+                <Field
+                  id="len"
+                  label="Round length"
+                  error={e["budget.roundLengthDays"]}
+                  hint={
+                    start && end
+                      ? `Round 1: ${localAndUtc(start).split(" · ")[0]} to ${localAndUtc(end).split(" · ")[0]}. Approved work is paid when each round closes.`
+                      : "Approved work is paid when each round closes."
+                  }
+                >
+                  <div className="max-w-48">
+                    <UnitInput
+                      id="len"
+                      unit="days"
+                      placeholder="7"
+                      value={form.budget.roundLengthDays}
+                      onChange={(v) => update("budget", { roundLengthDays: v })}
+                    />
+                  </div>
+                </Field>
+              </section>
+
+              <section className="grid gap-4" aria-labelledby="pay-h">
+                <h2 id="pay-h" className="text-base font-medium">
+                  Pay
+                </h2>
+                <Field
                   id="rate"
                   label="Rate per point"
-                  hint="Payout = points × rate, capped by the limits below."
                   error={e["budget.ratePerPoint"]}
-                  value={form.budget.ratePerPoint}
-                  onChange={(v) => update("budget", { ratePerPoint: v })}
-                />
-                <Field id="len" label="Round length (days)" error={e["budget.roundLengthDays"]}>
-                  <Input
-                    id="len"
-                    inputMode="numeric"
-                    className="font-mono tabular-nums"
-                    value={form.budget.roundLengthDays}
-                    onChange={(ev) => update("budget", { roundLengthDays: ev.target.value })}
-                  />
-                </Field>
-                <Field
-                  id="start"
-                  label="First round starts"
-                  hint="In your local time. Shown to contributors in UTC."
-                  error={e["budget.firstRoundStartsAt"]}
+                  hint={
+                    <>
+                      {form.rubric.categories.map((c, i) => (
+                        <span key={i} className="block">
+                          A perfect {c.name || `category ${i + 1}`} submission earns{" "}
+                          <span className="mono-num text-foreground">
+                            {eff.perfect[i] !== null && eff.perfect[i] !== undefined
+                              ? formatUsdc(eff.perfect[i]!)
+                              : "—"}
+                          </span>
+                          .
+                        </span>
+                      ))}
+                    </>
+                  }
                 >
-                  <Input
-                    id="start"
-                    type="datetime-local"
-                    value={form.budget.firstRoundStartsAt}
-                    onChange={(ev) => update("budget", { firstRoundStartsAt: ev.target.value })}
-                  />
+                  <div className="max-w-48">
+                    <UnitInput
+                      id="rate"
+                      unit="USDC"
+                      placeholder="0.50"
+                      value={form.budget.ratePerPoint}
+                      onChange={(v) => update("budget", { ratePerPoint: v })}
+                      invalid={!!e["budget.ratePerPoint"]}
+                    />
+                  </div>
                 </Field>
-                <Field
-                  id="age"
-                  label="Minimum X account age (days)"
-                  hint="Younger accounts are flagged for review."
-                  error={e["budget.minAccountAgeDays"]}
-                >
-                  <Input
-                    id="age"
-                    inputMode="numeric"
-                    className="font-mono tabular-nums"
-                    value={form.budget.minAccountAgeDays}
-                    onChange={(ev) => update("budget", { minAccountAgeDays: ev.target.value })}
-                  />
-                </Field>
-              </div>
-            </section>
-            <section className="grid gap-4">
-              <h2 className="text-base font-medium">Auto-approval</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field
-                  id="conf"
-                  label="Minimum agent confidence"
-                  hint={LIMIT_HELP.autoApproveConfidence}
-                  error={e["budget.autoApproveConfidence"]}
-                >
-                  <Input
+                <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+                  <Field
+                    id="autoitem"
+                    label="Largest item paid without your review"
+                    hint={LIMIT_HELP.maxAutoApproveItem}
+                    warning={warn("maxAutoApproveItem")}
+                    error={e["budget.maxAutoApproveItem"]}
+                  >
+                    <UnitInput
+                      id="autoitem"
+                      unit="USDC"
+                      value={eff.maxAutoApproveItem}
+                      onChange={(v) => editLimit({ maxAutoApproveItem: v })}
+                    />
+                  </Field>
+                  <Field
                     id="conf"
-                    inputMode="decimal"
-                    className="font-mono tabular-nums"
-                    value={form.budget.autoApproveConfidence}
-                    onChange={(ev) => update("budget", { autoApproveConfidence: ev.target.value })}
-                  />
-                </Field>
-                <UsdcField
-                  id="autoitem"
-                  label="Largest item paid without review"
-                  hint={LIMIT_HELP.maxAutoApproveItem}
-                  error={e["budget.maxAutoApproveItem"]}
-                  value={form.budget.maxAutoApproveItem}
-                  onChange={(v) => update("budget", { maxAutoApproveItem: v })}
-                />
-              </div>
-            </section>
-            <section className="grid gap-4">
-              <div>
-                <h2 className="text-base font-medium">Vault limits</h2>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  Enforced by the vault contract. The agent cannot exceed them, whatever it decides.
-                </p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <UsdcField
-                  id="perpayout"
-                  hint={LIMIT_HELP.maxPerPayout}
-                  label="Max per contributor per round"
-                  error={e["limits.maxPerPayout"]}
-                  value={form.limits.maxPerPayout}
-                  onChange={(v) => update("limits", { maxPerPayout: v })}
-                />
-                <UsdcField
-                  id="perround"
-                  hint={LIMIT_HELP.maxPerRound}
-                  label="Max per round"
-                  error={e["limits.maxPerRound"]}
-                  value={form.limits.maxPerRound}
-                  onChange={(v) => update("limits", { maxPerRound: v })}
-                />
-                <UsdcField
-                  id="perday"
-                  hint={LIMIT_HELP.maxPerDay}
-                  label="Max per rolling 24 hours"
-                  error={e["limits.maxPerDay"]}
-                  value={form.limits.maxPerDay}
-                  onChange={(v) => update("limits", { maxPerDay: v })}
-                />
-                <UsdcField
-                  id="threshold"
-                  hint={LIMIT_HELP.autoApproveThreshold}
-                  label="Your approval needed above"
-                  error={e["limits.autoApproveThreshold"]}
-                  value={form.limits.autoApproveThreshold}
-                  onChange={(v) => update("limits", { autoApproveThreshold: v })}
-                />
-                <Field
-                  id="cooldown"
-                  label="New wallet cooldown (hours)"
-                  hint={LIMIT_HELP.payeeCooldownHours}
-                  error={e["limits.payeeCooldownHours"]}
-                >
-                  <Input
+                    label="Minimum agent confidence"
+                    hint={LIMIT_HELP.autoApproveConfidence}
+                    error={e["budget.autoApproveConfidence"]}
+                  >
+                    <UnitInput
+                      id="conf"
+                      unit="0.5–1"
+                      placeholder="0.8"
+                      value={form.budget.autoApproveConfidence}
+                      onChange={(v) => update("budget", { autoApproveConfidence: v })}
+                    />
+                  </Field>
+                  <Field
+                    id="age"
+                    label="Minimum X account age"
+                    hint="Younger accounts are sent to your review."
+                    error={e["budget.minAccountAgeDays"]}
+                  >
+                    <UnitInput
+                      id="age"
+                      unit="days"
+                      placeholder="30"
+                      value={form.budget.minAccountAgeDays}
+                      onChange={(v) => update("budget", { minAccountAgeDays: v })}
+                    />
+                  </Field>
+                </div>
+              </section>
+
+              <section className="grid gap-4" aria-labelledby="limits-h">
+                <div>
+                  <h2 id="limits-h" className="text-base font-medium">
+                    Vault limits
+                  </h2>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    Enforced by the vault contract; the agent can&apos;t exceed them.{" "}
+                    {form.limitsEdited
+                      ? "You've edited these."
+                      : "Suggested from your rubric, and they follow it until you edit one."}
+                  </p>
+                </div>
+                <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+                  {(
+                    [
+                      ["perpayout", "maxPerPayout", "Max per contributor per round"],
+                      ["perround", "maxPerRound", "Max per round"],
+                      ["perday", "maxPerDay", "Max per rolling 24 hours"],
+                      ["threshold", "autoApproveThreshold", "Your approval needed above"],
+                    ] as const
+                  ).map(([id, key, label]) => (
+                    <Field
+                      key={id}
+                      id={id}
+                      label={label}
+                      hint={LIMIT_HELP[key]}
+                      warning={warn(key)}
+                      error={e[`limits.${key}`]}
+                    >
+                      <UnitInput
+                        id={id}
+                        unit="USDC"
+                        value={eff.limits[key]}
+                        onChange={(v) => editLimit({ [key]: v })}
+                        invalid={!!e[`limits.${key}`]}
+                      />
+                    </Field>
+                  ))}
+                  <Field
                     id="cooldown"
-                    inputMode="numeric"
-                    className="font-mono tabular-nums"
-                    value={form.limits.payeeCooldownHours}
-                    onChange={(ev) => update("limits", { payeeCooldownHours: ev.target.value })}
-                  />
-                </Field>
-                <div className="sm:col-span-2">
-                  <CooldownWarning hours={form.limits.payeeCooldownHours} />
+                    label="New wallet cooldown"
+                    hint={LIMIT_HELP.payeeCooldownHours}
+                    error={e["limits.payeeCooldownHours"]}
+                  >
+                    <UnitInput
+                      id="cooldown"
+                      unit="hours"
+                      placeholder="24"
+                      value={form.limits.payeeCooldownHours}
+                      onChange={(v) =>
+                        setForm((f) => ({ ...f, limits: { ...f.limits, payeeCooldownHours: v } }))
+                      }
+                    />
+                  </Field>
                 </div>
-              </div>
-            </section>
-          </>
-        ) : null}
+                <CooldownWarning hours={form.limits.payeeCooldownHours} />
+              </section>
+            </>
+          ) : null}
 
-        {step === 3 ? (
-          <dl className="grid gap-x-8 gap-y-4 rounded-lg border p-5 text-sm sm:grid-cols-[200px_1fr]">
-            <dt className="text-muted-foreground">Program</dt>
-            <dd>
-              {form.basics.name}{" "}
-              <span className="text-muted-foreground font-mono">/{form.basics.slug}</span>
-            </dd>
-            <dt className="text-muted-foreground">Categories</dt>
-            <dd className="grid gap-1">
-              {form.rubric.categories.map((c, i) => (
-                <div key={i}>
-                  {c.name}: up to {c.maxPoints} points
-                  {rate !== null ? (
-                    <span className="text-muted-foreground font-mono tabular-nums">
-                      {" "}
-                      ({formatUsdc(rate * BigInt(Number(c.maxPoints) || 0))})
+          {step === 3 ? (
+            <dl className="bg-card grid gap-x-8 gap-y-4 rounded-xl border p-5 text-sm sm:grid-cols-[180px_1fr]">
+              <dt className="text-muted-foreground">Program</dt>
+              <dd>
+                {form.basics.name}
+                <span className="text-muted-foreground block font-mono text-xs">
+                  {APP_HOST}/join/{form.basics.slug}
+                </span>
+              </dd>
+              <dt className="text-muted-foreground">Pays for</dt>
+              <dd className="grid gap-1">
+                {form.rubric.categories.map((c, i) => (
+                  <span key={i}>
+                    {c.name}: perfect submission earns{" "}
+                    <span className="mono-num">
+                      {eff.perfect[i] ? formatUsdc(eff.perfect[i]!) : "—"}
                     </span>
-                  ) : null}
-                </div>
-              ))}
-            </dd>
-            <dt className="text-muted-foreground">Rounds</dt>
-            <dd>
-              Every {form.budget.roundLengthDays} days, starting{" "}
-              {Number.isNaN(Date.parse(form.budget.firstRoundStartsAt))
-                ? "—"
-                : `${new Date(form.budget.firstRoundStartsAt).toISOString().slice(0, 16).replace("T", " ")} UTC`}
-            </dd>
-            <dt className="text-muted-foreground">Vault limits</dt>
-            <dd className="font-mono tabular-nums">
-              {form.limits.maxPerPayout} USDC per contributor per round, {form.limits.maxPerRound}{" "}
-              USDC per round, {form.limits.maxPerDay} USDC per 24 hours
-            </dd>
-            <dt className="text-muted-foreground">Owner approval</dt>
-            <dd>Rounds above {form.limits.autoApproveThreshold} USDC</dd>
-            <dt className="text-muted-foreground">Next</dt>
-            <dd className="text-muted-foreground">
-              The program is saved as a draft. Its overview then walks you through deploying and
-              funding the vault, publishing the join page, and the first payout.
-            </dd>
-          </dl>
+                  </span>
+                ))}
+              </dd>
+              <dt className="text-muted-foreground">Round 1</dt>
+              <dd>
+                {form.budget.startMode === "now"
+                  ? "Starts when you create the program"
+                  : start
+                    ? localAndUtc(start)
+                    : "—"}
+                <span className="text-muted-foreground block">
+                  Every {form.budget.roundLengthDays} days after that
+                </span>
+              </dd>
+              <dt className="text-muted-foreground">Without your review</dt>
+              <dd>
+                Items up to {eff.maxAutoApproveItem} USDC with confidence ≥{" "}
+                {form.budget.autoApproveConfidence}
+              </dd>
+              <dt className="text-muted-foreground">Vault limits</dt>
+              <dd className="grid gap-0.5">
+                <span>{eff.limits.maxPerPayout} USDC per contributor per round</span>
+                <span>
+                  {eff.limits.maxPerRound} USDC per round · {eff.limits.maxPerDay} USDC per 24 hours
+                </span>
+                <span>Your approval for rounds above {eff.limits.autoApproveThreshold} USDC</span>
+                <span>
+                  {form.limits.payeeCooldownHours} h before a new payout wallet can be paid
+                </span>
+              </dd>
+              <dt className="text-muted-foreground">Next</dt>
+              <dd className="text-muted-foreground">
+                The program is saved as a draft. Its overview walks you through deploying and
+                funding the vault and publishing the join page.
+              </dd>
+            </dl>
+          ) : null}
+        </div>
+
+        {formError ? (
+          <p role="alert" className="text-danger mt-6 text-sm">
+            {formError}
+          </p>
         ) : null}
+
+        <div className="mt-8 flex items-center justify-between border-t pt-6">
+          {step > 0 ? (
+            <Button type="button" variant="ghost" disabled={pending} onClick={() => goTo(step - 1)}>
+              Back
+            </Button>
+          ) : (
+            <span />
+          )}
+          {step < STEPS.length - 1 ? (
+            <Button type="button" onClick={next}>
+              Continue
+            </Button>
+          ) : (
+            <Button type="button" onClick={submit} disabled={pending}>
+              {pending ? "Creating…" : "Create program"}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {formError ? (
-        <p role="alert" className="text-danger mt-6 text-sm">
-          {formError}
-        </p>
-      ) : null}
-
-      <div className="mt-8 flex items-center justify-between border-t pt-6">
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={step === 0 || pending}
-          onClick={() => setStep((s) => s - 1)}
-        >
-          Back
-        </Button>
-        {step < STEPS.length - 1 ? (
-          <Button type="button" onClick={next}>
-            Continue
-          </Button>
-        ) : (
-          <Button type="button" onClick={submit} disabled={pending}>
-            {pending ? "Creating…" : "Create program"}
-          </Button>
-        )}
-      </div>
+      <PreviewPanel form={form} perfect={eff.perfect} />
     </div>
+  );
+}
+
+function ScoringExplainer({ rate }: { rate: bigint | null }) {
+  return (
+    <div className="bg-muted/40 rounded-xl border p-4 text-sm">
+      <p className="font-medium">How a score becomes USDC</p>
+      <ol className="text-soft mt-2 grid list-decimal gap-1 pl-5">
+        <li>The agent scores each criterion from 0 to 10.</li>
+        <li>The category&apos;s points are the average score ÷ 10 × its max points.</li>
+        <li>
+          Payout = points × the rate per point
+          {rate !== null ? ` (${formatUsdc(rate)}, set in the next step)` : ""}, within your vault
+          limits.
+        </li>
+      </ol>
+    </div>
+  );
+}
+
+/** What contributors will see, updating as the owner types; hidden below 1024px. */
+function PreviewPanel({ form, perfect }: { form: Form; perfect: (bigint | null)[] }) {
+  return (
+    <aside className="hidden lg:block" aria-label="Preview">
+      <div className="sticky top-8 grid gap-4">
+        <p className="text-muted-foreground text-xs">Join page preview</p>
+        <div className="bg-card rounded-xl border p-5">
+          <p className="text-muted-foreground text-xs">Contributor program</p>
+          <p className="mt-1 text-lg font-medium tracking-tight">
+            {form.basics.name || "Your program"}
+          </p>
+          <p className="text-soft mt-2 line-clamp-4 text-sm leading-relaxed">
+            {form.basics.description || "Your description appears here."}
+          </p>
+          <ul className="mt-4 grid gap-2">
+            {form.rubric.categories.map((c, i) => (
+              <li
+                key={i}
+                className="flex items-baseline justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">
+                    {c.name || `Category ${i + 1}`}
+                  </span>
+                  <span className="text-muted-foreground text-xs">
+                    {c.sourceTypes.map((t) => SOURCE_LABELS[t]).join(", ") || "No sources yet"}
+                  </span>
+                </span>
+                <span className="mono-num shrink-0 text-xs">
+                  up to{" "}
+                  {perfect[i] !== null && perfect[i] !== undefined ? formatUsdc(perfect[i]!) : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="bg-card rounded-xl border p-5 text-sm">
+          <p className="font-medium">What a perfect submission earns</p>
+          <ul className="mt-3 grid gap-1.5">
+            {form.rubric.categories.map((c, i) => (
+              <li key={i} className="flex justify-between gap-3">
+                <span className="text-soft truncate">{c.name || `Category ${i + 1}`}</span>
+                <span className="mono-num">
+                  {perfect[i] !== null && perfect[i] !== undefined ? formatUsdc(perfect[i]!) : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
+            Max points × rate per point. Most work scores below 10/10 and earns proportionally less.
+          </p>
+        </div>
+      </div>
+    </aside>
   );
 }

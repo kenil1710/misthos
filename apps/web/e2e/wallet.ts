@@ -14,8 +14,14 @@ export async function injectWallet(context: BrowserContext, privateKey: Hex, cha
   await context.addInitScript(
     ({ address, chainIdHex }) => {
       const listeners: Record<string, ((...a: unknown[]) => void)[]> = {};
-      // Like a real extension: no accounts are exposed until the site requests access.
-      let authorized = false;
+      // Like a real extension: no accounts are exposed until the site requests access, and the permission is
+      // remembered for the site across reloads.
+      const KEY = "__e2e_wallet_authorized";
+      let authorized = localStorage.getItem(KEY) === "1";
+      const authorize = () => {
+        authorized = true;
+        localStorage.setItem(KEY, "1");
+      };
       const provider = {
         isMetaMask: true,
         on(event: string, cb: (...a: unknown[]) => void) {
@@ -29,7 +35,7 @@ export async function injectWallet(context: BrowserContext, privateKey: Hex, cha
         async request({ method, params }: { method: string; params?: unknown[] }) {
           switch (method) {
             case "eth_requestAccounts":
-              authorized = true;
+              authorize();
               return [address];
             case "eth_accounts":
               return authorized ? [address] : [];
@@ -41,7 +47,7 @@ export async function injectWallet(context: BrowserContext, privateKey: Hex, cha
             case "wallet_addEthereumChain":
               return null;
             case "wallet_requestPermissions":
-              authorized = true;
+              authorize();
               return [{ parentCapability: "eth_accounts" }];
             case "wallet_getPermissions":
               return authorized ? [{ parentCapability: "eth_accounts" }] : [];
