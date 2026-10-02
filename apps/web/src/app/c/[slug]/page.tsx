@@ -97,12 +97,16 @@ export default async function ContributorHome({ params }: PageProps<"/c/[slug]">
                 )}
               </dd>
               <dt className="text-muted-foreground">Verified</dt>
-              <dd className="tabular-nums">{me.walletVerifiedAt?.toLocaleString() ?? "—"}</dd>
+              <dd className="tabular-nums">
+                {me.walletVerifiedAt
+                  ? `${me.walletVerifiedAt.toISOString().slice(0, 16).replace("T", " ")} UTC`
+                  : "—"}
+              </dd>
             </dl>
             {cooldownEnds ? (
               <p className="bg-warning-subtle text-warning mt-4 rounded-md p-3 text-sm">
                 You changed your wallet recently. Payouts to it start after{" "}
-                {cooldownEnds.toLocaleString()}.
+                {`${cooldownEnds.toISOString().slice(0, 16).replace("T", " ")} UTC`}.
               </p>
             ) : null}
           </div>

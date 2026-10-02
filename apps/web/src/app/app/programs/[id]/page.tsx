@@ -224,8 +224,8 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
           </dl>
           {current ? (
             <p className="text-muted-foreground mt-3 text-sm">
-              Round {current.number}: {current.startsAt.toLocaleDateString()} to{" "}
-              {current.endsAt.toLocaleDateString()}
+              Round {current.number}: {current.startsAt.toISOString().slice(0, 10)} to{" "}
+              {current.endsAt.toISOString().slice(0, 10)}
             </p>
           ) : null}
         </div>

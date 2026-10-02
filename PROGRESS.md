@@ -1,6 +1,6 @@
 # Misthos — Progress
 
-**Current phase:** 4 (Payout rounds) complete incl. live rounds on Arc testnet; awaiting go-ahead for Phase 5.
+**Current phase:** 5 (App UI polish) complete; awaiting go-ahead for Phase 6 (landing + docs).
 **Last updated:** 2026-10-02
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
@@ -21,6 +21,36 @@
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (Phase 5 — App UI polish)
+
+- **Public pages** (no sign-in): `/p/[slug]` audit page (totals: USDC paid, contributors paid, submissions reviewed,
+  fraud caught, rounds paid; every payout with handle, amount, round, payout decision hash, tx; rounds; recent
+  decisions with reasons) and `/p/[slug]/rounds/[roundId]` receipt (propose/approve/execute txs, decision root,
+  payouts with each decision record). Demo programs carry a visible "Demo program" label.
+- **Verify a decision** (`/api/public/verify`, rate-limited 20/min/IP; `lib/verify.ts`): paste or pick a record →
+  re-canonicalize + keccak256 → published by Misthos (and whether superseded) → agent signature (ECDSA or ERC-1271
+  `isValidSignature` on Arc) → payout commitment (keccak of the payout's sorted item hashes) → receipt's
+  `PayoutExecuted` event from the program's vault (payoutId, decisionHash, amount, recipient). Rendered as a proof chain;
+  rejected decisions verify through the signature step. 9 tests incl. tampering, forged signature, chain mismatches.
+- **Owner app**: `/app` overview across programs (vault balance, next payout forecast capped by round limits,
+  submissions by status, fraud caught, recent decisions feed, alerts for rounds awaiting approval and payee changes);
+  program tabs Overview · Submissions (filters + review drawer) · Contributors (+ detail: earnings, submissions,
+  payouts, wallet history) · Rounds · Treasury · Audit log (filters, CSV/JSON export with formula-injection guard) ·
+  Settings.
+- **Contributor**: `/c/[slug]` earnings, approved-unpaid, reviewed counts and payout history with receipt + tx links.
+- **Metrics** `/app/admin/metrics` (founders: `FOUNDER_WALLETS` env or `users.is_founder`): programs, contributors,
+  reviewed, auto-approved %, escalated %, fraud by flag, USDC paid testnet vs mainnet, rounds, median review time,
+  X and LLM spend; "Copy for submission form". Demo programs excluded (tested).
+- **Quality floor**: shared UI kit (PageHeader, Stat, EmptyState, Notice, Section, TableFrame), skeleton `loading.tsx`
+  and human `error.tsx` per area, 404 page, mobile nav row, mono tabular numbers, UTC timestamps everywhere,
+  copy + explorer on every address/hash. Fixed from screenshot review: review drawer horizontal overflow, overview
+  side panel stretching, same-day OUT_OF_WINDOW message ("Posted at … UTC" when a boundary shares the day).
+- **Screenshots** (`docs/screenshots/`, 37 PNGs, light + dark at 1440px, 3 at 375px): from a demo program
+  (`is_demo`) seeded into the throwaway DB by `apps/worker` `seed:showcase` — scripted content, but real SCA-signed
+  decisions, real checks, and a real round paid on Arc testnet
+  ([tx](https://explorer.testnet.arc.io/tx/0xbce6ca812ec35f36e1474f6109cb7fd4b8ed6aa581c74278e7dce54082d151fa)) from the
+  live vault. Recapture: start db-server + app on :3100, `seed:showcase`, then `apps/web/scripts/screenshots.mts`.
 
 ## Done (Phase 4 — Payout rounds)
 
@@ -261,11 +291,11 @@ re-execution reverted with `RoundNotExecutable`.
 - [x] `ANTHROPIC_API_KEY` in the root `.env` (works with the Messages API; key type marker `usr`).
 - [x] Circle entity secret + agent SCA (done 2026-10-02). **Back up `~/misthos-circle-recovery/` somewhere safe.**
 
-## Next (Phase 5 — App UI polish)
+## Next (Phase 6 — Landing + docs)
 
-Production-quality pass over owner, contributor and public screens; public audit page `/p/[slug]` with every paid
-round and payout and the "Verify a decision" tool (paste record → re-hash → match the `PayoutExecuted` event, EOA or
-ERC-1271 signature); round receipt `/p/[slug]/rounds/[roundId]`; metrics page.
+Landing page (§9) with live metrics strip (hidden at zero), real agent decision card linking to a public audit page,
+guardrails, audit trail, Arc + Circle section (only shipped items), FAQ; short docs at /docs (§10, reduced); README
+with screenshots; mark the owner's browser-test programs as demo once confirmed.
 
 ## Stubs
 
@@ -290,6 +320,8 @@ None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fa
 - X returns `impression_count: 0` for old posts; ENGAGEMENT_ANOMALY's impressions rule ignores 0 (regression test).
 - Article ownership can only be verified when the page mentions or links the contributor's @handle; otherwise it's
   a soft flag and goes to review.
+- The browser e2e env has no worker, so `payee-sync` enqueues fail there (logged); joins still succeed by design.
+- The live vault used for the showcase holds ~0.05 USDC after the showcase round; top up before reusing it.
 - Browser e2e covers Phase 2 flows only; extending it to submissions needs a fixture upstream server (Phase 8).
 - Arc RPC `eth_getLogs` rejects ranges above ~10k blocks (~1.4 h); treasury uses vault totals + recorded events
   instead of log scans. Deposits made outside Misthos show in totals but not in the deposit list.

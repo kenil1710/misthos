@@ -87,8 +87,8 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
         <aside className="h-fit rounded-lg border p-5 lg:sticky lg:top-6">
           {round ? (
             <p className="text-muted-foreground text-sm">
-              Round {round.number}: {round.startsAt.toLocaleDateString()} to{" "}
-              {round.endsAt.toLocaleDateString()}
+              Round {round.number}: {round.startsAt.toISOString().slice(0, 10)} to{" "}
+              {round.endsAt.toISOString().slice(0, 10)}
             </p>
           ) : null}
           {program.status === "paused" ? (

@@ -104,7 +104,7 @@ export default async function OverviewPage() {
         />
       </section>
 
-      <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
+      <div className="grid items-start gap-10 lg:grid-cols-[1fr_320px]">
         <Section title="Recent agent decisions">
           {o.feed.length === 0 ? (
             <EmptyState>No decisions yet. They appear here as contributors submit work.</EmptyState>
@@ -151,7 +151,7 @@ export default async function OverviewPage() {
               <TableRow>
                 <TableHead>Program</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead className="hidden sm:table-cell">Role</TableHead>
                 <TableHead className="text-right">Vault balance</TableHead>
               </TableRow>
             </TableHeader>
@@ -170,7 +170,7 @@ export default async function OverviewPage() {
                       <span className="text-muted-foreground ml-2 text-xs">demo</span>
                     ) : null}
                   </TableCell>
-                  <TableCell className="capitalize">{p.role}</TableCell>
+                  <TableCell className="hidden capitalize sm:table-cell">{p.role}</TableCell>
                   <TableCell className="mono-num text-right">
                     {p.vault ? (
                       formatUsdc(p.vault.balance, { withSymbol: false })

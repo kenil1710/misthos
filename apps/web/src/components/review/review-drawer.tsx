@@ -66,6 +66,9 @@ interface Detail {
   }[];
 }
 
+/** Same timestamp format as the rest of the app: "2026-10-02 09:37 UTC". */
+const utc = (iso: string) => `${iso.slice(0, 16).replace("T", " ")} UTC`;
+
 const toDecimal = (units: string) => {
   const v = BigInt(units);
   return `${v / 1_000_000n}.${(v % 1_000_000n).toString().padStart(6, "0")}`.replace(/\.?0+$/, "");
@@ -177,7 +180,7 @@ function DrawerBody({
         <SheetTitle>Review submission</SheetTitle>
         <SheetDescription>
           {detail
-            ? `@${detail.contributor.xHandle} · ${new Date(detail.submission.createdAt).toLocaleString()}`
+            ? `@${detail.contributor.xHandle} · ${utc(detail.submission.createdAt)}`
             : "Loading…"}
         </SheetDescription>
       </SheetHeader>
@@ -186,14 +189,14 @@ function DrawerBody({
           {error ? <p className="text-danger text-sm">{error}</p> : <Skeleton className="h-40" />}
         </div>
       ) : (
-        <div className="grid gap-6 px-4 pb-8 text-sm">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 px-4 pb-8 text-sm">
           <div className="flex items-center justify-between gap-3">
             <StatusBadge status={detail.submission.status} />
             <a
               href={detail.submission.url}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 truncate hover:underline"
+              className="inline-flex min-w-0 items-center gap-1 hover:underline"
             >
               <span className="truncate">{detail.submission.url.replace(/^https?:\/\//, "")}</span>
               <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
@@ -206,7 +209,7 @@ function DrawerBody({
                 {latest.decidedBy === "human" ? "Reviewer decision" : "Agent decision"}
               </h3>
               <p className="mt-1">{latest.summary}</p>
-              <p className="text-muted-foreground mt-2 font-mono text-[11px]">
+              <p className="text-muted-foreground mt-2 font-mono text-[11px] break-all">
                 {shortHex(latest.decisionHash, 8, 6)} · {latest.ruleVersion}
                 {latest.promptVersion ? ` · ${latest.promptVersion}` : ""}
                 {latest.model ? ` · ${latest.model}` : ""}
@@ -233,7 +236,7 @@ function DrawerBody({
                       <span className="text-muted-foreground text-xs">{f.severity}</span>
                     </div>
                     <p className="mt-1">{f.message}</p>
-                    <dl className="text-muted-foreground mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-[11px]">
+                    <dl className="text-muted-foreground mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 font-mono text-[11px]">
                       {Object.entries(f.evidence).map(([k, v]) => (
                         <div key={k} className="contents">
                           <dt>{k}</dt>
@@ -284,7 +287,7 @@ function DrawerBody({
               <p className="text-muted-foreground mt-1 text-xs">
                 {[
                   detail.content.author && `by ${detail.content.author}`,
-                  detail.content.timestamp && new Date(detail.content.timestamp).toLocaleString(),
+                  detail.content.timestamp && utc(detail.content.timestamp),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -359,7 +362,7 @@ function DrawerBody({
               <ol className="mt-2 grid gap-2">
                 {detail.decisions.map((d) => (
                   <li key={d.id} className="text-muted-foreground text-xs">
-                    {new Date(d.createdAt).toLocaleString()} · {d.decidedBy} · {d.action} ·{" "}
+                    {utc(d.createdAt)} · {d.decidedBy} · {d.action} ·{" "}
                     <span className="font-mono">{shortHex(d.decisionHash, 6, 4)}</span>
                     {d.overrideReason ? (
                       <div className="text-foreground mt-0.5">“{d.overrideReason}”</div>

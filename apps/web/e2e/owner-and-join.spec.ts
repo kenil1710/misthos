@@ -68,7 +68,7 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await expect(op.getByRole("heading", { name: "Sign in to Misthos" })).toBeVisible();
     await connectWallet(op);
     await op.getByRole("button", { name: "Sign in with this wallet" }).click();
-    await expect(op.getByRole("heading", { name: "Programs" })).toBeVisible();
+    await expect(op.getByRole("heading", { name: "Overview" })).toBeVisible();
     await expect(op.getByText("You don't run any programs yet.")).toBeVisible();
 
     await op.getByRole("link", { name: "Create a program" }).click();

@@ -13,7 +13,8 @@
     "circle:setup": "tsx --env-file=../../.env scripts/circle-setup.ts",
     "circle:probe": "tsx --env-file=../../.env scripts/circle-probe.ts",
     "demo:cap-revert": "tsx --env-file=../../.env scripts/demo-cap-revert.ts",
-    "live:round": "tsx --env-file=../../.env scripts/live-round.ts"
+    "live:round": "tsx --env-file=../../.env scripts/live-round.ts",
+    "seed:showcase": "tsx --env-file=../../.env scripts/seed-showcase.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

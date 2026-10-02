@@ -45,6 +45,7 @@ export interface CheckContext {
 
 const pct = (n: number) => Math.round(n * 100);
 const day = (d: Date) => d.toISOString().slice(0, 10);
+const minute = (d: Date) => `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
 /** Every deterministic check. Order is stable so records hash identically on replay. */
 export function runChecks(ctx: CheckContext): Flag[] {
@@ -114,7 +115,16 @@ export function runChecks(ctx: CheckContext): Flag[] {
       flags.push({
         code: "OUT_OF_WINDOW",
         severity: "hard",
-        message: `${r.timestampKind === "unknown" ? "Created" : r.timestampKind[0]!.toUpperCase() + r.timestampKind.slice(1)} on ${day(t)}, outside this round (${day(ctx.round.startsAt)} to ${day(ctx.round.endsAt)}).`,
+        message: (() => {
+          // Dates alone read as a contradiction when the post and a boundary share a day; use times then.
+          const close = day(t) === day(ctx.round.startsAt) || day(t) === day(ctx.round.endsAt);
+          const f = close ? minute : day;
+          const verb =
+            r.timestampKind === "unknown"
+              ? "Created"
+              : r.timestampKind[0]!.toUpperCase() + r.timestampKind.slice(1);
+          return `${verb} ${close ? "at" : "on"} ${f(t)}, outside this round (${f(ctx.round.startsAt)} to ${f(ctx.round.endsAt)}).`;
+        })(),
         evidence: {
           timestamp: r.timestamp,
           kind: r.timestampKind,
