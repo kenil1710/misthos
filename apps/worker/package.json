@@ -11,7 +11,9 @@
     "lint": "prettier --check src test",
     "start:local": "tsx --env-file=../../.env src/index.ts",
     "circle:setup": "tsx --env-file=../../.env scripts/circle-setup.ts",
-    "circle:probe": "tsx --env-file=../../.env scripts/circle-probe.ts"
+    "circle:probe": "tsx --env-file=../../.env scripts/circle-probe.ts",
+    "demo:cap-revert": "tsx --env-file=../../.env scripts/demo-cap-revert.ts",
+    "live:round": "tsx --env-file=../../.env scripts/live-round.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

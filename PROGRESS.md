@@ -1,6 +1,6 @@
 # Misthos — Progress
 
-**Current phase:** 3 (Agent core) complete incl. scored live check; awaiting go-ahead for Phase 4.
+**Current phase:** 4 (Payout rounds) complete incl. live rounds on Arc testnet; awaiting go-ahead for Phase 5.
 **Last updated:** 2026-10-02
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
@@ -21,6 +21,55 @@
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (Phase 4 — Payout rounds)
+
+- **Circle agent wallet** (`pnpm --filter @misthos/worker circle:setup`, idempotent): entity secret generated and
+  registered (recovery file in `~/misthos-circle-recovery/`, outside the repo), wallet set + **SCA on ARC-TESTNET
+  `0x74a60caa5e6c14a33be4ebf1507a209ac61b78a1`**, deployed with one sponsored no-op tx (Circle won't sign from an
+  undeployed SCA). Only the `CIRCLE_*` lines of `.env` were filled/appended. Gas Station: Circle's default testnet
+  policy sponsors SCA transactions (50 USDC/day on Arc testnet); the SCA's native balance stays 0.
+  `circle:probe` proves ERC-1271 signature verification on Arc, sponsored execution, and idempotency-key dedupe.
+- **Signer / executor interfaces** (`AgentSigner`, `AgentExecutor`): Circle SCA (default when configured) or the
+  testnet EOA fallback (`AGENT_BACKEND=eoa`, `AGENT_PRIVATE_KEY`). Decision records are now signed by the SCA.
+  Circle calls carry deterministic UUID idempotency keys derived from the action + vault + round/payee.
+- **Vault from the app**: Overview → "Deploy vault" (owner tx via ConnectKit → factory, agent = Circle SCA) →
+  "Fund vault" (approve + deposit). Settings → on-chain `setLimits`. Every follow-up API (`/vault`, `/limits`,
+  `/deposit`, `/rounds/:id/approved`) verifies the event on-chain (contract, args, owner, agent) before recording.
+  The wizard saves the draft; deploy/fund are the next steps on the program page (the vault needs the program id).
+- **Payees**: joining or changing wallet enqueues `payee-sync`; the agent calls `registerPayee` (idempotent; reads
+  `payeeOf` first). The cooldown is the contract's; owners see an alert for recent wallet changes.
+- **Rounds** (`runRound`, worker queue `round-run`, scheduler every 60 s + "Close round now"): close → re-check every
+  approved item (fresh fetch; deleted/ownership-changed items get a signed `R0_PAYOUT_RECHECK` rejection) → register
+  missing payees → `planRound` (per-contributor aggregation, whole items only, ≤ maxPerPayout, ≤ min(maxPerRound,
+  maxPerDay − spentInWindow), ≤ 200 payouts, payee registered + out of cooldown; the rest carry over with a reason) →
+  `payoutId = keccak256(abi.encode(programId, roundId, contributorId))`, payout `decisionHash` = keccak over its items'
+  sorted decision hashes, `roundDecisionRoot` = keccak over all included decision hashes → `proposeRound` →
+  `executeRound` if total ≤ autoApproveThreshold, else "Approve round" for the owner, then execute. Every step reads
+  chain + DB state first; tx hashes, `payout.executed` receipts and audit events are stored. Chain reverts mark the
+  round failed and release its items.
+- **UI**: program tabs (Overview, Rounds, Treasury, Settings); rounds list; round detail with timeline (closed →
+  planned → proposed → approved → executed, tx links), payouts (contributor, wallet, amount, decision hash, tx),
+  carried-over items; treasury from live vault reads (balance, deposited, paid, withdrawn, daily cap meter) +
+  recorded deposits and payouts.
+- **Demo** (`pnpm --filter @misthos/worker demo:cap-revert [vault] [--broadcast]`): simulates `proposeRound` from the
+  agent SCA at the cap (accepted) and 1 USDC over it (reverts `PayoutTooLarge`); `--broadcast` sends it through Circle,
+  which refuses at estimation (`ESTIMATION_ERROR`), so nothing lands.
+- **Tests**: planner (aggregation, every cap, payee states, determinism), round job against an in-memory vault model
+  driven by real calldata (auto-execute, approval path, transient retry, crash after execute, payout re-check,
+  carry-over, cooldown, chain refusal, manual close, payee sync), worker queue round (decision → scheduler → paid).
+- **Live rounds on Arc testnet** (`pnpm --filter @misthos/worker live:round`, throwaway DB, scripted content and
+  scores, real chain + Circle SCA + SCA-signed decisions): vault
+  [`0x09138198…D973`](https://explorer.testnet.arc.io/address/0x09138198c0056189727dfe809E67934c1B7fD973), funded
+  5 USDC. Round 1 auto-executed 1.60 USDC (alice 1.00, bob 0.60; alice's 0.80 deferred by maxPerPayout 1.50):
+  [propose](https://explorer.testnet.arc.io/tx/0x5bf1bda727ae144d23399844dd6c30bc53093e936643c991694ab80c8db452dd),
+  [execute](https://explorer.testnet.arc.io/tx/0x1b22e940e2ce08647259129f3a047a0792ee222193408653ff1c59511e42cd42).
+  Round 2 = 2.20 USDC > 2.00 threshold → awaited approval →
+  [owner approveRound](https://explorer.testnet.arc.io/tx/0x760d0e8e1a936cc5f308d7402cf658c211cded0e75e0dca601010b2383add98e) →
+  [execute](https://explorer.testnet.arc.io/tx/0x5b56ab5de70be70b56030d5dd3a6cbbc2a75c936c33be02c5f250b35f3ba29ce)
+  (alice 0.80, carol 1.40). Final balances alice 1.80 / bob 0.60 / carol 1.40; vault 1.20 left, totalPaid 3.80.
+  A first attempt surfaced a script bug (carol's post stamped before round 2 opened → correctly rejected
+  OUT_OF_WINDOW); its vault's 2.60 USDC leftover was withdrawn by the owner.
 
 ## Done (Phase 3 — Agent core)
 
@@ -210,14 +259,13 @@ re-execution reverted with `RoundNotExecutable`.
       `http://localhost:3000/api/auth/x/callback` (and the production URL once deployed); type "Web App"
       (confidential client). Until then Sign in with X fails at X.
 - [x] `ANTHROPIC_API_KEY` in the root `.env` (works with the Messages API; key type marker `usr`).
-- [ ] Circle entity secret + agent wallet (payout phase, together).
+- [x] Circle entity secret + agent SCA (done 2026-10-02). **Back up `~/misthos-circle-recovery/` somewhere safe.**
 
-## Next (Phase 4 — Payout rounds)
+## Next (Phase 5 — App UI polish)
 
-Circle SCA agent wallet + `AgentSigner` implementation; `setAgent` on vaults; vault deploy + fund from the program
-page (owner wallet); round close job (re-check DELETED/ownership, aggregate per contributor, caps, deterministic
-payoutIds, `registerPayee`, `proposeRound`, `executeRound` or owner `approveRound`), receipts, payee-change alerts.
-3+ real testnet contributors paid end to end.
+Production-quality pass over owner, contributor and public screens; public audit page `/p/[slug]` with every paid
+round and payout and the "Verify a decision" tool (paste record → re-hash → match the `PayoutExecuted` event, EOA or
+ERC-1271 signature); round receipt `/p/[slug]/rounds/[roundId]`; metrics page.
 
 ## Stubs
 
@@ -243,5 +291,11 @@ None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fa
 - Article ownership can only be verified when the page mentions or links the contributor's @handle; otherwise it's
   a soft flag and goes to review.
 - Browser e2e covers Phase 2 flows only; extending it to submissions needs a fixture upstream server (Phase 8).
-- Circle agent wallet not created yet (`CIRCLE_ENTITY_SECRET`, `CIRCLE_AGENT_WALLET_ID` empty) — set up together
+- Arc RPC `eth_getLogs` rejects ranges above ~10k blocks (~1.4 h); treasury uses vault totals + recorded events
+  instead of log scans. Deposits made outside Misthos show in totals but not in the deposit list.
+- Circle refuses to sign from an undeployed SCA; `circle:setup` deploys it. Circle refuses reverting calls at
+  estimation (`ESTIMATION_ERROR`), so failed agent proposals never land on-chain.
+- The live-round check scores scripted content (it tests money movement); real-content scoring is covered by the
+  Phase 3 live check.
+- (resolved) Circle agent wallet not created yet (`CIRCLE_ENTITY_SECRET`, `CIRCLE_AGENT_WALLET_ID` empty) — set up together
   in the payout phase; then `setAgent` on vaults.
