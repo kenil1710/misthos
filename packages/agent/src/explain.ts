@@ -47,6 +47,12 @@ export function explain(p: {
       : "";
   const cap = d.cappedBy === "maxPerPayout" ? " Capped at the program's per-payout limit." : "";
 
+  if (d.action === "reject" && d.rule === "R5A_CLEAR_SPAM") {
+    return `Rejected automatically as clearly outside this program's rubric. ${j!.quality_summary}${scoreLine()} The program team can override this decision.`
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   if (d.action === "reject") {
     const f = flags.find((x) => x.severity === "hard")!;
     const tail: Partial<Record<Flag["code"], string>> = {

@@ -4,7 +4,11 @@ import type { JudgmentOutput } from "./judge";
 import type { Flag, Resource } from "./types";
 
 /** Bump whenever a rule below changes. Recorded in every decision. */
-export const RULE_VERSION = "rules-v1";
+export const RULE_VERSION = "rules-v2";
+
+/** Clear spam: the model is very sure the work doesn't qualify and every criterion scored 0 or 1. */
+export const SPAM_CONFIDENCE = 0.9;
+export const SPAM_MAX_SCORE = 1;
 
 /** Flags that end in rejection: the work can't be paid, whatever its quality. */
 export const REJECT_FLAGS = new Set([
@@ -125,6 +129,15 @@ export function decide(i: EngineInput): EngineDecision {
     return out("escalate", "R2_INJECTION");
   if (!i.judgment) return out("escalate", "R3_NO_JUDGMENT");
   if (!cat) return out("escalate", "R4_CATEGORY_INVALID");
+  // R5a: clear spam is rejected automatically (injection was already routed to a human by R2). Owners can override.
+  const scores = cat.criteria.map((k) => i.judgment!.rubric_scores[k.key] ?? 0);
+  if (
+    i.judgment.recommended_action === "reject" &&
+    i.judgment.confidence >= SPAM_CONFIDENCE &&
+    scores.every((x) => x <= SPAM_MAX_SCORE)
+  ) {
+    return out("reject", "R5A_CLEAR_SPAM");
+  }
   if (i.judgment.recommended_action === "reject" || i.judgment.recommended_action === "escalate") {
     return out("escalate", "R5_AGENT_RECOMMENDS_REVIEW");
   }

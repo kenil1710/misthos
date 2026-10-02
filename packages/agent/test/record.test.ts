@@ -43,7 +43,7 @@ const base = (): Omit<DecisionRecord, "signer"> => ({
   contentHash: `0x${"2".repeat(64)}`,
   flags: [],
   judgment: null,
-  ruleVersion: "rules-v1",
+  ruleVersion: "rules-v2",
   rule: "R10_AUTO_APPROVE",
   decision: {
     action: "approve",

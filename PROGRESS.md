@@ -50,7 +50,7 @@
 - **Decision engine** (`rules-v1`, pure TS): R1 reject flags → reject 0 · R2 injection → escalate (never auto, even
   if the model is fooled) · R3 no judgment · R4 invalid category · R5 model recommends reject/escalate · R6 any soft
   flag · R7 confidence < program threshold · R8 zero amount · R9 above per-item auto cap → escalate with the priced
-  recommendation · R10 auto approve/partial. Amount = maxPoints × Σscores / (10·n) × rate, exact bigint, capped at
+  recommendation · R5a clear spam (model recommends reject, confidence ≥ 0.9, every score ≤ 1) → auto-reject, explained and overridable (`rules-v2`) · R10 auto approve/partial. Amount = maxPoints × Σscores / (10·n) × rate, exact bigint, capped at
   vault `maxPerPayout`.
 - **Decision records** (`misthos.decision/v1`): canonical JSON (sorted keys) with input hash, content hash, flags +
   evidence, judgment (model, prompt version, output), rule version + rule, action, points, amount, decidedBy,

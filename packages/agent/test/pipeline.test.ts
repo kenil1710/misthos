@@ -233,7 +233,7 @@ describe("processSubmission", () => {
       decidedBy: "agent",
       model: "claude-haiku-4-5-20251001",
       promptVersion: "judge-v2",
-      ruleVersion: "rules-v1",
+      ruleVersion: "rules-v2",
     });
     expect(dec.summary).toMatch(
       /^Approved · 16\.00 USDC\. Posted inside the round by the linked account\. .* Scored 8\/10 on depth, 7\/10 on clarity and 9\/10 on originality\.$/,

@@ -123,6 +123,47 @@ describe("decide", () => {
     ).toBe("R4_CATEGORY_INVALID");
   });
 
+  const spam = (o: Partial<JudgmentOutput> = {}) =>
+    J({
+      recommended_action: "reject",
+      confidence: 0.95,
+      rubric_scores: { depth: 0, clarity: 1, originality: 0 },
+      ...o,
+    });
+
+  it("R5a: clear spam (reject, confidence ≥ 0.9, every score ≤ 1) is rejected automatically with 0", () => {
+    expect(decide(input({ judgment: spam() }))).toMatchObject({
+      action: "reject",
+      amount: 0n,
+      rule: "R5A_CLEAR_SPAM",
+      auto: true,
+    });
+    // soft flags don't save spam
+    expect(decide(input({ judgment: spam(), flags: [flag("NEW_ACCOUNT", "soft")] })).rule).toBe(
+      "R5A_CLEAR_SPAM",
+    );
+  });
+
+  it("R5a boundaries: confidence 0.89, any score of 2, or a non-reject recommendation go to a reviewer", () => {
+    expect(decide(input({ judgment: spam({ confidence: 0.89 }) })).rule).toBe(
+      "R5_AGENT_RECOMMENDS_REVIEW",
+    );
+    expect(decide(input({ judgment: spam({ confidence: 0.9 }) })).rule).toBe("R5A_CLEAR_SPAM");
+    expect(
+      decide(input({ judgment: spam({ rubric_scores: { depth: 2, clarity: 0, originality: 0 } }) }))
+        .rule,
+    ).toBe("R5_AGENT_RECOMMENDS_REVIEW");
+    expect(decide(input({ judgment: spam({ recommended_action: "escalate" }) })).rule).toBe(
+      "R5_AGENT_RECOMMENDS_REVIEW",
+    );
+  });
+
+  it("R5a never overrides prompt injection: those still go to a human", () => {
+    expect(
+      decide(input({ judgment: spam(), flags: [flag("PROMPT_INJECTION_ATTEMPT")] })).rule,
+    ).toBe("R2_INJECTION");
+  });
+
   it("R5: the model recommending reject or escalate goes to a reviewer with its recommendation", () => {
     expect(decide(input({ judgment: J({ recommended_action: "reject" }) })).rule).toBe(
       "R5_AGENT_RECOMMENDS_REVIEW",
@@ -239,6 +280,28 @@ describe("explain", () => {
       }),
     ).toBe(
       "Rejected. 91% identical to a submission by @bob_copies on 2026-10-06. Recycled content isn't paid under this program's rules.",
+    );
+  });
+
+  it("clear spam: says it was automatic and can be overridden", () => {
+    const j = J({
+      recommended_action: "reject",
+      confidence: 0.99,
+      rubric_scores: { depth: 0, clarity: 0, originality: 0 },
+      quality_summary: "A casual personal post with no educational content.",
+    });
+    const d = decide(input({ judgment: j }));
+    expect(
+      explain({
+        decision: d,
+        flags: [],
+        judgment: j,
+        categories: CATEGORIES,
+        resource: res,
+        priorCount: 0,
+      }),
+    ).toBe(
+      "Rejected automatically as clearly outside this program's rubric. A casual personal post with no educational content. Scored 0/10 on depth, 0/10 on clarity and 0/10 on originality. The program team can override this decision.",
     );
   });
 
