@@ -15,6 +15,9 @@ contract MockERC1271Wallet is IERC1271 {
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4) {
         (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(hash, signature);
-        return err == ECDSA.RecoverError.NoError && signer == owner ? IERC1271.isValidSignature.selector : bytes4(0);
+        return
+            err == ECDSA.RecoverError.NoError && signer == owner
+                ? IERC1271.isValidSignature.selector
+                : bytes4(0);
     }
 }

@@ -1,6 +1,6 @@
 # Misthos — Progress
 
-**Current phase:** 2 (Data + auth) — in progress. Phase 1 complete (deployed, verified, real-USDC round paid).
+**Current phase:** 2 (Data + auth) complete; awaiting go-ahead for Phase 3 (agent core).
 **Last updated:** 2026-10-02
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
@@ -21,6 +21,40 @@
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (Phase 2 — Data + auth)
+
+- **DB (`packages/db`)**: Drizzle schema for users, auth_nonces, programs, program_members, contributors, rounds,
+  submissions, fetched_resources, decisions, payouts, audit_events, api_usage. Money = bigint 6-dec base units.
+  Migrations checked in (`0000_init`, `0001_pg_trgm_and_audit_guard`) and **applied to Neon** (PG 18):
+  `pg_trgm` + GIN trigram index on `fetched_resources.content_text`; `audit_events` append-only via triggers
+  (UPDATE/DELETE/TRUNCATE raise). Uniques: one membership per X account per program, one payout wallet per program,
+  one submission per contributor per resource (cross-contributor duplicates kept for flagging). `pnpm --filter
+@misthos/db db:migrate`. Pool size via `DB_POOL_MAX`.
+- **Signatures (`@misthos/shared` `verifyWalletSignature`)**: viem ERC-6492 universal validator → EOA ecrecover and
+  ERC-1271 `isValidSignature`. Proven live on Arc testnet against `MockERC1271Wallet`
+  `0x0567059B08CFF857c703e137DCE4a5efab1954f8` (owner = deployer) — `ARC_RPC_TESTS=1` suite, fixture in
+  `packages/shared/test/fixtures/arc-signatures.json`.
+- **Owner auth**: SIWE (EIP-4361). Checks domain, URI origin, chain, ≤10 min age, signature (EOA/1271), then consumes
+  a single-use DB nonce (atomic UPDATE). HS256 JWT in httpOnly SameSite=Lax cookie; separate owner/contributor
+  sessions. All POST routes require same-origin `Origin`.
+- **Contributor auth**: X OAuth 2.0 PKCE (S256), confidential client, endpoints verified on docs.x.com. Scopes
+  `tweet.read users.read` only; token revoked right after `GET /2/users/me` (never stored); `api_usage` row per call.
+  Redirect targets restricted to same-origin paths.
+- **Wallet link**: server issues the exact message (program, X id + handle, wallet, chain, nonce, time); server
+  rebuilds it on verify, checks signature before burning the nonce, stores message + signature as proof. Wallet
+  change sets `wallet_changed_at` + `contributor.wallet_changed` audit event; UI shows cooldown and an owner-side flag.
+- **UI**: ConnectKit (React 19 verified in a real browser; Aave option off; WalletConnect client-only singleton),
+  `/app` sign-in gate + programs list, 4-step wizard (Basics → Rubric → Budget & limits → Review; vault limits
+  validated like the contract), program page (publish/pause, join link, rubric, limits, contributors),
+  `/join/[slug]`, `/c/[slug]` (account, wallet change). Draft programs have no public page.
+- **Tests**: shared 19 (+4 live), db 6 (PGlite, migrated template cloned per test), web 32 (SIWE edge cases, PKCE /
+  token / revoke / users-me with fixtures, open-redirect, program + wallet-link domain logic on PGlite).
+  **Browser e2e** (`pnpm --filter @misthos/web e2e`): injected EIP-1193/EIP-6963 test wallet + throwaway in-memory
+  Postgres (PGlite socket server; Neon untouched). Owner SIWE → wizard (incl. limit validation) → publish →
+  contributor joins with signed proof → switches wallet → owner sees flag; asserts DB rows, exact audit trail, all
+  nonces consumed once, and that audit_events rejects UPDATE. X OAuth is simulated in e2e by issuing the session
+  the callback would (the OAuth code is unit-tested).
 
 ## Done (Phase 1 — Contracts)
 
@@ -60,8 +94,6 @@ Smoke rounds (1 USDC each, payee = deployer): execute txs
 [0x91cb…cf3b](https://explorer.testnet.arc.io/tx/0x91cb6ae4e6412a0b3a04ab1acd97486289978cf70ca4c3c2ab66660ad152cf3b).
 `PayoutExecuted` carries amount + decisionHash as expected. Over-cap proposal reverted with `PayoutTooLarge`;
 re-execution reverted with `RoundNotExecutable`.
-
-## Done (Phase 0)
 
 ## Done (Phase 0)
 
@@ -114,26 +146,24 @@ re-execution reverted with `RoundNotExecutable`.
   on testnet), Contracts (event monitoring, optional), CCTP/Bridge Kit (stretch), EURC (stretch).
   USYC is an **IdleStrategy only** plan unless we get allowlisted.
 
-## Open decisions (need owner input before Phase 1)
+## Owner checklist (only you can do these)
 
-1. **Mainnet agent key.** Circle wallets don't support Arc mainnet yet. Options:
-   (a) testnet = Circle wallet, mainnet = dedicated EOA key in the worker's secret store, with small on-chain vault caps
-   limiting the blast radius _(recommended)_; (b) stay testnet-only and skip the mainnet deploy.
-2. **Signature type.** If the agent wallet is an SCA (needed for Gas Station sponsorship), `signMessage` gives an
-   ERC-1271 signature, which is verified with an `isValidSignature` call and not by `ecrecover`. viem's `verifyMessage`
-   handles both. Recommended: SCA for execution + EIP-1271 verification in the "Verify a decision" tool.
-   To confirm in Phase 1 against the live API.
-3. **Infra choices:** Neon (Postgres) + Railway (worker) + ConnectKit (Arc docs ship a ConnectKit example;
-   WalletConnect doesn't register Arc testnet) _(recommended)_.
+- [ ] X developer portal → app → User authentication settings: callback URL
+      `http://localhost:3000/api/auth/x/callback` (and the production URL once deployed); type "Web App"
+      (confidential client). Until then Sign in with X fails at X.
+- [ ] `ANTHROPIC_API_KEY` in `.env` (Phase 3 uses fixtures; needed for live scoring).
+- [ ] Circle entity secret + agent wallet (payout phase, together).
 
-## Next (Phase 2 — Data + auth)
+## Next (Phase 3 — Agent core)
 
-Drizzle schema + migrations on Neon, owner wallet auth (SIWE-style), X OAuth 2.0 PKCE for contributors, wallet
-ownership signature, GitHub username field (no OAuth), program wizard (without chain), join flow.
+URL classify → fetchers (X v2 tweet lookup, GitHub PR via public API + token, article via readability) with caching
+and `api_usage` → deterministic flags (ownership, window, duplicate, near-duplicate SimHash + pg_trgm, account age,
+engagement anomaly, not merged, prompt injection) → LLM judge (Haiku 4.5, tool-schema output, fixtures in tests) →
+decision engine → canonical decision record + keccak hash + signature. Submission box on `/c/[slug]`.
 
 ## Stubs
 
-None. (`packages/agent` and `packages/db` only export a name constant until Phases 2–3.)
+None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fake data anywhere.
 
 ## Known issues
 
@@ -148,5 +178,8 @@ None. (`packages/agent` and `packages/db` only export a name constant until Phas
   "already verified" check is fooled by it; verify with `--skip-is-verified-check`. Don't pass `--watch` with
   forge 1.7.1 here (CLI parse error).
 - forge-lint reports 3 `block-timestamp` warnings in `MisthosVault` — intentional (hour-scale cooldown / 24h window).
+- e2e needs Chromium (`pnpm --filter @misthos/web exec playwright install chromium`) and isn't in CI yet (Phase 8).
+- No rate limiting on public endpoints yet (Phase 8 security pass). Nonce table is cleaned opportunistically.
+- `next dev` with `NEXT_DIST_DIR=.next-e2e` adds `.next-e2e` type paths to `apps/web/tsconfig.json`; harmless.
 - Circle agent wallet not created yet (`CIRCLE_ENTITY_SECRET`, `CIRCLE_AGENT_WALLET_ID` empty) — set up together
   in the payout phase; then `setAgent` on vaults.

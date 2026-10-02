@@ -9,5 +9,6 @@ export default defineConfig({
       "server-only": fileURLToPath(new URL("./test/stubs/server-only.ts", import.meta.url)),
     },
   },
-  test: { include: ["test/**/*.test.ts"], environment: "node" },
+  // PGlite-backed tests are CPU-heavy; leave headroom when the whole monorepo tests in parallel.
+  test: { include: ["test/**/*.test.ts"], environment: "node", testTimeout: 30_000, hookTimeout: 60_000 },
 });

@@ -14,7 +14,8 @@ export function normalizeDatabaseUrl(url: string): string {
 }
 
 export function createDb(url: string, opts: { max?: number } = {}): { db: Db; pool: pg.Pool } {
-  const pool = new pg.Pool({ connectionString: normalizeDatabaseUrl(url), max: opts.max ?? 5 });
+  const max = opts.max ?? (Number(process.env.DB_POOL_MAX) || 5);
+  const pool = new pg.Pool({ connectionString: normalizeDatabaseUrl(url), max });
   return { db: drizzle(pool, { schema }), pool };
 }
 

@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@misthos/shared", "@misthos/db"],
   serverExternalPackages: ["pg"],
   poweredByHeader: false,
+  // Lets the e2e dev server run beside a normal `next dev` without sharing .next.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
 };
 
 export default nextConfig;

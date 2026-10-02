@@ -15,3 +15,6 @@ packages/contracts/out
 packages/contracts/cache
 packages/contracts/broadcast/*/31337
 packages/contracts/broadcast/**/dry-run
+.next-e2e
+apps/web/test-results
+apps/web/playwright-report

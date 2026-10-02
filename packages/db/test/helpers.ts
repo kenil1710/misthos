@@ -7,10 +7,20 @@ import * as schema from "../src/schema";
 
 export const MIGRATIONS = fileURLToPath(new URL("../migrations", import.meta.url));
 
+let template: Promise<PGlite> | undefined;
+
+/** Migrated once per test file; each test gets a fast clone. */
+function migratedTemplate(): Promise<PGlite> {
+  template ??= (async () => {
+    const client = await PGlite.create({ extensions: { pg_trgm } });
+    await migrate(drizzle(client), { migrationsFolder: MIGRATIONS });
+    return client;
+  })();
+  return template;
+}
+
 /** Fresh in-process Postgres with every checked-in migration applied. */
 export async function testDb(): Promise<{ db: PgliteDatabase<typeof schema>; client: PGlite }> {
-  const client = await PGlite.create({ extensions: { pg_trgm } });
-  const db = drizzle(client, { schema });
-  await migrate(db, { migrationsFolder: MIGRATIONS });
-  return { db, client };
+  const client = (await (await migratedTemplate()).clone()) as PGlite;
+  return { db: drizzle(client, { schema }), client };
 }
