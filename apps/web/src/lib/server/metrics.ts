@@ -1,4 +1,5 @@
 import "server-only";
+import type { DbLike } from "@misthos/db";
 import {
   apiUsage,
   contributors,

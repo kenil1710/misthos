@@ -19,13 +19,26 @@ export function SiteHeader({
           <Link href={href} aria-label="Misthos home" className="rounded-md">
             <Wordmark />
           </Link>
-          {nav ? <nav className="hidden items-center gap-4 text-sm sm:flex">{nav}</nav> : null}
+          {nav ? (
+            <nav aria-label="Main" className="hidden items-center gap-4 text-sm sm:flex">
+              {nav}
+            </nav>
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           {right}
           <ThemeToggle />
         </div>
       </div>
+      {/* Below 640px the links move to their own scrollable row instead of disappearing. */}
+      {nav ? (
+        <nav
+          aria-label="Main"
+          className="flex h-10 items-center gap-5 overflow-x-auto border-t px-4 text-sm whitespace-nowrap sm:hidden"
+        >
+          {nav}
+        </nav>
+      ) : null}
     </header>
   );
 }
