@@ -1,7 +1,60 @@
 # Misthos — Progress
 
-**Current phase:** 0 (Setup) — complete, awaiting confirmation before Phase 1.
-**Last updated:** 2026-09-26
+**Current phase:** 1 (Contracts) — code + tests complete; testnet deploy waiting on deployer funding.
+**Last updated:** 2026-10-02
+**Deadline:** Oct 10, 2026 11:59 PM ET
+
+## Reduced scope (owner decision, 2026-10-02)
+
+- **Keep:** vault + tests + testnet deploy, program setup, X sign-in + wallet signature, submissions (X posts,
+  GitHub PRs via public API, articles), agent pipeline (fetch, deterministic checks, LLM scoring, prompt-injection
+  defense, decision engine, signed decision records), review queue, testnet payout rounds, public audit page with
+  "Verify a decision", simple landing page, short docs, metrics page.
+- **Cut:** GitHub OAuth (contributor types their GitHub username), treasury/USYC, CCTP, EURC, keyboard shortcuts,
+  notifications, Discord/YouTube.
+- Phase 3 tests use saved fixtures (no API spend). Both agent models: `claude-haiku-4-5-20251001`.
+
+## Decisions (confirmed 2026-10-02)
+
+1. Agent executor = Circle smart-contract wallet on Arc testnet. Decision signatures must verify for **both**
+   ERC-1271 (SCA) and EOA signers (viem `verifyMessage` covers both).
+2. Neon (Postgres) + Railway (worker) + ConnectKit.
+3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
+   (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (Phase 1 — Contracts)
+
+- `MisthosVault` (EIP-1167 clone, `Initializable`, `ReentrancyGuard`, SafeERC20, custom errors, NatSpec):
+  roles owner/agent/guardian; limits `maxPerPayout`, `maxPerRound`, `maxPerDay` (true rolling 24h via a pruned
+  outflow log), `autoApproveThreshold`, `payeeCooldown`; `registerPayee` (every register/change starts cooldown,
+  `PayeeChanged` on change); `proposeRound` / `approveRound` / `cancelRound` / `executeRound`; `paid[payoutId]`
+  idempotency; `deposit` (tracked) + owner `withdraw` (works while paused); `MAX_PAYOUTS_PER_ROUND = 200`.
+  Execution **re-validates** every payout against current limits and payees, so a wallet swap or a tightened limit
+  after proposal blocks execution.
+- `MisthosVaultFactory`: `createVault(programId, owner, agent, guardian, limits)`, deterministic per
+  (caller, programId) so vault addresses can't be squatted; `predictVaultAddress`.
+- Tests (`forge test`): 68 unit (every function + revert path), 3 fuzz × 1024 runs (payout/round caps, rolling daily
+  cap vs independent recomputation, cooldown), 5 invariants × 256 runs × 64 depth (paid+withdrawn ≤ deposited,
+  exact balance accounting, payoutId paid at most once, strangers can't move funds, caps hold). Handler reachability
+  of propose/execute was probed and confirmed (invariants aren't vacuous). Fork suite (3 tests, opt-in via
+  `ARC_FORK_RPC`) passes against live Arc testnet.
+- Scripts: `Deploy.s.sol` (impl + factory → `packages/shared/src/deployments.json`; refuses chain 5042 unless
+  `ALLOW_MAINNET=true`), `CreateVault.s.sol` (smoke vault, owner = agent = deployer, funds 5 USDC),
+  `SmokeRound.s.sol` (`register()` then `pay()` after the 2-min cooldown: a real 1 USDC round).
+  Deploy simulated successfully against live testnet: ~3.0M gas ≈ 0.15 USDC.
+- `@misthos/shared` exports `DEPLOYMENTS` / `getDeployment(chain)`.
+- Secrets moved from `.env.example` to `.env` (gitignored, verified). Testnet-only deployer generated:
+  `0xb2d469d1092308378710A5365105Ec9A7F6A33d2` (key only in `.env`).
+
+## Phase 1 remaining (blocked on owner)
+
+1. Fund `0xb2d469d1092308378710A5365105Ec9A7F6A33d2` from faucet.circle.com (Arc Testnet, ~20 USDC).
+2. Then (from `packages/contracts`, with `DEPLOYER_PRIVATE_KEY` exported from `.env`):
+   `forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast` →
+   `forge script script/CreateVault.s.sol --rpc-url arc_testnet --broadcast` →
+   `SmokeRound register()` → wait 2 min → `SmokeRound pay()`. Then verify on the explorer and commit.
+
+## Done (Phase 0)
 
 ## Done (Phase 0)
 
@@ -66,11 +119,10 @@
 3. **Infra choices:** Neon (Postgres) + Railway (worker) + ConnectKit (Arc docs ship a ConnectKit example;
    WalletConnect doesn't register Arc testnet) _(recommended)_.
 
-## Next (Phase 1 — Contracts)
+## Next (Phase 2 — Data + auth)
 
-`MisthosVaultFactory` + `MisthosVault`, full unit/fuzz/invariant suites, `script/Deploy.s.sol`,
-testnet deploy + funding, addresses → `packages/shared/src/deployments.json`.
-Needs: a funded Arc testnet deployer (the `arc-canteen wallet` or faucet.circle.com).
+Drizzle schema + migrations on Neon, owner wallet auth (SIWE-style), X OAuth 2.0 PKCE for contributors, wallet
+ownership signature, GitHub username field (no OAuth), program wizard (without chain), join flow.
 
 ## Stubs
 
@@ -79,5 +131,9 @@ None. (`packages/agent` and `packages/db` only export a name constant until Phas
 ## Known issues
 
 - `apps/web/AGENTS.md` / `CLAUDE.md` are regenerated by `next dev`; keep them committed.
-- The `latch_*` tools named in `~/CLAUDE.md` aren't available in this Claude Code session. Phase 0 made only
-  unauthenticated calls: public docs and public RPC reads.
+- Stock Foundry can't execute Arc USDC transfers on a fork: `0x3600…` calls the native precompile
+  `0x1800…0001::isBlocklisted`, which revm doesn't implement. Fork tests cover decimals/native-view/native-revert;
+  the real-USDC lifecycle is proven on-chain by `SmokeRound.s.sol`.
+- forge-lint reports 3 `block-timestamp` warnings in `MisthosVault` — intentional (hour-scale cooldown / 24h window).
+- Circle agent wallet not created yet (`CIRCLE_ENTITY_SECRET`, `CIRCLE_AGENT_WALLET_ID` empty) — set up together
+  in the payout phase; then `setAgent` on vaults.

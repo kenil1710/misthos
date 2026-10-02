@@ -1,0 +1,16 @@
+{
+  "arc-testnet": {
+    "chainId": 5042002,
+    "vaultImplementation": null,
+    "vaultFactory": null,
+    "deployBlock": null,
+    "smokeVault": null
+  },
+  "arc-mainnet": {
+    "chainId": 5042,
+    "vaultImplementation": null,
+    "vaultFactory": null,
+    "deployBlock": null,
+    "smokeVault": null
+  }
+}
