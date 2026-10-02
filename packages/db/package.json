@@ -13,7 +13,8 @@
     "test": "vitest run --passWithNoTests",
     "lint": "prettier --check src test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx --env-file=../../.env src/migrate.ts"
+    "db:migrate": "tsx --env-file=../../.env src/migrate.ts",
+    "mark-demo": "tsx --env-file=../../.env src/mark-demo-cli.ts"
   },
   "dependencies": {
     "@misthos/shared": "workspace:*",
