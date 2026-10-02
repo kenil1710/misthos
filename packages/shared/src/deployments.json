@@ -1,10 +1,10 @@
 {
   "arc-testnet": {
     "chainId": 5042002,
-    "vaultImplementation": null,
-    "vaultFactory": null,
-    "deployBlock": null,
-    "smokeVault": null
+    "vaultImplementation": "0xbB016FeB193c9F1151e77444a2145c5dfAA965D7",
+    "vaultFactory": "0x19afd6fCeb49A333B3b3b455A26e6ee43db8849b",
+    "deployBlock": 65060184,
+    "smokeVault": "0x49cd73fC60f61A3eb1a8194effdC6FD88035fBa9"
   },
   "arc-mainnet": {
     "chainId": 5042,
