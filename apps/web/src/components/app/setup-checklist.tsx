@@ -52,7 +52,7 @@ export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
           </div>
         </div>
         <Stepper
-          orientation="horizontal"
+          orientation="responsive"
           size="sm"
           label="Setup steps"
           steps={steps.map((s, i) => ({

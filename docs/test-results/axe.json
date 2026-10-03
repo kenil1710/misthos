@@ -60,7 +60,27 @@
     "serious": []
   },
   {
+    "page": "Submissions board",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Submission drawer",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Flagged drawer",
+    "theme": "light",
+    "serious": []
+  },
+  {
     "page": "Rounds",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Round detail",
     "theme": "light",
     "serious": []
   },
@@ -155,7 +175,27 @@
     "serious": []
   },
   {
+    "page": "Submissions board",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Submission drawer",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Flagged drawer",
+    "theme": "dark",
+    "serious": []
+  },
+  {
     "page": "Rounds",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Round detail",
     "theme": "dark",
     "serious": []
   },

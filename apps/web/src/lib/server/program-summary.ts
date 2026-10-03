@@ -4,17 +4,10 @@ import { formatUsdc } from "@misthos/shared/money";
 import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import type { Address } from "viem";
 import { currentRound, isScheduled } from "@/lib/rounds";
-import { cached } from "./cache";
-import { readVault, type VaultState } from "./vault";
+import { readVault, readVaultShared, type VaultState } from "./vault";
 
 /** Vault reads for lists and cards: shared for 15s, so an owner with many programs isn't one RPC per program per view. */
-const readVaultCached = cached(
-  (address: string) => readVault(address as Address),
-  ["vault-state"],
-  {
-    revalidate: 15,
-  },
-);
+const readVaultCached = (address: string) => readVaultShared(address as Address);
 
 export type NeedKind = "review" | "approval" | "payee" | "low_balance";
 export interface NeedItem {

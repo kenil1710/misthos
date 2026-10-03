@@ -4,7 +4,7 @@ import type { Address, Hex } from "viem";
 import { audit } from "@/lib/server/audit";
 import { jsonError, readJson, sameOrigin } from "@/lib/server/http";
 import { requireProgramOwner, TxBody } from "@/lib/server/owner";
-import { ChainVerifyError, findVaultEvent } from "@/lib/server/vault";
+import { ChainVerifyError, findVaultEvent, vaultChanged } from "@/lib/server/vault";
 
 const EVENTS = { withdraw: "Withdrawn", pause: "Paused", unpause: "Unpaused" } as const;
 
@@ -61,5 +61,6 @@ export async function POST(
         ? { amount: String(args.amount), to: String(args.to), txHash: body.data.txHash }
         : { txHash: body.data.txHash },
   });
+  vaultChanged(program.vaultAddress);
   return Response.json({ ok: true });
 }

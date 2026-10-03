@@ -1,0 +1,277 @@
+{
+  "base": "http://localhost:3200",
+  "at": "2026-10-03T09:43:30.795Z",
+  "rows": [
+    {
+      "page": "Landing",
+      "form": "mobile",
+      "scores": {
+        "performance": 94,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 3016,
+      "tbtMs": 30,
+      "cls": 0,
+      "jsKb": 228,
+      "failing": [
+        "performance:largest-contentful-paint (3.0 s)"
+      ]
+    },
+    {
+      "page": "Landing",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 618,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 302,
+      "failing": []
+    },
+    {
+      "page": "Join",
+      "form": "mobile",
+      "scores": {
+        "performance": 93,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 3235,
+      "tbtMs": 11,
+      "cls": 0,
+      "jsKb": 231,
+      "failing": [
+        "performance:largest-contentful-paint (3.2 s)"
+      ]
+    },
+    {
+      "page": "Join",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 670,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 231,
+      "failing": []
+    },
+    {
+      "page": "Contributor home",
+      "form": "mobile",
+      "scores": {
+        "performance": 92,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 3376,
+      "tbtMs": 8,
+      "cls": 0,
+      "jsKb": 245,
+      "failing": [
+        "performance:largest-contentful-paint (3.4 s)",
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Contributor home",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 509,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 252,
+      "failing": [
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Public audit",
+      "form": "mobile",
+      "scores": {
+        "performance": 91,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 3540,
+      "tbtMs": 15,
+      "cls": 0.001,
+      "jsKb": 261,
+      "failing": [
+        "performance:largest-contentful-paint (3.5 s)"
+      ]
+    },
+    {
+      "page": "Public audit",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 630,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 261,
+      "failing": []
+    },
+    {
+      "page": "Owner overview",
+      "form": "mobile",
+      "scores": {
+        "performance": 91,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 3409,
+      "tbtMs": 20,
+      "cls": 0,
+      "jsKb": 250,
+      "failing": [
+        "performance:largest-contentful-paint (3.4 s)",
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Owner overview",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 754,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 823,
+      "failing": [
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Submissions",
+      "form": "mobile",
+      "scores": {
+        "performance": 91,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 3538,
+      "tbtMs": 13,
+      "cls": 0,
+      "jsKb": 246,
+      "failing": [
+        "performance:largest-contentful-paint (3.5 s)",
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Submissions",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 799,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 632,
+      "failing": [
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Round detail",
+      "form": "mobile",
+      "scores": {
+        "performance": 92,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 3378,
+      "tbtMs": 10,
+      "cls": 0.001,
+      "jsKb": 252,
+      "failing": [
+        "performance:largest-contentful-paint (3.4 s)",
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Round detail",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 713,
+      "tbtMs": 0,
+      "cls": 0.001,
+      "jsKb": 825,
+      "failing": [
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Treasury",
+      "form": "mobile",
+      "scores": {
+        "performance": 94,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 3024,
+      "tbtMs": 78,
+      "cls": 0,
+      "jsKb": 244,
+      "failing": [
+        "performance:largest-contentful-paint (3.0 s)",
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Treasury",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 739,
+      "tbtMs": 6,
+      "cls": 0,
+      "jsKb": 842,
+      "failing": [
+        "seo:is-crawlable"
+      ]
+    }
+  ]
+}

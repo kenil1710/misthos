@@ -74,12 +74,24 @@ export function Stepper({
   label,
 }: {
   steps: Step[];
-  orientation?: "vertical" | "horizontal";
+  orientation?: "vertical" | "horizontal" | "responsive";
   size?: "sm" | "md";
   className?: string;
   /** Accessible name for the list, e.g. "Submission progress". */
   label?: string;
 }) {
+  // Horizontal steppers become vertical on phones, where six steps don't fit side by side.
+  if (orientation === "responsive")
+    return (
+      <>
+        <Stepper {...{ steps, size, label }} className={cn("sm:hidden", className)} />
+        <Stepper
+          {...{ steps, size, label }}
+          orientation="horizontal"
+          className={cn("hidden sm:flex", className)}
+        />
+      </>
+    );
   if (orientation === "horizontal")
     return (
       <ol aria-label={label} className={cn("-mx-1 flex overflow-x-auto px-1 pb-1", className)}>

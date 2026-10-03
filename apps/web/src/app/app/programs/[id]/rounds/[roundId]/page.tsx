@@ -81,7 +81,7 @@ export default async function RoundPage({
     { deferred?: { submissionId: string; reason: string }[] } | undefined;
 
   return (
-    <div className="grid gap-8">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-8">
       <PageHeader
         crumbs={[
           { label: row.program.name, href: `/app/programs/${id}` },
@@ -153,7 +153,7 @@ export default async function RoundPage({
           </p>
         </div>
         <Stepper
-          orientation="horizontal"
+          orientation="responsive"
           label="Round progress"
           steps={lifecycle.map((st) => ({
             key: st.key,

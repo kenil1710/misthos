@@ -6,7 +6,7 @@ import { audit } from "@/lib/server/audit";
 import { jsonError, readJson, sameOrigin } from "@/lib/server/http";
 import { requireRoundOwner, TxBody } from "@/lib/server/owner";
 import { enqueue } from "@/lib/server/queue";
-import { ChainVerifyError, findVaultEvent } from "@/lib/server/vault";
+import { ChainVerifyError, findVaultEvent, vaultChanged } from "@/lib/server/vault";
 
 /** After the owner's approveRound transaction: confirm RoundApproved for this round, then let the agent execute. */
 export async function POST(req: Request, ctx: RouteContext<"/api/owner/rounds/[id]/approved">) {
@@ -49,5 +49,6 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/rounds/[i
     });
   });
   await enqueue(QUEUES.runRound, { roundId: round.id, force: false }, `round:${round.id}:execute`);
+  vaultChanged(program.vaultAddress);
   return Response.json({ ok: true });
 }

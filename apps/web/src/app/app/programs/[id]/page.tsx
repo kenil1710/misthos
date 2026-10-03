@@ -58,7 +58,7 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
   const { program, role } = row;
   const published = program.status === "active" || program.status === "paused";
   return (
-    <div className="grid gap-8">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-8">
       <PageHeader
         title={program.name}
         meta={<ProgramStatus status={program.status} />}
@@ -260,7 +260,7 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
   });
 
   return (
-    <div className="-mt-2 grid gap-10">
+    <div className="-mt-2 grid grid-cols-[minmax(0,1fr)] gap-10">
       <section
         aria-label="Status"
         className="bg-card shadow-soft relative overflow-hidden rounded-[1.5rem] p-6 sm:p-8"

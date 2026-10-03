@@ -18,7 +18,7 @@ import { getProgramForMember } from "@/lib/server/queries";
 import { treasuryActivity } from "@/lib/server/rounds-view";
 import { getOwnerSession } from "@/lib/server/session";
 import { utcDay } from "@/lib/time";
-import { explorerAddress, explorerTx, readVault, usdcAddress } from "@/lib/server/vault";
+import { explorerAddress, explorerTx, readVaultShared, usdcAddress } from "@/lib/server/vault";
 
 export const metadata = { title: "Treasury" };
 
@@ -44,7 +44,7 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
         </EmptyState>
       </div>
     );
-  const [state, activity] = await Promise.all([readVault(vault), treasuryActivity(id)]);
+  const [state, activity] = await Promise.all([readVaultShared(vault), treasuryActivity(id)]);
   const capPct =
     state.limits.maxPerDay > 0n
       ? Number((state.spentInWindow * 1000n) / state.limits.maxPerDay) / 10
@@ -59,7 +59,7 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
         title="Treasury"
         description={
           <>
-            Read live from the <Term k="vault">vault</Term> on Arc.
+            Read from the <Term k="vault">vault</Term> on Arc (at most 15 seconds old).
             <span className="mt-1 block">
               <HexValue value={vault} label="vault address" href={explorerAddress(vault)} />
             </span>

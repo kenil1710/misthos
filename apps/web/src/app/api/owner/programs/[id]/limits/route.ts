@@ -4,7 +4,7 @@ import type { Address, Hex } from "viem";
 import { audit } from "@/lib/server/audit";
 import { jsonError, readJson, sameOrigin } from "@/lib/server/http";
 import { requireProgramOwner, TxBody } from "@/lib/server/owner";
-import { ChainVerifyError, findVaultEvent, readVault } from "@/lib/server/vault";
+import { ChainVerifyError, findVaultEvent, readVault, vaultChanged } from "@/lib/server/vault";
 
 /** After the owner's setLimits transaction: confirm LimitsUpdated, then copy the on-chain limits into the program. */
 export async function POST(req: Request, ctx: RouteContext<"/api/owner/programs/[id]/limits">) {
@@ -42,5 +42,6 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/programs/
       data: { ...next, txHash: body.data.txHash },
     });
   });
+  vaultChanged(program.vaultAddress);
   return Response.json({ ok: true, limits: next });
 }

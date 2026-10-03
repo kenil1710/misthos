@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { VaultPausedBanner } from "@/components/app/vault-paused-banner";
@@ -26,15 +27,30 @@ export default async function ProgramLayout({
       />
     );
   const vault = row.program.vaultAddress as Address | null;
-  const paused = vault
-    ? await readVault(vault)
-        .then((v) => v.paused)
-        .catch(() => false)
-    : false;
   return (
     <>
-      {paused ? <VaultPausedBanner programId={id} owner={row.role === "owner"} /> : null}
+      {vault ? (
+        // The vault read is an RPC call: stream the banner in rather than hold up the page.
+        <Suspense fallback={null}>
+          <PausedBanner vault={vault} programId={id} owner={row.role === "owner"} />
+        </Suspense>
+      ) : null}
       {children}
     </>
   );
+}
+
+async function PausedBanner({
+  vault,
+  programId,
+  owner,
+}: {
+  vault: Address;
+  programId: string;
+  owner: boolean;
+}) {
+  const paused = await readVault(vault)
+    .then((v) => v.paused)
+    .catch(() => false);
+  return paused ? <VaultPausedBanner programId={programId} owner={owner} /> : null;
 }

@@ -73,6 +73,23 @@ Everything from the owner's hand test of the owner flow, tracked as OF-1 … OF-
 - Tests: web unit + `e2e/owner-ux.spec.ts` (new) and `e2e/owner-and-join.spec.ts` green; agent spoofing cases;
   full `turbo typecheck lint test build` green.
 
+## Done (Redesign v2 — Stage 2: owner app, palette, navigation) — awaiting review
+
+- **Owner app**: icon+label rail (switcher, wallet chip, Back to site), top bar (round pill, Needs-you bell, Share
+  join link, theme); overview hero, 5-step setup track → "Setup complete", Needs-you and recent-decision cards;
+  submissions list + board by stage; review drawer with the journey stepper and the agent's reasoning trace;
+  rounds with the lifecycle stepper and the payout moment; treasury balance card; settings section nav. Pure,
+  tested logic in `lib/journey.ts` and `lib/round-lifecycle.ts`.
+- **Palette**: back to the pre-Stage-1 stone + emerald tokens (light and dark), system theme default; v2 layout,
+  type and illustrations kept.
+- **Navigation** (`docs/NAVIGATION.md`, `e2e/navigation.spec.ts`): Back closes dialogs/drawers/menu, wizard steps
+  follow Back/Forward, sign-out → landing with a notice, return paths for owner/X/GitHub sign-in, no-access page,
+  tab titles.
+- **Performance**: wallet code loads after first paint, when idle and on screen (owner mobile JS ~740 → ~250 KB);
+  vault reads shared for 15 s and expired by the owner's own transactions; paused banner streamed. Lighthouse mobile
+  91–94, desktop 100 on all 8 measured pages (`docs/perf/lighthouse-v2-stage2.json`); axe 46/46 (both themes).
+- Screenshots: `docs/screenshots/v2/stage2/` (1440 and 375, light and dark).
+
 ## Done (Phase 6.5 — UX redesign + full live QA)
 
 - **UX audit** (`docs/UX_AUDIT.md`): every owner, contributor and public flow against Nielsen's heuristics;
@@ -438,8 +455,8 @@ None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fa
 - Article ownership can only be verified when the page mentions or links the contributor's @handle; otherwise it's
   a soft flag and goes to review.
 - The browser e2e env has no worker, so `payee-sync` enqueues fail there (logged); joins still succeed by design.
-- The live vault used for the showcase holds ~0.47 test USDC after the 2026-10-03 reseed (each seed pays ~0.25–0.65);
-  top up before it runs low.
+- The live vault used for the showcase was topped up with 0.90 test USDC from the QA owner wallet on 2026-10-03
+  (tx 0xc8eaf1d6…) and holds ~0.07 after the reseed paid round 1 (1.05); top up before the next reseed.
 - Browser e2e runs against a production build (`E2E_DEV=1` for next dev); the live QA harness
   (`apps/web/e2e/qa/live-qa.mts`) covers agent decisions and payouts on Arc testnet.
 - The Circle testnet faucet answers 403 for our API key; QA wallets are topped up from the deployer or by hand.

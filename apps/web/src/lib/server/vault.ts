@@ -1,4 +1,6 @@
 import "server-only";
+import { revalidateTag } from "next/cache";
+import { cached } from "./cache";
 import { getDeployment, misthosVaultAbi, misthosVaultFactoryAbi } from "@misthos/shared";
 import { parseEventLogs, type Address, type Hex } from "viem";
 import { chainConfig, publicClient } from "./chain";
@@ -126,3 +128,22 @@ export const explorerTx = (hash: string) => `${chainConfig().explorerUrl}/tx/${h
 export const explorerAddress = (a: string) => `${chainConfig().explorerUrl}/address/${a}`;
 export const usdcAddress = () => chainConfig().tokens.usdc;
 export { env };
+
+const vaultTag = (vault: string) => `vault:${vault.toLowerCase()}`;
+
+/**
+ * Vault state for pages and lists: shared for up to 15 s, so a page doesn't wait on an Arc RPC round trip each view.
+ * The owner's own transactions expire it at once (`vaultChanged`), so their change shows on the next render; payouts
+ * sent by the agent show within 15 s.
+ */
+export function readVaultShared(vault: Address): Promise<VaultState> {
+  return cached(() => readVault(vault), ["vault-state", vault.toLowerCase()], {
+    revalidate: 15,
+    tags: [vaultTag(vault)],
+  })();
+}
+
+/** Call after recording an owner transaction on this vault (deposit, withdraw, pause, limits, approval). */
+export function vaultChanged(vault: string) {
+  revalidateTag(vaultTag(vault), { expire: 0 });
+}

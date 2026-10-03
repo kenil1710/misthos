@@ -190,6 +190,8 @@ test("owner: depositing more USDC than the wallet holds is refused before any pr
     vault: SHOWCASE_VAULT,
   });
   await page.goto(`/app/programs/${programId}/treasury`);
+  // Wallet forms load once they're on screen: scroll to the deposit form, as a person would.
+  await page.getByRole("heading", { name: "Add funds" }).scrollIntoViewIfNeeded();
   // A brand-new wallet holds no test USDC (read from Arc testnet).
   await expect(page.getByText(/Your wallet has 0\.00 USDC/)).toBeVisible({ timeout: 30_000 });
   await page.getByLabel("Amount to deposit").fill("5");

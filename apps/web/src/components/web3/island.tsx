@@ -20,7 +20,7 @@ function afterLoadIdle(): Promise<void> {
 /**
  * A wallet-dependent component, wrapped in its own provider (all providers share one wagmi config, so they share
  * one connection). Its code (wagmi, viem, the connectors) is fetched only once the page has loaded and is idle, and
- * only when the component is within a screen of the viewport, so wallet code never holds up a page and isn't loaded
+ * only once the component is on screen, so wallet code never holds up a page and isn't loaded
  * for wallet UI nobody scrolls to. `placeholder` holds the component's space meanwhile, so nothing shifts.
  */
 export function walletIsland<P extends object>(
@@ -55,7 +55,7 @@ export function walletIsland<P extends object>(
             io.disconnect();
           }
         },
-        { rootMargin: "100% 0px" },
+        { rootMargin: "0px" },
       );
       io.observe(el);
       return () => io.disconnect();

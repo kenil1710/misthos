@@ -4,7 +4,7 @@ import type { Address, Hex } from "viem";
 import { audit } from "@/lib/server/audit";
 import { jsonError, readJson, sameOrigin } from "@/lib/server/http";
 import { requireProgramOwner, TxBody } from "@/lib/server/owner";
-import { ChainVerifyError, findVaultEvent } from "@/lib/server/vault";
+import { ChainVerifyError, findVaultEvent, vaultChanged } from "@/lib/server/vault";
 
 /** Record a deposit made from the treasury page (deposits made elsewhere still show in the on-chain totals). */
 export async function POST(req: Request, ctx: RouteContext<"/api/owner/programs/[id]/deposit">) {
@@ -52,5 +52,6 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/programs/
       },
     });
   }
+  vaultChanged(program.vaultAddress);
   return Response.json({ ok: true });
 }
