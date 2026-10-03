@@ -26,6 +26,7 @@ const show = JSON.parse(
   ownerUserId: string;
   owner: string;
   contributor: { userId: string; xid: string };
+  round1: string;
 };
 const key = new TextEncoder().encode(process.env.SESSION_SECRET!);
 const token = (c: Record<string, unknown>) =>
@@ -51,6 +52,17 @@ const ALL_PAGES = [
   { name: "Contributor home", path: `/c/${show.slug}`, cookie: contributorCookie },
   { name: "Public audit", path: `/p/${show.slug}` },
   { name: "Owner overview", path: `/app/programs/${show.programId}`, cookie: ownerCookie },
+  {
+    name: "Submissions",
+    path: `/app/programs/${show.programId}/submissions`,
+    cookie: ownerCookie,
+  },
+  {
+    name: "Round detail",
+    path: `/app/programs/${show.programId}/rounds/${show.round1}`,
+    cookie: ownerCookie,
+  },
+  { name: "Treasury", path: `/app/programs/${show.programId}/treasury`, cookie: ownerCookie },
 ];
 const PAGES = ALL_PAGES.filter((p) => !ONLY || ONLY.includes(p.name));
 const CATS = ["performance", "accessibility", "best-practices", "seo"] as const;

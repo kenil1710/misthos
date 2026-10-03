@@ -159,3 +159,38 @@ export async function needsReviewCounts(userId: string) {
     .groupBy(submissions.programId);
   return Object.fromEntries(rows.map((r) => [r.programId, Number(r.n)])) as Record<string, number>;
 }
+
+/** The latest decisions in a program, newest first, one per submission: the overview's "Recent decisions". */
+export async function recentDecisions(programId: string, limit = 4) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      submissionId: submissions.id,
+      status: submissions.status,
+      sourceType: submissions.sourceType,
+      xHandle: contributors.xHandle,
+      action: decisions.action,
+      amount: decisions.amount,
+      summary: decisions.summary,
+      decidedBy: decisions.decidedBy,
+      createdAt: decisions.createdAt,
+    })
+    .from(decisions)
+    .innerJoin(submissions, eq(submissions.id, decisions.submissionId))
+    .innerJoin(contributors, eq(contributors.id, submissions.contributorId))
+    .where(eq(submissions.programId, programId))
+    .orderBy(desc(decisions.createdAt))
+    .limit(limit * 3);
+  const seen = new Set<string>();
+  return rows.filter((r) => !seen.has(r.submissionId) && seen.add(r.submissionId)).slice(0, limit);
+}
+
+/** Whether any round in the program has paid out (the last step of getting live). */
+export async function hasPaidRound(programId: string) {
+  const [r] = await getDb()
+    .select({ id: rounds.id })
+    .from(rounds)
+    .where(and(eq(rounds.programId, programId), eq(rounds.status, "executed")))
+    .limit(1);
+  return !!r;
+}

@@ -10,9 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, EmptyState, PageHeader, Stat, TableFrame } from "@/components/ui-kit";
+import { Card, EmptyState, PageHeader, TableFrame } from "@/components/ui-kit";
+import { VaultArt } from "@/components/brand/illustrations";
 import { Term } from "@/components/ui-kit/term";
-import { FundVault, OwnerWallet, PauseVault, WithdrawVault } from "@/components/vault/islands";
+import { FundVault, PauseVault, WithdrawVault } from "@/components/vault/islands";
 import { getProgramForMember } from "@/lib/server/queries";
 import { treasuryActivity } from "@/lib/server/rounds-view";
 import { getOwnerSession } from "@/lib/server/session";
@@ -56,35 +57,54 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
       <PageHeader
         crumbs={crumbs}
         title="Treasury"
-        actions={owner ? <OwnerWallet owner={me} /> : null}
         description={
           <>
-            Read live from the <Term k="vault">vault</Term> on Arc:{" "}
-            <HexValue value={vault} label="vault address" href={explorerAddress(vault)} />
+            Read live from the <Term k="vault">vault</Term> on Arc.
+            <span className="mt-1 block">
+              <HexValue value={vault} label="vault address" href={explorerAddress(vault)} />
+            </span>
           </>
         }
       />
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Vault totals">
-        <Stat
-          label="Balance"
-          value={formatUsdc(state.balance, { withSymbol: false })}
-          hint={state.paused ? "USDC · vault paused" : "USDC available for payouts"}
-        />
-        <Stat
-          label="Deposited"
-          value={formatUsdc(state.totalDeposited, { withSymbol: false })}
-          hint="USDC, all time"
-        />
-        <Stat
-          label="Paid to contributors"
-          value={formatUsdc(state.totalPaid, { withSymbol: false })}
-          hint="USDC, all time"
-        />
-        <Stat
-          label="Withdrawn by you"
-          value={formatUsdc(state.totalWithdrawn, { withSymbol: false })}
-          hint="USDC, all time"
-        />
+      <section
+        aria-label="Vault totals"
+        className="bg-card shadow-soft relative overflow-hidden rounded-[1.5rem] p-6 sm:p-8"
+      >
+        <VaultArt className="pointer-events-none absolute top-1/2 right-8 hidden size-40 -translate-y-1/2 md:block" />
+        <div className="relative md:pr-44">
+          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+            Balance
+            {state.paused ? (
+              <span className="bg-warning-subtle text-warning rounded-full px-2 py-0.5 text-xs">
+                Paused
+              </span>
+            ) : null}
+          </p>
+          <p className="display mt-1 text-[3.25rem] leading-none tabular-nums sm:text-[4rem]">
+            {formatUsdc(state.balance, { withSymbol: false })}
+            <span className="text-muted-foreground ml-2 font-sans text-lg">USDC</span>
+          </p>
+          <p className="text-soft mt-2 text-sm">
+            {state.paused ? "Payouts are paused." : "Available for payouts."}
+          </p>
+          <dl className="mt-7 grid grid-cols-1 gap-4 border-t pt-5 sm:grid-cols-3">
+            {(
+              [
+                ["Deposited", state.totalDeposited],
+                ["Paid to contributors", state.totalPaid],
+                ["Withdrawn by you", state.totalWithdrawn],
+              ] as const
+            ).map(([label, v]) => (
+              <div key={label}>
+                <dt className="text-muted-foreground text-xs">{label}</dt>
+                <dd className="display mt-0.5 text-2xl tabular-nums">
+                  {formatUsdc(v, { withSymbol: false })}
+                  <span className="text-muted-foreground ml-1 font-sans text-xs">USDC</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </section>
 
       <Card
@@ -154,7 +174,7 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <section className="grid gap-3">
-          <h2 className="text-base font-medium">Deposits</h2>
+          <h2 className="text-lg font-medium">Deposits</h2>
           {activity.deposits.length === 0 ? (
             <EmptyState>
               No deposits recorded from Misthos yet. Deposits made elsewhere still count in the
@@ -194,7 +214,7 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
           )}
         </section>
         <section className="grid gap-3">
-          <h2 className="text-base font-medium">Payouts</h2>
+          <h2 className="text-lg font-medium">Payouts</h2>
           {activity.outflows.length === 0 ? (
             <EmptyState>No payouts yet. They appear here after the first round pays.</EmptyState>
           ) : (

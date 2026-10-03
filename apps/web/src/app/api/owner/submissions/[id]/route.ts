@@ -1,4 +1,13 @@
-import { contributors, decisions, fetchedResources, getDb, submissions } from "@misthos/db";
+import {
+  contributors,
+  decisions,
+  fetchedResources,
+  getDb,
+  payouts,
+  programs,
+  rounds,
+  submissions,
+} from "@misthos/db";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { jsonError } from "@/lib/server/http";
@@ -21,6 +30,26 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/owner/submissio
   if (!row || !(await getMembership(db, row.s.programId, session.sub)))
     return jsonError("not_found", 404);
 
+  // Round and payout (the journey's last steps) and the rubric (criteria names for the score bars).
+  const [[round], [payout], [program]] = await Promise.all([
+    db
+      .select({ number: rounds.number, status: rounds.status, endsAt: rounds.endsAt })
+      .from(rounds)
+      .where(eq(rounds.id, row.s.roundId))
+      .limit(1),
+    row.s.payoutId
+      ? db
+          .select({ status: payouts.status, txHash: payouts.txHash })
+          .from(payouts)
+          .where(eq(payouts.id, row.s.payoutId))
+          .limit(1)
+      : Promise.resolve([] as { status: string; txHash: string | null }[]),
+    db
+      .select({ rubric: programs.rubricJson, slug: programs.slug, status: programs.status })
+      .from(programs)
+      .where(eq(programs.id, row.s.programId))
+      .limit(1),
+  ]);
   const [resource] = await db
     .select({ text: fetchedResources.contentText, payload: fetchedResources.payloadJson })
     .from(fetchedResources)
@@ -51,6 +80,20 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/owner/submissio
         createdAt: row.s.createdAt.toISOString(),
         lastError: row.s.lastError,
       },
+      program: program
+        ? {
+            slug: program.slug,
+            published: program.status === "active" || program.status === "paused",
+          }
+        : null,
+      round: round ? { ...round, endsAt: round.endsAt.toISOString() } : null,
+      payout: payout ?? null,
+      categories: (program?.rubric.categories ?? []).map((c) => ({
+        key: c.key,
+        name: c.name,
+        maxPoints: c.maxPoints,
+        criteria: c.criteria.map((k) => ({ key: k.key, name: k.name })),
+      })),
       contributor: {
         xHandle: row.c.xHandle,
         githubLogin: row.c.githubLogin,

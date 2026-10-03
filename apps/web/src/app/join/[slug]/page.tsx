@@ -87,7 +87,11 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   const program = (await load(slug)) ?? (await draftPreviewFor(slug));
   if (!program) notFound();
   const preview = program.status !== "active" && program.status !== "paused";
-  const xError = (await searchParams).x_error;
+  const sp = await searchParams;
+  const xError = sp.x_error;
+  // Sent here from a signed-out dashboard link: come back to the dashboard after signing in (it sends
+  // non-members back here to join).
+  const toDashboard = sp.return === "dashboard";
   const [session, rounds, example] = await Promise.all([
     getContributorSession(),
     getRounds(program.id),
@@ -240,7 +244,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
                   </p>
                   <Button asChild className="w-full">
                     <a
-                      href={`/api/auth/x/start?next=${encodeURIComponent(`/join/${program.slug}`)}`}
+                      href={`/api/auth/x/start?next=${encodeURIComponent(toDashboard ? `/c/${program.slug}` : `/join/${program.slug}`)}`}
                     >
                       Sign in with X
                     </a>

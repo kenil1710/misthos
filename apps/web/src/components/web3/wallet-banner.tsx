@@ -18,7 +18,9 @@ export const USE_CONNECTED_WALLET_EVENT = "misthos:use-connected-wallet";
  * Open the wallet's own account picker, so the person can switch back without hunting for it. Only injected
  * wallets support this; others are told where to switch.
  */
-async function chooseAccount(connector: { getProvider: () => Promise<unknown> } | undefined) {
+export async function chooseAccount(
+  connector: { getProvider: () => Promise<unknown> } | undefined,
+) {
   try {
     const provider = (await connector?.getProvider()) as
       { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> } | undefined;

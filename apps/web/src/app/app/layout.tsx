@@ -4,13 +4,19 @@ import { Wordmark } from "@/components/brand/wordmark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { OwnerSignIn } from "@/components/web3/islands";
 import { isFounder } from "@/lib/server/founders";
-import { listProgramsForUser, needsReviewCounts } from "@/lib/server/queries";
+import { appOrigin } from "@/lib/server/env";
+import { programSummaries } from "@/lib/server/program-summary";
+import { shareOnXUrl } from "@/lib/share";
+import { roundPill } from "@/lib/status-line";
 import { getContributorSession, getOwnerSession } from "@/lib/server/session";
 
-export const metadata = { title: "App" };
+export const metadata = { title: { default: "App", template: "%s · Misthos" } };
 
 export default async function AppLayout({ children }: LayoutProps<"/app">) {
-  const session = await getOwnerSession();
+  const [session, contributorOnly] = await Promise.all([
+    getOwnerSession(),
+    getContributorSession(),
+  ]);
   if (!session)
     return (
       <>
@@ -21,7 +27,10 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             </Link>
             <ThemeToggle />
           </header>
-          <main id="main" className="flex flex-1 items-start justify-center px-4 pt-[8vh] pb-16">
+          <main
+            id="main"
+            className="flex flex-1 flex-col items-center justify-start px-4 pt-[8vh] pb-16"
+          >
             <section className="bg-card w-full max-w-[26rem] rounded-xl border p-6 sm:p-8">
               <h1 className="text-xl font-medium tracking-tight">Sign in to Misthos</h1>
               <p className="text-muted-foreground mt-1.5 mb-7 text-sm leading-relaxed">
@@ -30,28 +39,59 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
               </p>
               <OwnerSignIn />
             </section>
+            {contributorOnly ? (
+              <section
+                aria-label="Signed in as a contributor"
+                className="bg-card/60 mt-4 w-full max-w-[26rem] rounded-xl p-5 text-sm"
+              >
+                <p>
+                  You&apos;re signed in with X as{" "}
+                  <span className="font-medium">@{contributorOnly.xh}</span>. This is the app for
+                  program owners; your contributions are on your own page.
+                </p>
+                <Link
+                  href="/c"
+                  className="text-brand mt-2 inline-block font-medium underline-offset-4 hover:underline"
+                >
+                  Go to the programs you joined
+                </Link>
+              </section>
+            ) : null}
           </main>
         </div>
       </>
     );
 
-  const [programs, review, founder, contributor] = await Promise.all([
-    listProgramsForUser(session.sub),
-    needsReviewCounts(session.sub),
+  const [summaries, founder, contributor] = await Promise.all([
+    programSummaries(session.sub),
     isFounder(session),
-    getContributorSession(),
+    Promise.resolve(contributorOnly),
   ]);
+  const origin = appOrigin();
   return (
     <AppShell
       address={session.addr}
       founder={founder}
       contributor={!!contributor}
-      programs={programs.map((p) => ({
+      programs={summaries.map(({ program: p, waitingReview, needs, round }) => ({
         id: p.id,
         name: p.name,
         slug: p.slug,
         status: p.status,
-        review: review[p.id] ?? 0,
+        review: waitingReview,
+        roundPill: p.status === "draft" ? null : roundPill(round),
+        needs: needs.map(({ text, href, action, kind }) => ({ text, href, action, kind })),
+        joinUrl: `${origin}/join/${p.slug}`,
+        shareHref: shareOnXUrl({
+          name: p.name,
+          joinUrl: `${origin}/join/${p.slug}`,
+          sources: [...new Set(p.rubricJson.categories.flatMap((c) => c.sourceTypes))],
+          bestPayout: p.rubricJson.categories.reduce(
+            (m, c) =>
+              p.ratePerPoint * BigInt(c.maxPoints) > m ? p.ratePerPoint * BigInt(c.maxPoints) : m,
+            0n,
+          ),
+        }),
       }))}
     >
       {children}

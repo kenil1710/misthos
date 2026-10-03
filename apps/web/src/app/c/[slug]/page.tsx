@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { formatUsdc, Slug } from "@misthos/shared";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -30,7 +31,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
   const program = await getProgramBySlug(parsed.data);
   if (!program) notFound();
   const session = await getContributorSession();
-  if (!session) redirect(`/join/${program.slug}`);
+  if (!session) redirect(`/join/${program.slug}?return=dashboard`);
   const me = await getContributorMembership(program.id, session.xid);
   if (!me) redirect(`/join/${program.slug}`);
 
@@ -80,6 +81,13 @@ export default async function ContributorHome({ params, searchParams }: PageProp
         className="mx-auto grid w-full max-w-3xl flex-1 grid-cols-[minmax(0,1fr)] gap-8 px-4 py-8 sm:px-6 sm:py-12"
       >
         <div>
+          <Link
+            href="/c"
+            className="text-muted-foreground hover:text-foreground mb-3 inline-flex items-center gap-1 text-sm"
+          >
+            <ArrowLeft className="size-3.5" aria-hidden="true" />
+            Programs you joined
+          </Link>
           <p className="text-muted-foreground text-sm">
             {program.name} · @{me.xHandle}
           </p>

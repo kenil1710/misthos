@@ -9,6 +9,14 @@ import { contributorDetail } from "@/lib/server/contributors-view";
 import { getProgramForMember } from "@/lib/server/queries";
 import { getOwnerSession } from "@/lib/server/session";
 import { explorerAddress, explorerTx } from "@/lib/server/vault";
+import { programNameForTitle } from "@/lib/server/titles";
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/app/programs/[id]/contributors/[contributorId]">) {
+  const name = await programNameForTitle((await params).id);
+  return { title: name ? `Contributor · ${name}` : "Contributor" };
+}
 
 const EVENT_LABEL: Record<string, string> = {
   "contributor.joined": "Joined and verified wallet",
@@ -79,9 +87,7 @@ export default async function ContributorPage({
               <li key={s.id} className="grid gap-1 p-4 text-sm">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <StatusBadge status={s.status} />
-                  <span className="text-muted-foreground">
-                    {SOURCE_LABEL[s.sourceType]}
-                  </span>
+                  <span className="text-muted-foreground">{SOURCE_LABEL[s.sourceType]}</span>
                   <a
                     href={s.url}
                     target="_blank"

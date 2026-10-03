@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, type ConfirmRow } from "@/components/ui-kit/confirm-dialog";
-import { OwnerWallet, useWalletProblem } from "./owner-wallet";
+import { WalletFixDialog } from "@/components/web3/wallet-fix";
+import { useWalletProblem } from "./owner-wallet";
 import { TxProgress } from "./tx-progress";
 import { useOwnerTx, type TxStep } from "./use-owner-tx";
 
@@ -45,31 +46,24 @@ export function TxAction({
   const tx = useOwnerTx(owner);
   const problem = useWalletProblem(owner);
   const [open, setOpen] = useState(false);
+  const [fixOpen, setFixOpen] = useState(false);
   const start = () => tx.run(steps(), success);
+  // The wallet only comes up when an action needs it: a click with a wallet problem opens the compact fix dialog.
+  const needsFix =
+    problem === "disconnected" || problem === "wrong_account" || problem === "wrong_network";
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-3">
         <Button
           variant={variant}
-          disabled={disabled || tx.busy || !tx.ready}
-          onClick={() => (confirm ? setOpen(true) : start())}
+          disabled={disabled || tx.busy || problem === "reconnecting"}
+          onClick={() => (needsFix ? setFixOpen(true) : confirm ? setOpen(true) : start())}
         >
           {tx.busy ? busyLabel : label}
         </Button>
-        <OwnerWallet owner={owner} compact />
       </div>
       {disabled && !tx.busy && disabledReason ? (
         <p className="text-muted-foreground -mt-1 text-xs">{disabledReason}</p>
-      ) : !tx.busy && problem === "disconnected" ? (
-        <p className="text-muted-foreground -mt-1 text-xs">
-          Connect your wallet at the top of the page to sign this.
-        </p>
-      ) : !tx.busy && (problem === "wrong_account" || problem === "wrong_network") ? (
-        <p className="text-muted-foreground -mt-1 text-xs">
-          {problem === "wrong_account"
-            ? "Your wallet is on a different account. Switch back using the notice at the top of the page."
-            : "Your wallet is on another network. Switch using the notice at the top of the page."}
-        </p>
       ) : null}
       <TxProgress
         steps={tx.steps}
@@ -78,6 +72,7 @@ export function TxAction({
         busy={tx.busy}
         onRetry={tx.retry}
       />
+      <WalletFixDialog owner={owner} open={fixOpen} onOpenChange={setFixOpen} />
       {confirm ? (
         <ConfirmDialog open={open} onOpenChange={setOpen} onConfirm={start} {...confirm} />
       ) : null}

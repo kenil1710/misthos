@@ -26,7 +26,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => db.end());
 
-test("owner: account and network switches show a notice and never ask for a signature", async ({
+test("owner: account and network switches show quietly in the wallet chip, the fix opens only when needed, and nothing asks for a signature", async ({
   browser,
 }) => {
   const ctx = await browser.newContext();
@@ -37,39 +37,44 @@ test("owner: account and network switches show a notice and never ask for a sign
   const ownerId = await userIdForWallet(db, wallet.address);
   const programId = await seedProgram(db, { ownerId, slug: `w-owner-${Date.now()}` });
   await page.goto(`/app/programs/${programId}`);
-  await expect(page.getByText(/Signing as/)).toBeVisible();
+  const chip = (name: string) => page.getByRole("button", { name, exact: true });
+  await expect(chip("Wallet ready")).toBeVisible();
 
-  // Switch to another account in the extension.
+  // Switch to another account in the extension: a quiet indicator, no dialog until an action needs the wallet.
   await wallet.switchAccount(page, 1);
-  const notice = page.getByRole("status").filter({ hasText: "You switched to" });
-  await expect(notice).toBeVisible();
-  await expect(notice).toContainText("transactions here need that account");
-  await expect(notice.getByRole("button", { name: "Choose account in wallet" })).toBeVisible();
+  await expect(chip("Other account in wallet (fix)")).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Deploy vault" }).click();
+  const fix = page.getByRole("dialog", { name: "Your wallet is on another account" });
+  await expect(fix).toContainText("transactions here need that account");
+  await expect(fix.getByRole("button", { name: "Choose account in wallet" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(fix).toBeHidden();
   await page.waitForTimeout(500);
   expect(wallet.signRequests).toHaveLength(1);
 
-  // Switch back: the notice goes away by itself.
+  // Switch back: the chip is ready again by itself.
   await wallet.switchAccount(page, 0);
-  await expect(notice).toBeHidden();
-  await expect(page.getByText(/Signing as/)).toBeVisible();
+  await expect(chip("Wallet ready")).toBeVisible();
 
-  // Wrong network: one click to switch (and add Arc Testnet if needed).
+  // Wrong network: the chip opens a one-click switch (adding Arc Testnet if needed).
   await wallet.setChain(page, 1);
-  const network = page.getByRole("status").filter({ hasText: "another network" });
-  await expect(network).toBeVisible();
+  await chip("Wrong network (fix)").click();
+  const network = page.getByRole("dialog", { name: /Switch to Arc/ });
   await network.getByRole("button", { name: /Switch to Arc/ }).click();
   await expect(network).toBeHidden();
+  await expect(chip("Wallet ready")).toBeVisible();
 
   // A reload reconnects silently.
   await page.reload();
-  await expect(page.getByText(/Signing as/)).toBeVisible({ timeout: 15_000 });
+  await expect(chip("Wallet ready")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: /^connect/i })).toHaveCount(0);
 
-  // Disconnect in the extension: the page offers to reconnect, still without a signature.
+  // Disconnect in the extension: the chip offers to connect; an action explains what it needs. Still no signature.
   await wallet.revoke(page);
-  // One connect button per page (the header); actions below point to it.
-  await expect(page.getByRole("button", { name: /^Connect 0x/ })).toHaveCount(1);
-  await expect(page.getByText("Connect your wallet at the top of the page to sign this.")).toBeVisible();
+  await expect(chip("Connect wallet (fix)")).toBeVisible();
+  await page.getByRole("button", { name: "Deploy vault" }).click();
+  await expect(page.getByRole("dialog", { name: "Connect your wallet" })).toBeVisible();
   expect(wallet.signRequests).toHaveLength(1);
   expect(errors).toEqual([]);
 });
@@ -84,7 +89,10 @@ test("owner: a declined signature or connection explains itself and can be retri
 
   // Declined connection in the picker.
   await wallet.rejectNext(page, "wallet_requestPermissions");
-  await page.getByRole("button", { name: /^connect/i }).first().click();
+  await page
+    .getByRole("button", { name: /^connect/i })
+    .first()
+    .click();
   const dialog = page.getByRole("dialog", { name: "Connect a wallet" });
   await dialog.getByRole("button", { name: /metamask/i }).click();
   await expect(dialog.getByRole("alert")).toContainText("You declined the request in your wallet.");

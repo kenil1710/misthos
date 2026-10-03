@@ -29,7 +29,7 @@ const token = (c: Record<string, unknown>) =>
 const owner = await token({ sub: show.ownerUserId, kind: "owner", addr: show.owner.toLowerCase() });
 const contributor = await token({ sub: show.contributor.userId, kind: "contributor", xid: show.contributor.xid, xh: "alice_builds" });
 
-const PAGES: [string, string, "owner" | "contributor" | null][] = [
+const PAGES: [string, string, "owner" | "contributor" | null, string?][] = [
   ["Landing", "/", null],
   ["Docs", "/docs", null],
   ["Join", `/join/${show.slug}`, null],
@@ -42,7 +42,11 @@ const PAGES: [string, string, "owner" | "contributor" | null][] = [
   ["New program overview", `/app/programs/${show.setupProgramId}`, "owner"],
   ["Submissions", `/app/programs/${show.programId}/submissions`, "owner"],
   ["Contributors", `/app/programs/${show.programId}/contributors`, "owner"],
+  ["Submissions board", `/app/programs/${show.programId}/submissions?view=board`, "owner"],
+  ["Submission drawer", `/app/programs/${show.programId}/submissions`, "owner", "Review submission by @carol_writes"],
+  ["Flagged drawer", `/app/programs/${show.programId}/submissions`, "owner", "Review submission by @eve_tests"],
   ["Rounds", `/app/programs/${show.programId}/rounds`, "owner"],
+  ["Round detail", `/app/programs/${show.programId}/rounds/${show.round1}`, "owner"],
   ["Treasury", `/app/programs/${show.programId}/treasury`, "owner"],
   ["Audit log", `/app/programs/${show.programId}/audit`, "owner"],
   ["Settings", `/app/programs/${show.programId}/settings`, "owner"],
@@ -55,7 +59,7 @@ const browser = await chromium.launch();
 const results: { page: string; theme: string; serious: { id: string; impact: string; nodes: number; help: string }[] }[] = [];
 let bad = 0;
 for (const theme of ["light", "dark"] as const) {
-  for (const [name, url, who] of PAGES) {
+  for (const [name, url, who, click] of PAGES) {
     const ctx = await browser.newContext({ colorScheme: theme, baseURL: BASE });
     await ctx.addInitScript((t) => localStorage.setItem("theme", t), theme);
     if (who === "owner") await ctx.addCookies([{ name: "misthos_owner", value: owner, url: BASE }]);
@@ -63,6 +67,12 @@ for (const theme of ["light", "dark"] as const) {
     const page = await ctx.newPage();
     await page.goto(url, { waitUntil: "networkidle" });
     await page.waitForTimeout(300);
+    if (click) {
+      await page.getByRole("button", { name: click }).first().click();
+      await page.getByRole("dialog").waitFor();
+      await page.waitForLoadState("networkidle");
+      await page.waitForTimeout(500);
+    }
     const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
     const serious = r.violations
       .filter((v) => v.impact === "serious" || v.impact === "critical")

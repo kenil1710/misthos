@@ -60,7 +60,11 @@ export async function injectWallet(
       const save = () =>
         localStorage.setItem(
           KEY,
-          JSON.stringify({ authorized: state.authorized, index: state.index, chainId: state.chainId }),
+          JSON.stringify({
+            authorized: state.authorized,
+            index: state.index,
+            chainId: state.chainId,
+          }),
         );
       const current = () => (state.authorized ? [addresses[state.index]!] : []);
       const userRejected = (method: string) =>

@@ -125,6 +125,10 @@ describe("safeNextPath", () => {
     ["/\\evil.com", "/"],
     ["https://evil.com", "/"],
     ["javascript:alert(1)", "/"],
+    ["/\t/evil.com", "/"],
+    ["/%2F%2Fevil.com", "/%2F%2Fevil.com"],
+    [" /join/x", "/"],
+    ["/c/arc#wallet", "/c/arc"],
     [null, "/"],
   ])("%s → %s", (input, expected) => {
     expect(safeNextPath(input)).toBe(expected);

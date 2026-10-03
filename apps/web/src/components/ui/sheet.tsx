@@ -1,14 +1,29 @@
 "use client";
 
 import * as React from "react";
+import { useBackToClose } from "@/lib/use-back-to-close";
 import { cn } from "cn";
 import { Dialog as SheetPrimitive } from "radix-ui";
 
 import { Button } from "@/components/ui/button";
 import { XIcon } from "lucide-react";
 
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />;
+/** Controlled or not, Back closes it (see useBackToClose); pass `history={false}` to opt out. */
+function Sheet({
+  open: openProp,
+  defaultOpen,
+  onOpenChange,
+  history = true,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Root> & { history?: boolean }) {
+  const [inner, setInner] = React.useState(defaultOpen ?? false);
+  const open = openProp ?? inner;
+  const setOpen = (o: boolean) => {
+    if (openProp === undefined) setInner(o);
+    onOpenChange?.(o);
+  };
+  useBackToClose(open, () => setOpen(false), history);
+  return <SheetPrimitive.Root data-slot="sheet" open={open} onOpenChange={setOpen} {...props} />;
 }
 
 function SheetTrigger({ ...props }: React.ComponentProps<typeof SheetPrimitive.Trigger>) {

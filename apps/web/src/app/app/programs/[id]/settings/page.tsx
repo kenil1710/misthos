@@ -5,7 +5,7 @@ import { HexValue } from "@/components/hex-value";
 import { Card, EmptyState, Notice, PageHeader } from "@/components/ui-kit";
 import { CopyField } from "@/components/ui-kit/copy-field";
 import { Term } from "@/components/ui-kit/term";
-import { LimitsForm, OwnerWallet } from "@/components/vault/islands";
+import { LimitsForm } from "@/components/vault/islands";
 import { unitsToInput } from "@/lib/units";
 import { appOrigin } from "@/lib/server/env";
 import { getProgramForMember, getRounds } from "@/lib/server/queries";
@@ -46,139 +46,163 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
   const latest = (await getRounds(id)).at(-1) ?? null;
   const l = state?.limits;
   return (
-    <div className="grid max-w-3xl gap-6">
+    <div className="grid gap-6">
       <PageHeader
         crumbs={crumbs}
         title="Settings"
         description="The join page, round schedule, vault and the limits it enforces."
-        actions={<OwnerWallet owner={session.addr} />}
       />
-
-      <Card title="Join page" actions={<ProgramStatus status={row.program.status} />}>
-        <div className="grid gap-4">
-          <p className="text-sm">{JOINING[row.program.status]}</p>
-          <CopyField
-            value={joinUrl}
-            label="join link"
-            display={joinUrl.replace(/^https?:\/\//, "")}
-          />
-          <div className="flex flex-wrap gap-2">
-            <PublishButton programId={id} status={row.program.status} />
-            {row.program.status === "active" ? (
-              <ShareOnX
-                href={shareOnXUrl({
-                  name: row.program.name,
-                  joinUrl,
-                  sources: [
-                    ...new Set(row.program.rubricJson.categories.flatMap((c) => c.sourceTypes)),
-                  ],
-                  bestPayout: row.program.rubricJson.categories.reduce(
-                    (m, c) =>
-                      row.program.ratePerPoint * BigInt(c.maxPoints) > m
-                        ? row.program.ratePerPoint * BigInt(c.maxPoints)
-                        : m,
-                    0n,
-                  ),
-                })}
+      <div className="grid items-start gap-8 lg:grid-cols-[11rem_minmax(0,1fr)]">
+        <nav aria-label="Settings sections" className="sticky top-20 hidden lg:block">
+          <ul className="grid gap-1 text-sm">
+            {(
+              [
+                ["#join", "Join page"],
+                ["#schedule", "Round schedule"],
+                ["#vault", "Vault"],
+                ["#limits", "Limits"],
+              ] as const
+            ).map(([href, label]) => (
+              <li key={href}>
+                <a
+                  href={href}
+                  className="text-soft hover:bg-card hover:text-foreground block rounded-lg px-3 py-2 transition-colors"
+                >
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="grid max-w-3xl gap-6">
+          <Card id="join" title="Join page" actions={<ProgramStatus status={row.program.status} />}>
+            <div className="grid gap-4">
+              <p className="text-sm">{JOINING[row.program.status]}</p>
+              <CopyField
+                value={joinUrl}
+                label="join link"
+                display={joinUrl.replace(/^https?:\/\//, "")}
               />
-            ) : null}
-          </div>
+              <div className="flex flex-wrap gap-2">
+                <PublishButton programId={id} status={row.program.status} />
+                {row.program.status === "active" ? (
+                  <ShareOnX
+                    href={shareOnXUrl({
+                      name: row.program.name,
+                      joinUrl,
+                      sources: [
+                        ...new Set(row.program.rubricJson.categories.flatMap((c) => c.sourceTypes)),
+                      ],
+                      bestPayout: row.program.rubricJson.categories.reduce(
+                        (m, c) =>
+                          row.program.ratePerPoint * BigInt(c.maxPoints) > m
+                            ? row.program.ratePerPoint * BigInt(c.maxPoints)
+                            : m,
+                        0n,
+                      ),
+                    })}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            id="schedule"
+            title="Round schedule"
+            description="When rounds start and how long they last. Approved work is paid when each round closes."
+          >
+            <RoundSchedule
+              programId={id}
+              roundLengthDays={row.program.roundLengthDays}
+              round={
+                latest
+                  ? {
+                      number: latest.number,
+                      startsAt: latest.startsAt.toISOString(),
+                      endsAt: latest.endsAt.toISOString(),
+                    }
+                  : null
+              }
+            />
+          </Card>
+
+          <Card
+            id="vault"
+            title="Vault"
+            description={
+              <>
+                The <Term k="vault">vault</Term> holds this program&apos;s USDC. You own it; the{" "}
+                <Term k="agent">agent</Term> can only pay out inside the limits below.
+              </>
+            }
+          >
+            {vault && state ? (
+              <dl className="grid gap-3 text-sm sm:grid-cols-[140px_1fr]">
+                <dt className="text-muted-foreground">Address</dt>
+                <dd>
+                  <HexValue value={vault} label="vault address" href={explorerAddress(vault)} />
+                </dd>
+                <dt className="text-muted-foreground">Owner (you)</dt>
+                <dd>
+                  <HexValue
+                    value={state.owner}
+                    label="owner address"
+                    href={explorerAddress(state.owner)}
+                  />
+                </dd>
+                <dt className="text-muted-foreground">Agent</dt>
+                <dd>
+                  <HexValue
+                    value={state.agent}
+                    label="agent address"
+                    href={explorerAddress(state.agent)}
+                  />
+                </dd>
+                <dt className="text-muted-foreground">Payouts</dt>
+                <dd>
+                  {state.paused ? "Paused" : "Running"} ·{" "}
+                  <Link
+                    href={`${base}/treasury#vault-controls`}
+                    className="underline underline-offset-4"
+                  >
+                    {state.paused ? "Resume" : "Pause"} or withdraw in Treasury
+                  </Link>
+                </dd>
+              </dl>
+            ) : (
+              <EmptyState action={{ label: "Deploy the vault", href: base }}>
+                The vault isn&apos;t deployed yet.
+              </EmptyState>
+            )}
+          </Card>
+
+          <Card
+            id="limits"
+            title="Limits"
+            description="Enforced by the vault contract. Changing them is one transaction from your wallet; rounds already waiting are re-checked against the new limits before they pay."
+          >
+            {vault && l ? (
+              <LimitsForm
+                programId={id}
+                vault={vault}
+                owner={session.addr as Address}
+                current={{
+                  maxPerPayout: unitsToInput(l.maxPerPayout),
+                  maxPerRound: unitsToInput(l.maxPerRound),
+                  maxPerDay: unitsToInput(l.maxPerDay),
+                  autoApproveThreshold: unitsToInput(l.autoApproveThreshold),
+                  payeeCooldownHours: String(Number(l.payeeCooldown) / 3600),
+                }}
+              />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Limits can be changed once the vault is deployed.
+              </p>
+            )}
+          </Card>
         </div>
-      </Card>
-
-      <Card
-        id="schedule"
-        title="Round schedule"
-        description="When rounds start and how long they last. Approved work is paid when each round closes."
-      >
-        <RoundSchedule
-          programId={id}
-          roundLengthDays={row.program.roundLengthDays}
-          round={
-            latest
-              ? {
-                  number: latest.number,
-                  startsAt: latest.startsAt.toISOString(),
-                  endsAt: latest.endsAt.toISOString(),
-                }
-              : null
-          }
-        />
-      </Card>
-
-      <Card
-        title="Vault"
-        description={
-          <>
-            The <Term k="vault">vault</Term> holds this program&apos;s USDC. You own it; the{" "}
-            <Term k="agent">agent</Term> can only pay out inside the limits below.
-          </>
-        }
-      >
-        {vault && state ? (
-          <dl className="grid gap-3 text-sm sm:grid-cols-[140px_1fr]">
-            <dt className="text-muted-foreground">Address</dt>
-            <dd>
-              <HexValue value={vault} label="vault address" href={explorerAddress(vault)} />
-            </dd>
-            <dt className="text-muted-foreground">Owner (you)</dt>
-            <dd>
-              <HexValue
-                value={state.owner}
-                label="owner address"
-                href={explorerAddress(state.owner)}
-              />
-            </dd>
-            <dt className="text-muted-foreground">Agent</dt>
-            <dd>
-              <HexValue
-                value={state.agent}
-                label="agent address"
-                href={explorerAddress(state.agent)}
-              />
-            </dd>
-            <dt className="text-muted-foreground">Payouts</dt>
-            <dd>
-              {state.paused ? "Paused" : "Running"} ·{" "}
-              <Link
-                href={`${base}/treasury#vault-controls`}
-                className="underline underline-offset-4"
-              >
-                {state.paused ? "Resume" : "Pause"} or withdraw in Treasury
-              </Link>
-            </dd>
-          </dl>
-        ) : (
-          <EmptyState action={{ label: "Deploy the vault", href: base }}>
-            The vault isn&apos;t deployed yet.
-          </EmptyState>
-        )}
-      </Card>
-
-      <Card
-        id="limits"
-        title="Limits"
-        description="Enforced by the vault contract. Changing them is one transaction from your wallet; rounds already waiting are re-checked against the new limits before they pay."
-      >
-        {vault && l ? (
-          <LimitsForm
-            programId={id}
-            vault={vault}
-            owner={session.addr as Address}
-            current={{
-              maxPerPayout: unitsToInput(l.maxPerPayout),
-              maxPerRound: unitsToInput(l.maxPerRound),
-              maxPerDay: unitsToInput(l.maxPerDay),
-              autoApproveThreshold: unitsToInput(l.autoApproveThreshold),
-              payeeCooldownHours: String(Number(l.payeeCooldown) / 3600),
-            }}
-          />
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            Limits can be changed once the vault is deployed.
-          </p>
-        )}
-      </Card>
+      </div>
     </div>
   );
 }

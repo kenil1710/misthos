@@ -1,9 +1,12 @@
 import { formatUsdc } from "@misthos/shared/money";
-import { CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Inbox, Stamp, Wallet } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { NeedItem, ProgramSummary } from "@/lib/server/program-summary";
+import { SOURCE_LABEL, type SourceType } from "@misthos/shared/sources";
+import { StatusBadge, type Status } from "@/components/status-badge";
 import { roundPhrase } from "@/lib/status-line";
+import { fromNow } from "@/lib/when";
 import { cn } from "@/lib/utils";
 import { ProgramStatus } from "./program-status";
 
@@ -13,7 +16,14 @@ const SETUP_TEXT = {
   publish: "Next: publish the join page",
 } as const;
 
-/** What the owner has to act on, first thing on the page; a calm "all caught up" when there's nothing. */
+const NEED_ICON: Record<NeedItem["kind"], typeof Inbox> = {
+  review: Inbox,
+  approval: Stamp,
+  payee: AlertTriangle,
+  low_balance: Wallet,
+};
+
+/** What the owner has to act on, first thing on the page, as cards; a calm "all caught up" when there's nothing. */
 export function NeedsYou({
   items,
   showProgram,
@@ -24,37 +34,57 @@ export function NeedsYou({
   programNames?: Record<string, string>;
 }) {
   return (
-    <section aria-labelledby="needs-h" className="bg-card rounded-xl border">
-      <h2 id="needs-h" className="border-b px-5 py-3.5 text-base font-medium sm:px-6">
+    <section aria-labelledby="needs-h" className="grid gap-3">
+      <h2 id="needs-h" className="text-lg font-medium">
         Needs you
       </h2>
       {items.length === 0 ? (
-        <p className="text-muted-foreground flex items-center gap-2 px-5 py-4 text-sm sm:px-6">
+        <p className="bg-card/60 text-muted-foreground flex items-center gap-2 rounded-2xl px-5 py-4 text-sm">
           <CheckCircle2 className="text-success size-4" strokeWidth={1.75} aria-hidden="true" />
           You&apos;re all caught up.
         </p>
       ) : (
-        <ul className="divide-y">
-          {items.map((n, i) => (
-            <li
-              key={`${n.href}-${i}`}
-              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3 sm:px-6"
-            >
-              <span className="min-w-0 text-sm">
-                {showProgram && n.programId && programNames?.[n.programId] ? (
-                  <span className="text-muted-foreground">{programNames[n.programId]}: </span>
-                ) : null}
-                {n.text}.
-              </span>
-              <Button
-                asChild
-                size="sm"
-                variant={n.kind === "review" || n.kind === "approval" ? "default" : "outline"}
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {items.map((n, i) => {
+            const Icon = NEED_ICON[n.kind];
+            const strong = n.kind === "review" || n.kind === "approval";
+            return (
+              <li
+                key={`${n.href}-${i}`}
+                className="bg-card shadow-soft flex flex-col justify-between gap-4 rounded-[1.25rem] p-5"
               >
-                <Link href={n.href}>{n.action}</Link>
-              </Button>
-            </li>
-          ))}
+                <div className="flex gap-3">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-xl",
+                      n.kind === "payee"
+                        ? "bg-danger-subtle text-danger"
+                        : strong
+                          ? "bg-warning-subtle text-warning"
+                          : "bg-brand-subtle text-brand",
+                    )}
+                  >
+                    <Icon className="size-4" strokeWidth={1.75} />
+                  </span>
+                  <p className="min-w-0 pt-1.5 text-sm leading-relaxed">
+                    {showProgram && n.programId && programNames?.[n.programId] ? (
+                      <span className="text-muted-foreground">{programNames[n.programId]}: </span>
+                    ) : null}
+                    {n.text}.
+                  </p>
+                </div>
+                <Button
+                  asChild
+                  size="sm"
+                  variant={strong ? "default" : "outline"}
+                  className="w-fit"
+                >
+                  <Link href={n.href}>{n.action}</Link>
+                </Button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
@@ -67,11 +97,11 @@ export function ProgramCard({ s }: { s: ProgramSummary }) {
   const href = `/app/programs/${p.id}`;
   const round = p.status === "draft" ? null : roundPhrase(s.round).join(" · ");
   return (
-    <article className="bg-card hover:border-foreground/20 relative flex flex-col rounded-xl border p-5 transition-colors">
+    <article className="bg-card shadow-soft hover:shadow-lift relative flex flex-col rounded-[1.25rem] p-6 transition-shadow">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate font-medium">
-            <Link href={href} className="after:absolute after:inset-0 after:rounded-xl">
+            <Link href={href} className="after:absolute after:inset-0 after:rounded-[1.25rem]">
               {p.name}
             </Link>
           </h3>
@@ -87,7 +117,7 @@ export function ProgramCard({ s }: { s: ProgramSummary }) {
         </div>
       </div>
       <p className="text-soft mt-3 text-sm">{s.setupNext ? SETUP_TEXT[s.setupNext] : round}</p>
-      <dl className="mt-4 grid grid-cols-3 gap-3 border-t pt-4 text-sm">
+      <dl className="mt-5 grid grid-cols-3 gap-3 border-t pt-4 text-sm">
         <div>
           <dt className="text-muted-foreground text-xs">Waiting</dt>
           <dd className={cn("mono-num mt-0.5", s.waitingReview && "text-warning")}>
@@ -130,7 +160,7 @@ export function JoinPagePreview({
   return (
     <div
       aria-label="Join page preview"
-      className="bg-background rounded-lg border p-4 text-sm shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
+      className="bg-background shadow-soft rounded-2xl p-5 text-sm"
     >
       <p className="text-muted-foreground text-xs">Contributor program</p>
       <p className="mt-0.5 font-medium">{name}</p>
@@ -139,16 +169,84 @@ export function JoinPagePreview({
         {categories.map((c) => (
           <li
             key={c.key}
-            className="flex items-baseline justify-between gap-3 rounded-md border px-2.5 py-1.5 text-xs"
+            className="bg-card flex items-baseline justify-between gap-3 rounded-lg px-3 py-2 text-xs"
           >
             <span className="truncate">{c.name}</span>
             <span className="mono-num shrink-0">up to {formatUsdc(c.payout)}</span>
           </li>
         ))}
       </ul>
-      <div className="bg-foreground text-background mt-3 rounded-md py-1.5 text-center text-xs font-medium">
+      <div className="bg-primary text-primary-foreground mt-3 rounded-lg py-2 text-center text-xs font-medium">
         Sign in with X to join
       </div>
     </div>
+  );
+}
+
+export interface RecentDecision {
+  submissionId: string;
+  status: string;
+  sourceType: SourceType;
+  xHandle: string;
+  action: string;
+  amount: bigint;
+  summary: string;
+  decidedBy: "agent" | "human";
+  createdAt: Date;
+}
+
+/** The latest decisions as short cards: who, what was decided, how much, and the one-line why. */
+export function RecentDecisions({ items, href }: { items: RecentDecision[]; href: string }) {
+  if (!items.length) return null;
+  return (
+    <section aria-labelledby="recent-h" className="grid gap-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 id="recent-h" className="text-lg font-medium">
+          Recent decisions
+        </h2>
+        <Link
+          href={href}
+          className="text-soft hover:text-foreground text-sm underline-offset-4 hover:underline"
+        >
+          All submissions
+        </Link>
+      </div>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {items.map((d) => {
+          const approved = d.action === "approve" || d.action === "partial";
+          return (
+            <li
+              key={d.submissionId}
+              className="bg-card shadow-soft grid gap-3 rounded-[1.25rem] p-5"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="truncate text-sm">
+                  <span className="font-medium">@{d.xHandle}</span>
+                  <span className="text-muted-foreground"> · {SOURCE_LABEL[d.sourceType]}</span>
+                </span>
+                <StatusBadge status={d.status as Status} />
+              </div>
+              <p className="text-soft line-clamp-2 text-[13px] leading-relaxed">{d.summary}</p>
+              <div className="flex items-baseline justify-between gap-3">
+                <span
+                  className={cn(
+                    "display text-2xl tabular-nums",
+                    !approved && "text-muted-foreground",
+                  )}
+                >
+                  {approved ? formatUsdc(d.amount, { withSymbol: false }) : "—"}
+                  {approved ? (
+                    <span className="text-muted-foreground ml-1 font-sans text-xs">USDC</span>
+                  ) : null}
+                </span>
+                <span className="text-muted-foreground text-xs">
+                  {d.decidedBy === "human" ? "You decided" : "Agent"} · {fromNow(d.createdAt)}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

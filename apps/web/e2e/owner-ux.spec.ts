@@ -103,8 +103,13 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
     expect(Math.abs(rows[0]!.starts.getTime() - Date.now())).toBeLessThan(5 * 60_000);
 
     // ── OF-4: after a reload the wallet reconnects by itself ──
+    await expect(page.getByRole("button", { name: "Wallet ready", exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
     await page.reload();
-    await expect(page.getByText(/Signing as/)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "Wallet ready", exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByRole("button", { name: /^connect/i })).toHaveCount(0);
 
     // ── OF-6: a mouse click leaves no focus ring; keyboard focus still shows one ──
@@ -149,7 +154,7 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
     await page.getByRole("dialog").getByRole("button", { name: "Start now" }).click();
     await expect(page.getByText("Round 1 has started.")).toBeVisible();
     await page.getByRole("link", { name: "Rounds" }).click();
-    await expect(page.getByRole("cell", { name: "Open", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Round 1 is open" })).toContainText("closes in");
     await expect(page.getByText("Scheduled", { exact: true })).toHaveCount(0);
 
     // ── OF-13: the audit log names who did it, in words ──

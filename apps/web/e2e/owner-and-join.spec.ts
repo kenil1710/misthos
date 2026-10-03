@@ -99,7 +99,7 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await expect(op.getByRole("heading", { name: "E2E Builders" })).toBeVisible();
     await expect(op.getByText("draft", { exact: true })).toBeVisible();
     await expect(op.getByRole("region", { name: "Get your program live" })).toContainText(
-      "0 of 3 done",
+      "0 of 5 done",
     );
     await op.getByRole("button", { name: "Publish join page" }).click();
     await expect(op.getByText("active", { exact: true })).toBeVisible();

@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { formatUsdc } from "@misthos/shared";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -40,8 +41,12 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
   return (
     <>
       <header className="grid gap-2">
-        <Link href={`/p/${program.slug}`} className="text-muted-foreground text-sm hover:underline">
-          {program.name}
+        <Link
+          href={`/p/${program.slug}`}
+          className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1 text-sm"
+        >
+          <ArrowLeft className="size-3.5" aria-hidden="true" />
+          {program.name} audit page
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">Round {round.number} receipt</h1>

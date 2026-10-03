@@ -427,16 +427,16 @@ async function main() {
   await check(
     "O-03",
     "Owner",
-    "Setup checklist shows 0 of 3 with Deploy as next step",
+    "Setup track shows 0 of 5 with Deploy as next step",
     op,
     async () => {
       await op.goto(`/app/programs/${programId}`);
       const t = await op.getByRole("region", { name: "Get your program live" }).innerText();
       expect(
-        /0 of 3 done/.test(t) && /Next: deploy the vault/i.test(t),
+        /0 of 5 done/.test(t) && /Next: deploy the vault/i.test(t),
         `checklist text: ${t.slice(0, 120)}`,
       );
-      return "0 of 3 done, next: deploy the vault";
+      return "0 of 5 done, next: deploy the vault";
     },
   );
 
@@ -755,12 +755,17 @@ async function main() {
       // What the OAuth callback stores once GitHub confirms the account (see connectGithub): the numeric id and
       // login on the user and on every membership. An earlier QA run's user may still hold this id; free it.
       const uid = async (xid: string) =>
-        (await q<{ user_id: string }>(
-          "select user_id from contributors where program_id = $1 and x_user_id = $2",
-          [programId, xid],
-        ))[0]!.user_id;
+        (
+          await q<{ user_id: string }>(
+            "select user_id from contributors where program_id = $1 and x_user_id = $2",
+            [programId, xid],
+          )
+        )[0]!.user_id;
       const verify = async (userId: string, id: string, login: string) => {
-        await q("update users set github_user_id = null where github_user_id = $1 and id <> $2", [id, userId]);
+        await q("update users set github_user_id = null where github_user_id = $1 and id <> $2", [
+          id,
+          userId,
+        ]);
         await q(
           "update users set github_user_id = $1, github_login = $2, github_verified_at = now() where id = $3",
           [id, login, userId],
@@ -777,7 +782,9 @@ async function main() {
       const d = await decisionFor(pr.html_url, programId, C.xid);
       const codes = d.flags.map((f) => f.code);
       expect(
-        d.action === "reject" && codes.includes("OUT_OF_WINDOW") && !codes.includes("OWNERSHIP_MISMATCH"),
+        d.action === "reject" &&
+          codes.includes("OUT_OF_WINDOW") &&
+          !codes.includes("OWNERSHIP_MISMATCH"),
         `own PR: got ${d.action} ${codes.join(",")}`,
       );
       // Spoofing: alice connects a different GitHub account and submits carol's pull request.
@@ -885,7 +892,7 @@ async function main() {
     op,
     async () => {
       await op.goto(`/app/programs/${programId}/rounds/${r1}`);
-      await op.getByRole("button", { name: "Approve round" }).click();
+      await op.getByRole("button", { name: /^Approve [0-9]/ }).click();
       await confirmDialog(op, /^Approve /);
       const toast = await txDone(op);
       const done = await until(

@@ -139,21 +139,33 @@ test("a published program with no payouts has a working audit page", async ({ pa
   await expect(page.getByRole("heading", { name: "Verify a decision" })).toBeVisible();
 });
 
-test("non-members get a 404 for someone else's program; expired sessions are explained", async ({
+test("non-members get a friendly no-access page for someone else's program; expired sessions are explained", async ({
   browser,
 }) => {
   const other = await db.query<{ id: string }>(
     "insert into users (wallet_address) values ($1) returning id",
     [`0x${Date.now().toString(16).padStart(40, "f")}`],
   );
-  const theirs = await seedProgram(db, { ownerId: other.rows[0]!.id, slug: `theirs-${Date.now()}` });
+  const theirs = await seedProgram(db, {
+    ownerId: other.rows[0]!.id,
+    slug: `theirs-${Date.now()}`,
+  });
   const ctx = await browser.newContext();
   await injectWallet(ctx, generatePrivateKey());
   const { page } = await newPage(ctx);
   await ownerSignIn(page);
-  const res = await page.goto(`/app/programs/${theirs}`);
-  expect(res?.status()).toBe(404);
-  await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+  await page.goto(`/app/programs/${theirs}`);
+  const noAccess = page.getByRole("region", { name: "You don't have access to this program" });
+  await expect(noAccess).toBeVisible();
+  // It doesn't reveal the program, and points to what the owner can open.
+  await expect(noAccess).not.toContainText("theirs-");
+  await expect(noAccess.getByRole("link", { name: "Your programs" })).toHaveAttribute(
+    "href",
+    "/app",
+  );
+  // Every program sub-page behaves the same way.
+  await page.goto(`/app/programs/${theirs}/treasury`);
+  await expect(noAccess).toBeVisible();
 
   // Contributor whose session expires mid-visit: submitting explains it and keeps the link.
   const slug = `expiry-${Date.now()}`;
@@ -215,15 +227,14 @@ test("focus rings only for keyboard: clicks on the logo, nav and switcher leave 
   const stamp = Date.now();
   const a = await seedProgram(db, { ownerId, slug: `focus-a-${stamp}`, name: "Focus A" });
   await seedProgram(db, { ownerId, slug: `focus-b-${stamp}`, name: "Focus B" });
-  const noRing = () =>
-    page.evaluate(() => document.querySelector(":focus-visible") === null);
+  const noRing = () => page.evaluate(() => document.querySelector(":focus-visible") === null);
 
   await page.goto(`/app/programs/${a}`);
   await page.getByRole("link", { name: "Treasury" }).click();
   await expect(page).toHaveURL(/treasury/);
   expect(await noRing()).toBe(true);
 
-  await page.getByRole("link", { name: "Misthos home" }).first().click();
+  await page.getByRole("link", { name: "Misthos app home" }).first().click();
   await expect(page).toHaveURL(/\/app$/);
   expect(await noRing()).toBe(true);
 

@@ -10,3 +10,7 @@ export const OwnerSignIn = walletIsland(
   () => import("./owner-sign-in").then((m) => m.OwnerSignIn),
   <div className="h-[196px]" aria-hidden="true" />,
 );
+export const WalletChipStatus = walletIsland(
+  () => import("./wallet-chip").then((m) => m.WalletChipStatus),
+  <span className="block h-4" aria-hidden="true" />,
+);

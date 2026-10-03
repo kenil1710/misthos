@@ -1,12 +1,27 @@
 "use client";
 
 import * as React from "react";
+import { useBackToClose } from "@/lib/use-back-to-close";
 import { cn } from "cn";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { XIcon } from "lucide-react";
 
-function Dialog(props: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+/** Controlled or not, Back closes it (see useBackToClose); pass `history={false}` to opt out. */
+function Dialog({
+  open: openProp,
+  defaultOpen,
+  onOpenChange,
+  history = true,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root> & { history?: boolean }) {
+  const [inner, setInner] = React.useState(defaultOpen ?? false);
+  const open = openProp ?? inner;
+  const setOpen = (o: boolean) => {
+    if (openProp === undefined) setInner(o);
+    onOpenChange?.(o);
+  };
+  useBackToClose(open, () => setOpen(false), history);
+  return <DialogPrimitive.Root data-slot="dialog" open={open} onOpenChange={setOpen} {...props} />;
 }
 
 function DialogTrigger(props: React.ComponentProps<typeof DialogPrimitive.Trigger>) {

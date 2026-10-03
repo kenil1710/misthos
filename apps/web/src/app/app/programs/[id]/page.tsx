@@ -5,26 +5,44 @@ import { notFound } from "next/navigation";
 import type { Address } from "viem";
 import { z } from "zod";
 import { ProgramStatus } from "@/components/app/program-status";
-import { SetupChecklist, type SetupStep } from "@/components/app/setup-checklist";
+import {
+  SetupChecklist,
+  SetupComplete,
+  StepLink,
+  type SetupStep,
+} from "@/components/app/setup-checklist";
+import { VaultArt } from "@/components/brand/illustrations";
 import { Button } from "@/components/ui/button";
 import { Card, Notice, PageHeader, Stat } from "@/components/ui-kit";
 import { CopyField } from "@/components/ui-kit/copy-field";
 import { Term } from "@/components/ui-kit/term";
-import { DeployVault, FundVault, OwnerWallet } from "@/components/vault/islands";
+import { DeployVault, FundVault } from "@/components/vault/islands";
 import { currentRound } from "@/lib/rounds";
 import { appOrigin } from "@/lib/server/env";
-import { getProgramForMember, getRounds, submissionCounts } from "@/lib/server/queries";
+import {
+  getProgramForMember,
+  getRounds,
+  hasPaidRound,
+  recentDecisions,
+  submissionCounts,
+} from "@/lib/server/queries";
+import { shortFromNow } from "@/lib/when";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { programSummary } from "@/lib/server/program-summary";
 import { programStatusLine } from "@/lib/status-line";
-import { JoinPagePreview, NeedsYou } from "@/components/app/program-home";
+import { JoinPagePreview, NeedsYou, RecentDecisions } from "@/components/app/program-home";
 import { CopyButton } from "@/components/ui-kit/copy-button";
 import { getOwnerSession, type OwnerSession } from "@/lib/server/session";
 import { agentAddress, factoryAddress, programIdBytes32, usdcAddress } from "@/lib/server/vault";
 import { PublishButton } from "./publish-button";
 import { ShareOnX } from "@/components/app/share-on-x";
 import { shareOnXUrl } from "@/lib/share";
+import { programNameForTitle } from "@/lib/server/titles";
+
+export async function generateMetadata({ params }: PageProps<"/app/programs/[id]">) {
+  return { title: (await programNameForTitle((await params).id)) ?? "Program" };
+}
 
 /**
  * The header (name, description, status) renders from one quick query and streams first; everything that needs
@@ -47,7 +65,6 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
         description={program.description}
         actions={
           <>
-            {role === "owner" ? <OwnerWallet owner={session.addr} /> : null}
             {published ? (
               <Button asChild variant="ghost" size="sm">
                 <Link href={`/p/${program.slug}`} target="_blank">
@@ -84,7 +101,12 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
   if (!summary) notFound();
   const { program, role } = summary;
   const isOwner = role === "owner";
-  const [rounds, counts] = await Promise.all([getRounds(program.id), submissionCounts(program.id)]);
+  const [rounds, counts, recent, paidOnce] = await Promise.all([
+    getRounds(program.id),
+    submissionCounts(program.id),
+    recentDecisions(program.id),
+    hasPaidRound(program.id),
+  ]);
   const total = summary.submissions;
   const limits = program.limitsJson;
   const joinUrl = `${appOrigin()}/join/${program.slug}`;
@@ -171,61 +193,22 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
         <PublishButton programId={program.id} status={program.status} size="default" />
       ) : null,
     },
-  ];
-
-  // Publishing is allowed at any time: the status bar offers it unless the checklist is already showing it.
-  const shareIsNext = steps.findIndex((s) => !s.done) === 2;
-  const setupDone = steps.every((s) => s.done);
-  const line = programStatusLine({
-    status: program.status,
-    round: summary.round,
-    submissions: total,
-    readyToPay: summary.readyToPay,
-  });
-
-  return (
-    <div className="-mt-2 grid gap-8">
-      <section
-        aria-label="Status"
-        className="bg-card flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl border px-4 py-3 sm:px-5"
-      >
-        <p className="text-sm">
-          {line.map((part, i) => (
-            <span key={part}>
-              {i ? <span className="text-muted-foreground">{" · "}</span> : null}
-              <span className={i === 0 ? "font-medium" : "text-soft"}>{part}</span>
-            </span>
-          ))}
-        </p>
-        {published ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <CopyButton value={joinUrl} label="Copy join link" />
-            <ShareOnX href={shareHref} />
-          </div>
-        ) : isOwner && !shareIsNext ? (
-          <PublishButton programId={program.id} status={program.status} />
-        ) : null}
-      </section>
-
-      {setupDone || summary.needs.length ? <NeedsYou items={summary.needs} /> : null}
-
-      <SetupChecklist steps={steps} />
-
-      {setupDone && total === 0 ? (
+    {
+      key: "first",
+      title: "Get a first submission",
+      done: total > 0,
+      description:
+        "Contributors join with your link, sign in with X and paste links to their work. The agent reviews each one in about a minute.",
+      doneNote: `${total} so far`,
+      action: (
         <section
           aria-labelledby="first-h"
-          className="bg-card grid gap-6 rounded-xl border p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]"
+          className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]"
         >
-          <div className="grid content-start gap-4">
-            <div>
-              <h2 id="first-h" className="text-base font-medium">
-                Get your first submissions
-              </h2>
-              <p className="text-muted-foreground mt-1 text-sm">
-                Contributors join with this link, sign in with X and paste links to their work. The
-                agent reviews each one in about a minute; you&apos;ll see it here.
-              </p>
-            </div>
+          <div className="grid content-start gap-3">
+            <h3 id="first-h" className="sr-only">
+              Get your first submissions
+            </h3>
             <CopyField
               value={joinUrl}
               label="join link"
@@ -251,7 +234,73 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
             }))}
           />
         </section>
-      ) : null}
+      ),
+    },
+    {
+      key: "payout",
+      title: "Pay the first round",
+      done: paidOnce,
+      description:
+        current?.status === "open" && !summary.round?.scheduled
+          ? `Approved work is paid when round ${current.number} closes, in ${shortFromNow(current.endsAt)}. You can also close it early from Rounds.`
+          : "Approved work is paid when the round closes, inside your vault limits.",
+      action: <StepLink href={`${base}/rounds`}>Open rounds</StepLink>,
+    },
+  ];
+
+  // Publishing is allowed at any time: the status bar offers it unless the checklist is already showing it.
+  const shareIsNext = steps.findIndex((s) => !s.done) === 2;
+  const setupDone = steps.every((s) => s.done);
+  const primary = summary.needs[0];
+  const line = programStatusLine({
+    status: program.status,
+    round: summary.round,
+    submissions: total,
+    readyToPay: summary.readyToPay,
+  });
+
+  return (
+    <div className="-mt-2 grid gap-10">
+      <section
+        aria-label="Status"
+        className="bg-card shadow-soft relative overflow-hidden rounded-[1.5rem] p-6 sm:p-8"
+      >
+        <VaultArt className="pointer-events-none absolute top-1/2 right-8 hidden size-36 -translate-y-1/2 md:block" />
+        <div className="relative grid gap-5 md:pr-40">
+          {setupDone ? (
+            <div>
+              <SetupComplete />
+            </div>
+          ) : null}
+          <p className="display text-[1.75rem] leading-tight sm:text-[2.25rem]">
+            {line[0]}
+            {line.length > 1 ? (
+              <span className="text-soft block font-sans text-base leading-relaxed sm:text-lg">
+                {line.slice(1).join(" · ")}
+              </span>
+            ) : null}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {primary && isOwner ? (
+              <Button asChild>
+                <Link href={primary.href}>{primary.action}</Link>
+              </Button>
+            ) : null}
+            {published ? (
+              <>
+                <CopyButton value={joinUrl} label="Copy join link" />
+                <ShareOnX href={shareHref} />
+              </>
+            ) : isOwner && !shareIsNext ? (
+              <PublishButton programId={program.id} status={program.status} />
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <SetupChecklist steps={steps} />
+
+      {setupDone || summary.needs.length ? <NeedsYou items={summary.needs} /> : null}
 
       {total > 0 ? (
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Program totals">
@@ -288,6 +337,11 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
           />
         </section>
       ) : null}
+
+      <RecentDecisions
+        href={`${base}/submissions`}
+        items={recent.map((d) => ({ ...d, amount: BigInt(d.amount) }))}
+      />
 
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px]">
         <Card

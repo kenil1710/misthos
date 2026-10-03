@@ -84,7 +84,7 @@ export function RoundSchedule(p: {
             <Input
               id="sched-len"
               inputMode="numeric"
-              className="pr-14 font-mono tabular-nums"
+              className="pr-14 tabular-nums"
               value={len}
               onChange={(e) => setLen(e.target.value)}
               aria-invalid={!lenOk}

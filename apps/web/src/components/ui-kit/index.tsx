@@ -12,7 +12,7 @@ export interface Crumb {
 /** Breadcrumb trail for nested pages; the last item is the current page. */
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
   return (
-    <nav aria-label="Breadcrumb" className="mb-3">
+    <nav aria-label="Breadcrumb" className="mb-4">
       <ol className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-sm">
         {items.map((c, i) => (
           <li key={`${c.label}-${i}`} className="flex items-center gap-1.5">
@@ -55,11 +55,11 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-medium tracking-[-0.02em]">{title}</h1>
+            <h1 className="display text-[2.25rem] leading-[1.05] sm:text-[2.75rem]">{title}</h1>
             {meta}
           </div>
           {description ? (
-            <p className="text-muted-foreground mt-1.5 max-w-2xl text-sm leading-relaxed">
+            <p className="text-soft mt-2.5 max-w-[60ch] text-[15px] leading-relaxed">
               {description}
             </p>
           ) : null}
@@ -87,7 +87,10 @@ export function Card({
   id?: string;
 }) {
   return (
-    <section id={id} className={cn("bg-card scroll-mt-20 rounded-xl border p-5 sm:p-6", className)}>
+    <section
+      id={id}
+      className={cn("bg-card shadow-soft scroll-mt-24 rounded-[1.25rem] p-5 sm:p-7", className)}
+    >
       {title ? (
         <div className="mb-5 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -104,7 +107,7 @@ export function Card({
   );
 }
 
-/** One number with its label. Numbers are mono and tabular so columns line up. */
+/** One number with its label, as a visual anchor: the number in display type. */
 export function Stat({
   label,
   value,
@@ -117,10 +120,12 @@ export function Stat({
   className?: string;
 }) {
   return (
-    <div className={cn("bg-card rounded-xl border p-4", className)}>
+    <div className={cn("bg-card shadow-soft rounded-[1.25rem] p-5", className)}>
       <div className="text-muted-foreground text-xs">{label}</div>
-      <div className="mono-num mt-1.5 text-xl leading-none font-medium">{value}</div>
-      {hint ? <div className="text-muted-foreground mt-2 text-xs">{hint}</div> : null}
+      <div className="display mt-2 text-[2.5rem] leading-none tabular-nums">{value}</div>
+      {hint ? (
+        <div className="text-muted-foreground mt-2.5 text-xs leading-relaxed">{hint}</div>
+      ) : null}
     </div>
   );
 }
@@ -134,8 +139,8 @@ export function EmptyState({
   action?: { label: string; href: string };
 }) {
   return (
-    <div className="rounded-xl border border-dashed px-6 py-12 text-center">
-      <p className="text-muted-foreground text-sm">{children}</p>
+    <div className="bg-card/50 rounded-[1.25rem] border border-dashed px-6 py-14 text-center">
+      <p className="text-soft mx-auto max-w-[46ch] text-sm leading-relaxed">{children}</p>
       {action ? (
         <Button asChild size="sm" className="mt-4">
           <Link href={action.href}>{action.label}</Link>
@@ -160,7 +165,7 @@ export function Notice({
   return (
     <div
       role={tone === "danger" ? "alert" : "status"}
-      className={cn("rounded-md px-3 py-2.5 text-sm", styles)}
+      className={cn("rounded-xl px-4 py-3 text-sm leading-relaxed", styles)}
     >
       {children}
     </div>
@@ -184,7 +189,7 @@ export function Section({
     <section className={cn("grid gap-3", className)}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-base font-medium">{title}</h2>
+          <h2 className="text-lg font-medium">{title}</h2>
           {description ? (
             <p className="text-muted-foreground mt-0.5 text-sm">{description}</p>
           ) : null}
@@ -198,5 +203,9 @@ export function Section({
 
 /** Wraps a table so wide content scrolls inside its border instead of the page. */
 export function TableFrame({ children }: { children: ReactNode }) {
-  return <div className="bg-card overflow-x-auto rounded-xl border">{children}</div>;
+  return (
+    <div className="bg-card shadow-soft overflow-x-auto rounded-[1.25rem] px-1 [&_tr:last-child]:border-b-0">
+      {children}
+    </div>
+  );
 }

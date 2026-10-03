@@ -87,10 +87,10 @@ export async function seedProgram(
     ],
   );
   const id = rows[0]!.id;
-  await db.query("insert into program_members (program_id, user_id, role) values ($1, $2, 'owner')", [
-    id,
-    p.ownerId,
-  ]);
+  await db.query(
+    "insert into program_members (program_id, user_id, role) values ($1, $2, 'owner')",
+    [id, p.ownerId],
+  );
   const start = p.roundStartsInDays ?? -1;
   await db.query(
     `insert into rounds (program_id, number, starts_at, ends_at)
@@ -105,7 +105,12 @@ export async function contributorSession(db: pg.Client, x: { id: string; handle:
     "insert into users (x_user_id, x_handle) values ($1, $2) on conflict (x_user_id) do update set x_handle = excluded.x_handle returning id",
     [x.id, x.handle],
   );
-  const token = await new SignJWT({ sub: rows[0]!.id, kind: "contributor", xid: x.id, xh: x.handle })
+  const token = await new SignJWT({
+    sub: rows[0]!.id,
+    kind: "contributor",
+    xid: x.id,
+    xh: x.handle,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setIssuer("misthos")

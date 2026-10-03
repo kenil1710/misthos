@@ -64,114 +64,113 @@
 }
 
 /*
- * Misthos design tokens (v2: warm editorial).
- * Paper: warm cream background (#F5F2EA) with lighter surfaces (#FBF9F4); ink text with a faint green cast.
- * Brand: "Misthos ink", a deep petrol teal (#114A4C), used for primary actions, links and illustrations.
- * Dark: warm near-black (#121411), never pure black, with cream text and a lighter sea-glass teal.
- * Surfaces are told apart by tint and soft shadow more than by hard borders. Semantic colors are kept for states
- * (approved/success, escalated/warning, rejected/danger); "paid" is neutral with a check. All text pairs are AA.
+ * Misthos design tokens.
+ * Neutral: warm stone (hue ~60-106, near-zero chroma); light #FAFAF9 with white surfaces, dark ~#111110 with layered
+ * surfaces. Accent: deep emerald (hue ~163), used sparingly. Text: foreground / soft / muted, all AA.
+ * Semantic colors are reserved for states: approved/success, escalated/warning, rejected/danger. "Paid" uses neutral
+ * + check icon. Surfaces separate by soft shadow more than by hard borders.
  */
 :root {
-  --background: #f5f2ea;
-  --foreground: #1c1f1b;
-  --card: #fbf9f4;
-  --card-foreground: #1c1f1b;
-  --popover: #fdfcf8;
-  --popover-foreground: #1c1f1b;
-  --primary: #114a4c;
-  --primary-foreground: #f8f5ee;
-  --secondary: #ece7db;
-  --secondary-foreground: #1c1f1b;
-  --muted: #ece7db;
-  --muted-foreground: #66675c;
-  --accent: #e9e3d5;
-  --accent-foreground: #1c1f1b;
-  --destructive: #a8362a;
-  --border: #e3ddcf;
-  --input: #d7cfbd;
-  --ring: #114a4c;
-  --brand: #114a4c;
-  --brand-subtle: #dfe9e4;
-  --brand-tint: #c9dcd5;
-  --success: #2f6a3e;
-  --success-subtle: #e2ecdc;
-  --warning: #85560f;
-  --warning-subtle: #f3e7cc;
-  --danger: #a3342a;
-  --danger-subtle: #f5e1da;
-  --chart-1: #114a4c;
-  --chart-2: #4f8a80;
-  --chart-3: #8fb5aa;
-  --chart-4: #b9aa8a;
-  --chart-5: #ddd3bd;
+  --background: oklch(0.985 0.001 106.4);
+  --foreground: oklch(0.216 0.006 56);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.216 0.006 56);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.216 0.006 56);
+  --primary: oklch(0.43 0.09 163);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0.001 106.4);
+  --secondary-foreground: oklch(0.216 0.006 56);
+  --muted: oklch(0.96 0.002 75);
+  --muted-foreground: oklch(0.52 0.01 58);
+  --accent: oklch(0.96 0.002 75);
+  --accent-foreground: oklch(0.216 0.006 56);
+  --destructive: oklch(0.55 0.2 27);
+  --border: oklch(0.915 0.004 70);
+  --input: oklch(0.89 0.005 70);
+  --ring: oklch(0.43 0.09 163);
+  --brand: oklch(0.43 0.09 163);
+  --brand-subtle: oklch(0.96 0.025 163);
+  --success: oklch(0.47 0.12 150);
+  --success-subtle: oklch(0.96 0.03 150);
+  --warning: oklch(0.52 0.12 70);
+  --warning-subtle: oklch(0.97 0.04 85);
+  --danger: oklch(0.52 0.19 27);
+  --danger-subtle: oklch(0.97 0.02 27);
+  --chart-1: oklch(0.43 0.09 163);
+  --chart-2: oklch(0.6 0.08 163);
+  --chart-3: oklch(0.55 0.014 285.9);
+  --chart-4: oklch(0.7 0.01 285.9);
+  --chart-5: oklch(0.85 0.005 285.9);
   --radius: 0.75rem;
-  --sidebar: #efebe1;
-  --sidebar-foreground: #1c1f1b;
-  --sidebar-primary: #114a4c;
-  --sidebar-primary-foreground: #f8f5ee;
-  --sidebar-accent: #e5dfd1;
-  --sidebar-accent-foreground: #1c1f1b;
-  --sidebar-border: #e0d9ca;
-  --sidebar-ring: #114a4c;
+  --sidebar: oklch(0.98 0.001 106.4);
+  --sidebar-foreground: oklch(0.216 0.006 56);
+  --sidebar-primary: oklch(0.43 0.09 163);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.955 0.002 75);
+  --sidebar-accent-foreground: oklch(0.216 0.006 56);
+  --sidebar-border: oklch(0.915 0.004 70);
+  --sidebar-ring: oklch(0.43 0.09 163);
   /* Secondary text: between foreground and muted. */
-  --soft: #45493f;
-  --shadow-soft: 0 1px 2px rgb(58 48 28 / 0.05), 0 12px 32px -16px rgb(58 48 28 / 0.18);
+  --soft: oklch(0.42 0.009 58);
+  --brand-tint: oklch(0.92 0.045 163);
+  --shadow-soft: 0 1px 2px rgb(28 25 23 / 0.05), 0 12px 32px -16px rgb(28 25 23 / 0.16);
+  --shadow-lift: 0 2px 4px rgb(28 25 23 / 0.05), 0 24px 56px -24px rgb(28 25 23 / 0.26);
   /* Illustration tones (components/brand/illustrations.tsx): deep → mid → light faces, paper highlights. */
-  --art-deep: #114a4c;
-  --art-mid: #8fb8ad;
-  --art-light: #dce8e2;
-  --art-paper: #fbf9f4;
-  --shadow-lift: 0 2px 4px rgb(58 48 28 / 0.05), 0 24px 56px -24px rgb(58 48 28 / 0.28);
+  --art-deep: oklch(0.43 0.09 163);
+  --art-mid: oklch(0.72 0.08 163);
+  --art-light: oklch(0.93 0.03 163);
+  --art-paper: oklch(1 0 0);
 }
 
 .dark {
-  --background: #121411;
-  --foreground: #eee9dc;
-  --card: #1a1d19;
-  --card-foreground: #eee9dc;
-  --popover: #20241f;
-  --popover-foreground: #eee9dc;
-  --primary: #8fcfc2;
-  --primary-foreground: #0d1f1d;
-  --secondary: #252923;
-  --secondary-foreground: #eee9dc;
-  --muted: #232720;
-  --muted-foreground: #a7a294;
-  --accent: #272b24;
-  --accent-foreground: #eee9dc;
-  --destructive: #e8806f;
-  --border: rgb(238 233 220 / 0.09);
-  --input: rgb(238 233 220 / 0.14);
-  --ring: #8fcfc2;
-  --brand: #8fcfc2;
-  --brand-subtle: rgb(143 207 194 / 0.12);
-  --brand-tint: rgb(143 207 194 / 0.22);
-  --success: #9bd3a4;
-  --success-subtle: rgb(155 211 164 / 0.12);
-  --warning: #e7c27a;
-  --warning-subtle: rgb(231 194 122 / 0.12);
-  --danger: #ee9a8b;
-  --danger-subtle: rgb(238 154 139 / 0.12);
-  --chart-1: #8fcfc2;
-  --chart-2: #5e9c91;
-  --chart-3: #3f6b64;
-  --chart-4: #a7a294;
-  --chart-5: #4a4d44;
-  --sidebar: #161915;
-  --sidebar-foreground: #eee9dc;
-  --sidebar-primary: #8fcfc2;
-  --sidebar-primary-foreground: #0d1f1d;
-  --sidebar-accent: #252923;
-  --sidebar-accent-foreground: #eee9dc;
-  --sidebar-border: rgb(238 233 220 / 0.08);
-  --sidebar-ring: #8fcfc2;
-  --soft: #d2ccbd;
+  --background: oklch(0.155 0.002 70);
+  --foreground: oklch(0.935 0.003 80);
+  --card: oklch(0.19 0.003 70);
+  --card-foreground: oklch(0.935 0.003 80);
+  --popover: oklch(0.215 0.003 70);
+  --popover-foreground: oklch(0.935 0.003 80);
+  --primary: oklch(0.7 0.1 163);
+  --primary-foreground: oklch(0.18 0.03 163);
+  --secondary: oklch(0.235 0.004 70);
+  --secondary-foreground: oklch(0.935 0.003 80);
+  --muted: oklch(0.235 0.004 70);
+  --muted-foreground: oklch(0.69 0.008 70);
+  --accent: oklch(0.235 0.004 70);
+  --accent-foreground: oklch(0.935 0.003 80);
+  --destructive: oklch(0.7 0.17 25);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.72 0.12 163);
+  --brand: oklch(0.7 0.1 163);
+  --brand-subtle: oklch(0.72 0.12 163 / 12%);
+  --success: oklch(0.76 0.14 150);
+  --success-subtle: oklch(0.76 0.14 150 / 12%);
+  --warning: oklch(0.8 0.13 80);
+  --warning-subtle: oklch(0.8 0.13 80 / 12%);
+  --danger: oklch(0.72 0.17 25);
+  --danger-subtle: oklch(0.72 0.17 25 / 12%);
+  --chart-1: oklch(0.72 0.12 163);
+  --chart-2: oklch(0.55 0.09 163);
+  --chart-3: oklch(0.71 0.013 286);
+  --chart-4: oklch(0.55 0.013 286);
+  --chart-5: oklch(0.4 0.01 286);
+  --sidebar: oklch(0.175 0.003 70);
+  --sidebar-foreground: oklch(0.935 0.003 80);
+  --sidebar-primary: oklch(0.72 0.12 163);
+  --sidebar-primary-foreground: oklch(0.18 0.03 163);
+  --sidebar-accent: oklch(0.235 0.004 70);
+  --sidebar-accent-foreground: oklch(0.935 0.003 80);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.72 0.12 163);
+  --soft: oklch(0.8 0.005 75);
+  --brand-tint: oklch(0.72 0.12 163 / 22%);
   --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -16px rgb(0 0 0 / 0.5);
-  --art-deep: #6fb5a8;
-  --art-mid: #3c6a62;
-  --art-light: #263b37;
-  --art-paper: #e6e0d1;
   --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.3), 0 24px 56px -24px rgb(0 0 0 / 0.6);
+  --art-deep: oklch(0.7 0.1 163);
+  --art-mid: oklch(0.42 0.07 163);
+  --art-light: oklch(0.27 0.03 163);
+  --art-paper: oklch(0.935 0.003 80);
 }
 
 @layer base {
@@ -200,8 +199,8 @@
   .num {
     font-variant-numeric: tabular-nums;
   }
+  /* Amounts: tabular figures in the body face (hashes and addresses keep font-mono). */
   .mono-num {
-    @apply font-mono;
     font-variant-numeric: tabular-nums;
   }
   h1,

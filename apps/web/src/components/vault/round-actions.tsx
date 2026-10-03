@@ -21,7 +21,7 @@ export function ApproveRound(p: {
   return (
     <TxAction
       owner={p.owner}
-      label="Approve round"
+      label={`Approve ${formatUsdc(BigInt(p.total))}`}
       busyLabel="Approving…"
       success={`Round ${p.roundNumber} approved. The agent is sending the payouts.`}
       confirm={{

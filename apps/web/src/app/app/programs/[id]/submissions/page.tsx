@@ -24,15 +24,24 @@ export default async function SubmissionsPage({
   const { id } = await params;
   const row = await getProgramForMember(id, session.sub);
   if (!row) return null;
-  const rawStatus = (await searchParams).status;
+  const sp = await searchParams;
+  const rawStatus = sp.status;
+  const view = sp.view === "board" ? "board" : "list";
   const status = isReviewStatus(rawStatus) ? rawStatus : undefined;
   const [rows, counts] = await Promise.all([
-    listSubmissionsForReview(id, status === "pending" ? undefined : status),
+    listSubmissionsForReview(id, status === "pending" || view === "board" ? undefined : status),
     submissionCounts(id),
   ]);
   const total = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
   const published = row.program.status === "active" || row.program.status === "paused";
   const joinUrl = `${appOrigin()}/join/${row.program.slug}`;
+  const q = (k: string | undefined, v: "list" | "board" = view) => {
+    const u = new URLSearchParams();
+    if (k) u.set("status", k);
+    if (v === "board") u.set("view", "board");
+    const str = u.toString();
+    return str ? `?${str}` : "?";
+  };
   const filters = [
     [undefined, "All", total],
     ["escalated", "Needs review", counts.escalated ?? 0],
@@ -53,21 +62,40 @@ export default async function SubmissionsPage({
         title="Submissions"
         description="Everything contributors sent and what the agent decided. Open a row for the evidence, scores and reasoning, and to approve, adjust or reject it."
       />
-      <nav aria-label="Filter by status" className="flex flex-wrap gap-1 text-[13px]">
-        {filters.map(([key, label, n]) => (
-          <Link
-            key={label}
-            href={key ? `?status=${key}` : "?"}
-            scroll={false}
-            aria-current={status === key ? "page" : undefined}
-            className={`rounded-md border px-2.5 py-1 ${status === key ? "bg-secondary text-foreground border-foreground/20" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            {label} <span className="mono-num">{n}</span>
-          </Link>
-        ))}
-      </nav>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {view === "list" ? (
+          <nav aria-label="Filter by status" className="flex flex-wrap gap-1.5 text-[13px]">
+            {filters.map(([key, label, n]) => (
+              <Link
+                key={label}
+                href={q(key)}
+                scroll={false}
+                aria-current={status === key ? "page" : undefined}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 transition-colors ${status === key ? "bg-foreground text-background" : "bg-card text-soft shadow-soft hover:text-foreground"}`}
+              >
+                {label} <span className="tabular-nums opacity-70">{n}</span>
+              </Link>
+            ))}
+          </nav>
+        ) : (
+          <p className="text-muted-foreground text-sm">Grouped by where each submission is.</p>
+        )}
+        <nav aria-label="View" className="bg-muted inline-flex rounded-full p-1 text-[13px]">
+          {(["list", "board"] as const).map((v) => (
+            <Link
+              key={v}
+              href={q(v === "list" ? status : undefined, v)}
+              scroll={false}
+              aria-current={view === v ? "page" : undefined}
+              className={`inline-flex h-7 items-center rounded-full px-3.5 capitalize transition-colors ${view === v ? "bg-card text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {v}
+            </Link>
+          ))}
+        </nav>
+      </div>
       {total === 0 ? (
-        <section className="bg-card grid justify-items-center gap-3 rounded-xl border border-dashed px-6 py-12 text-center">
+        <section className="bg-card/50 grid justify-items-center gap-3 rounded-[1.25rem] border border-dashed px-6 py-14 text-center">
           <Inbox className="text-muted-foreground size-6" strokeWidth={1.5} aria-hidden="true" />
           <h2 className="font-medium">No submissions yet</h2>
           <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
@@ -88,6 +116,8 @@ export default async function SubmissionsPage({
             </Button>
           )}
         </section>
+      ) : view === "board" ? (
+        <ReviewTable view="board" rows={rows} maxPerPayout={row.program.limitsJson.maxPerPayout} />
       ) : rows.length === 0 ? (
         <EmptyState action={{ label: "Show all submissions", href: "?" }}>
           Nothing is {filters.find(([k]) => k === status)?.[1].toLowerCase() ?? "here"} right now.

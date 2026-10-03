@@ -6,10 +6,11 @@ import {
   BookOpen,
   Check,
   ChevronsUpDown,
+  Home,
   Inbox,
   Landmark,
-  LayoutDashboard,
   Layers,
+  LayoutDashboard,
   Plus,
   Repeat,
   ScrollText,
@@ -22,7 +23,7 @@ import { usePathname } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
 import { Wordmark } from "@/components/brand/wordmark";
 import { SignOutButton } from "@/components/app/sign-out-button";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { WalletChipStatus } from "@/components/web3/islands";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +40,11 @@ export interface ShellProgram {
   slug: string;
   status: "draft" | "active" | "paused" | "archived";
   review: number;
+  /** "Round 1 · ends in 6d", or null before publishing. */
+  roundPill: string | null;
+  needs: { text: string; href: string; action: string; kind: string }[];
+  joinUrl: string;
+  shareHref: string;
 }
 
 const STATUS_DOT: Record<ShellProgram["status"], string> = {
@@ -54,6 +60,7 @@ export function AppSidebar({
   address,
   contributor = false,
   onNavigate,
+  wallet = true,
 }: {
   programs: ShellProgram[];
   founder: boolean;
@@ -61,6 +68,8 @@ export function AppSidebar({
   /** Also signed in with X: link to the programs they joined. */
   contributor?: boolean;
   onNavigate?: () => void;
+  /** Mount the wallet status (and so load the wallet code) only where the rail is actually on screen. */
+  wallet?: boolean;
 }) {
   const path = usePathname();
   const currentId = /^\/app\/programs\/([0-9a-f-]{36})/.exec(path)?.[1];
@@ -68,11 +77,11 @@ export function AppSidebar({
   const base = current ? `/app/programs/${current.id}` : null;
 
   return (
-    <div className="flex h-full flex-col gap-6 px-3 py-4">
+    <div className="flex h-full flex-col gap-7 px-4 py-5">
       <div className="px-2">
         <Link
           href="/app"
-          aria-label="Misthos home"
+          aria-label="Misthos app home"
           className="rounded-md"
           onClick={(e) => {
             if (e.detail > 0) e.currentTarget.blur();
@@ -153,7 +162,7 @@ export function AppSidebar({
       </nav>
 
       <div className="grid gap-0.5">
-        <p className="text-muted-foreground px-2 pb-1 text-xs">Workspace</p>
+        <p className="text-muted-foreground px-3 pb-1 text-xs">Workspace</p>
         {current ? (
           <NavItem
             href="/app/programs"
@@ -184,10 +193,11 @@ export function AppSidebar({
           />
         ) : null}
         <NavItem href="/docs" icon={BookOpen} label="Docs" path={path} onNavigate={onNavigate} />
+        <NavItem href="/" icon={Home} label="Back to site" path={path} onNavigate={onNavigate} />
       </div>
 
-      <div className="mt-auto border-t pt-3">
-        <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
+      <div className="bg-card shadow-soft mt-auto rounded-2xl p-3">
+        <div className="flex items-center gap-2.5">
           <WalletAvatar address={address} />
           <div className="min-w-0 flex-1">
             <p className="text-muted-foreground text-xs leading-tight">Signed in</p>
@@ -195,12 +205,16 @@ export function AppSidebar({
               {shortHex(address)}
             </p>
           </div>
-          <ThemeToggle />
         </div>
-        <div className="px-2 pt-1">
+        <div className="mt-2.5 flex items-center justify-between gap-2 border-t pt-2.5">
+          {wallet ? (
+            <WalletChipStatus owner={address} />
+          ) : (
+            <span className="block h-4" aria-hidden="true" />
+          )}
           <SignOutButton
             kind="owner"
-            className="text-muted-foreground hover:text-foreground h-8 w-full justify-start px-0"
+            className="text-muted-foreground hover:text-foreground h-7 px-2 text-xs"
           />
         </div>
       </div>
@@ -219,7 +233,7 @@ function ProgramSwitcher({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="hover:bg-sidebar-accent focus-visible:ring-ring/50 data-[state=open]:bg-sidebar-accent flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors outline-none focus-visible:ring-3">
+      <DropdownMenuTrigger className="bg-card shadow-soft hover:bg-card/80 focus-visible:ring-ring/50 flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors outline-none focus-visible:ring-3">
         {current ? (
           <>
             <span
@@ -321,10 +335,10 @@ function NavItem({
       }}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "focus-visible:ring-foreground/20 flex h-8 items-center gap-2.5 rounded-md px-2 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:outline-none",
+        "focus-visible:ring-foreground/20 flex h-10 items-center gap-3 rounded-xl px-3 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:outline-none",
         active
-          ? "bg-sidebar-accent text-foreground font-medium"
-          : "text-soft hover:bg-sidebar-accent/60 hover:text-foreground",
+          ? "bg-card text-foreground shadow-soft font-medium [&_svg]:text-brand"
+          : "text-soft hover:bg-sidebar-accent/70 hover:text-foreground",
       )}
     >
       <Icon className="size-4 shrink-0" strokeWidth={1.5} />

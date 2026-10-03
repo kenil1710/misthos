@@ -5,10 +5,11 @@ import { ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { HexValue } from "@/components/hex-value";
+import { JourneyStepper, ReasoningTrace } from "./reasoning";
+import { Disclosure } from "@/components/ui-kit/disclosure";
+import { reasoningChecks, scoreLines, submissionJourney } from "@/lib/journey";
+import type { SourceType } from "@misthos/shared/sources";
 import { ConfirmDialog } from "@/components/ui-kit/confirm-dialog";
-import { Term } from "@/components/ui-kit/term";
-import { EVIDENCE_LABELS, flagLabel } from "@/lib/flags";
 import { StatusBadge, type Status } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,12 +34,17 @@ interface Detail {
   submission: {
     id: string;
     url: string;
+    sourceType: SourceType;
     status: Status;
     amount: string | null;
     createdAt: string;
     lastError: string | null;
   };
   contributor: { xHandle: string; githubLogin: string | null; wallet: string | null };
+  program: { slug: string; published: boolean } | null;
+  round: { number: number; status: string; endsAt: string } | null;
+  payout: { status: string; txHash: string | null } | null;
+  categories: { key: string; name: string; criteria: { key: string; name: string }[] }[];
   content: {
     title: string | null;
     author: string | null;
@@ -229,138 +235,118 @@ function DrawerBody({
           {error ? <p className="text-danger text-sm">{error}</p> : <Skeleton className="h-40" />}
         </div>
       ) : (
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 px-4 pb-8 text-sm">
-          <div className="flex items-center justify-between gap-3">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-7 px-5 pb-10 text-sm sm:px-6">
+          <div className="bg-muted/60 flex items-center justify-between gap-3 rounded-2xl p-3.5">
+            <div className="min-w-0">
+              <p className="font-medium">@{detail.contributor.xHandle}</p>
+              <a
+                href={detail.submission.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-muted-foreground inline-flex max-w-full min-w-0 items-center gap-1 text-xs hover:underline"
+              >
+                <span className="truncate">
+                  {detail.submission.url.replace(/^https?:\/\//, "")}
+                </span>
+                <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
+              </a>
+            </div>
             <StatusBadge status={detail.submission.status} />
-            <a
-              href={detail.submission.url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-w-0 items-center gap-1 hover:underline"
-            >
-              <span className="truncate">{detail.submission.url.replace(/^https?:\/\//, "")}</span>
-              <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
-            </a>
           </div>
 
+          <section aria-labelledby="journey-h">
+            <h3 id="journey-h" className="mb-3 font-medium">
+              Where it is
+            </h3>
+            <JourneyStepper
+              audience="owner"
+              steps={submissionJourney({
+                status: detail.submission.status,
+                createdAt: detail.submission.createdAt,
+                decision: latest
+                  ? {
+                      action: latest.action,
+                      amount: latest.amount,
+                      createdAt: latest.createdAt,
+                      flags: latest.flags,
+                      scored: !!agent?.llm,
+                      decidedBy: latest.decidedBy,
+                    }
+                  : null,
+                round: detail.round,
+                payout: detail.payout,
+              })}
+            />
+            {!latest && detail.submission.lastError ? (
+              <p className="text-warning mt-3">Retrying: {detail.submission.lastError}</p>
+            ) : null}
+          </section>
+
           {latest ? (
-            <section>
-              <h3 className="font-medium">
-                {latest.decidedBy === "human" ? "Reviewer decision" : "Agent decision"}
+            <section aria-labelledby="trace-h">
+              <h3 id="trace-h" className="mb-3 font-medium">
+                {latest.decidedBy === "human" ? "How it was decided" : "How the agent decided"}
               </h3>
-              <p className="mt-1">{latest.summary}</p>
-              <details className="group mt-3">
-                <summary className="text-muted-foreground hover:text-foreground w-fit cursor-pointer text-xs">
-                  Decision details
-                </summary>
-                <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs">
-                  <dt className="text-muted-foreground">
-                    <Term k="decisionHash">Decision hash</Term>
-                  </dt>
-                  <dd>
-                    <HexValue value={latest.decisionHash} label="decision hash" />
-                  </dd>
-                  <dt className="text-muted-foreground">Rules</dt>
+              <ReasoningTrace
+                checks={reasoningChecks(
+                  latest.flags,
+                  detail.submission.sourceType,
+                  (agent ?? latest).summary,
+                )}
+                scores={scoreLines(
+                  agent?.llm?.rubric_scores,
+                  detail.categories.find((c) => c.key === agent?.categoryKey)?.criteria ?? [],
+                )}
+                reasons={agent?.llm?.reasons ?? []}
+                confidence={agent?.llm?.confidence}
+                result={
+                  latest.action === "approve" || latest.action === "partial"
+                    ? {
+                        tone: "approved",
+                        title: `${latest.action === "partial" ? "Partially approved" : "Approved"} · ${formatUsdc(BigInt(latest.amount))}`,
+                        body:
+                          latest.decidedBy === "human" && latest.overrideReason
+                            ? `“${latest.overrideReason}”`
+                            : undefined,
+                      }
+                    : latest.action === "reject"
+                      ? {
+                          tone: "rejected",
+                          title: "Rejected",
+                          body: latest.overrideReason ?? latest.summary,
+                        }
+                      : { tone: "review", title: "Needs your review", body: latest.summary }
+                }
+                hash={latest.decisionHash}
+                verifyHref={
+                  detail.program?.published
+                    ? `/p/${detail.program.slug}#verify?d=${latest.decisionHash}`
+                    : null
+                }
+              />
+              <Disclosure title="Decision details" className="mt-3">
+                <dl className="text-muted-foreground mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs">
+                  <dt>Rules</dt>
                   <dd className="font-mono">{latest.ruleVersion}</dd>
                   {latest.promptVersion ? (
                     <>
-                      <dt className="text-muted-foreground">Prompt</dt>
+                      <dt>Prompt</dt>
                       <dd className="font-mono">{latest.promptVersion}</dd>
                     </>
                   ) : null}
                   {latest.model ? (
                     <>
-                      <dt className="text-muted-foreground">Model</dt>
+                      <dt>Model</dt>
                       <dd className="font-mono break-words">{latest.model}</dd>
                     </>
                   ) : null}
                 </dl>
-              </details>
-            </section>
-          ) : detail.submission.lastError ? (
-            <p className="text-warning">Retrying: {detail.submission.lastError}</p>
-          ) : (
-            <p className="text-muted-foreground">The agent hasn&apos;t decided yet.</p>
-          )}
-
-          {latest && latest.flags.length > 0 ? (
-            <section>
-              <h3 className="font-medium">Flags</h3>
-              <ul className="mt-2 grid gap-2">
-                {latest.flags.map((f) => (
-                  <li key={f.code} className="rounded-md border p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${f.severity === "hard" ? "bg-danger-subtle text-danger" : "bg-warning-subtle text-warning"}`}
-                      >
-                        {flagLabel(f.code)}
-                      </span>
-                      <span className="text-muted-foreground font-mono text-[11px]">{f.code}</span>
-                    </div>
-                    <p className="mt-1.5">{f.message}</p>
-                    <dl className="text-muted-foreground mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
-                      {Object.entries(f.evidence)
-                        .filter(([, v]) => v !== null && v !== false && v !== "")
-                        .map(([k, v]) => (
-                          <div key={k} className="contents">
-                            <dt>{EVIDENCE_LABELS[k] ?? k}</dt>
-                            <dd
-                              className={
-                                typeof v === "string" && /^0x[0-9a-fA-F]{16,}$/.test(v)
-                                  ? "[overflow-wrap:anywhere]"
-                                  : "break-words"
-                              }
-                            >
-                              {typeof v === "string" && /^https?:\/\//.test(v) ? (
-                                <a href={v} target="_blank" rel="noreferrer" className="underline">
-                                  {v}
-                                </a>
-                              ) : v === true ? (
-                                "Yes"
-                              ) : (
-                                String(v).replace(/,(?=\S)/g, ", ")
-                              )}
-                            </dd>
-                          </div>
-                        ))}
-                    </dl>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {agent?.llm ? (
-            <section>
-              <h3 className="font-medium">
-                Scores{" "}
-                <span className="text-muted-foreground font-normal">({agent.categoryKey})</span>
-              </h3>
-              <dl className="mt-2 grid grid-cols-[1fr_auto] gap-y-1">
-                {Object.entries(agent.llm.rubric_scores).map(([k, v]) => (
-                  <div key={k} className="contents">
-                    <dt className="capitalize">{k.replace(/_/g, " ")}</dt>
-                    <dd className="font-mono tabular-nums">{v}/10</dd>
-                  </div>
-                ))}
-                <dt className="text-muted-foreground border-t pt-1">Points</dt>
-                <dd className="border-t pt-1 font-mono tabular-nums">{agent.points}</dd>
-                <dt className="text-muted-foreground">Agent confidence</dt>
-                <dd className="font-mono tabular-nums">
-                  {Math.round(agent.llm.confidence * 100)}%
-                </dd>
-              </dl>
-              <ul className="mt-3 list-disc pl-5">
-                {agent.llm.reasons.map((r, i) => (
-                  <li key={i}>{r}</li>
-                ))}
-              </ul>
+              </Disclosure>
             </section>
           ) : null}
 
           {detail.content ? (
-            <section>
-              <h3 className="font-medium">Content</h3>
+            <Disclosure title="What was submitted" className="border-t pt-4">
               <p className="text-muted-foreground mt-1 text-xs">
                 {[
                   detail.content.author && `by ${detail.content.author}`,
@@ -372,11 +358,11 @@ function DrawerBody({
               {detail.content.title ? (
                 <p className="mt-2 font-medium">{detail.content.title}</p>
               ) : null}
-              <pre className="bg-muted mt-2 max-h-72 overflow-auto rounded-md p-3 font-sans text-[13px] whitespace-pre-wrap">
+              <pre className="bg-muted mt-2 max-h-72 overflow-auto rounded-xl p-3 font-sans text-[13px] whitespace-pre-wrap">
                 {detail.content.text}
                 {detail.content.truncated ? "\n…" : ""}
               </pre>
-            </section>
+            </Disclosure>
           ) : null}
 
           {decided ? (
@@ -387,7 +373,7 @@ function DrawerBody({
                 <Input
                   id="ov-amount"
                   inputMode="decimal"
-                  className="max-w-40 font-mono tabular-nums"
+                  className="max-w-40 tabular-nums"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />

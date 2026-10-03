@@ -34,7 +34,7 @@ export function UsdcInput({
           id={id}
           inputMode="decimal"
           autoComplete="off"
-          className="pr-16 font-mono tabular-nums"
+          className="pr-16 tabular-nums"
           value={value}
           aria-invalid={!!error}
           aria-describedby={`${id}-help`}

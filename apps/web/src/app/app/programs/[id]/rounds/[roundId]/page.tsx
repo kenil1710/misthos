@@ -13,16 +13,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApproveRound, OwnerWallet } from "@/components/vault/islands";
+import { ApproveRound } from "@/components/vault/islands";
+import { CoinsArt } from "@/components/brand/illustrations";
+import { Stepper } from "@/components/ui-kit/stepper";
+import { roundLifecycle } from "@/lib/round-lifecycle";
+import { ArrowUpRight } from "lucide-react";
 import { CloseRoundNow } from "@/components/vault/close-round";
 import { getProgramForMember } from "@/lib/server/queries";
 import { getRoundDetail, listRounds } from "@/lib/server/rounds-view";
-import { Card, Notice, PageHeader, Stat } from "@/components/ui-kit";
+import { Notice, PageHeader } from "@/components/ui-kit";
 import { Term } from "@/components/ui-kit/term";
-import { utc } from "@/lib/time";
+import { shortUtc, utc } from "@/lib/time";
 import { isScheduled } from "@/lib/rounds";
 import { getOwnerSession } from "@/lib/server/session";
 import { explorerAddress, explorerTx, readVault } from "@/lib/server/vault";
+import { programNameForTitle } from "@/lib/server/titles";
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/app/programs/[id]/rounds/[roundId]">) {
+  const { id } = await params;
+  const name = await programNameForTitle(id);
+  return { title: name ? `Round · ${name}` : "Round" };
+}
 
 const ROUND_STATUS_TEXT: Record<string, string> = {
   open: "Open for submissions",
@@ -34,14 +47,6 @@ const ROUND_STATUS_TEXT: Record<string, string> = {
   failed: "Failed",
   cancelled: "Cancelled",
 };
-
-const STEPS = [
-  ["round.closed", "Closed"],
-  ["round.planned", "Payouts planned"],
-  ["round.proposed", "Proposed on-chain"],
-  ["round.approved", "Approved by owner"],
-  ["round.executed", "Executed"],
-] as const;
 
 export default async function RoundPage({
   params,
@@ -57,17 +62,21 @@ export default async function RoundPage({
   const { round, payouts, events } = detail;
   const vault = row.program.vaultAddress as Address | null;
   const verifyBase = row.program.status === "draft" ? null : `/p/${row.program.slug}`;
-  const chain = vault ? await readVault(vault).catch(() => null) : null;
+  // Only a proposed round can need the owner's approval, so only then is the vault read (an RPC call).
+  const chain =
+    vault && round.status === "proposed" ? await readVault(vault).catch(() => null) : null;
   const needsApproval =
     round.status === "proposed" && chain && round.totalAmount > chain.limits.autoApproveThreshold;
-  const txFor: Record<string, string | null> = {
-    "round.proposed": round.txHashPropose,
-    "round.approved": round.txHashApprove,
-    "round.executed": round.txHashExecute,
-  };
   const openRound =
     round.status === "open" ? (await listRounds(id)).find((r) => r.id === round.id) : undefined;
   const nothingToPay = events.some((e) => e.action === "round.nothing_to_pay");
+  const lifecycle = roundLifecycle({
+    ...round,
+    scheduled: isScheduled(round),
+    events,
+    needsApproval: !!needsApproval,
+    nothingToPay,
+  });
   const planned = events.find((e) => e.action === "round.planned")?.data as
     { deferred?: { submissionId: string; reason: string }[] } | undefined;
 
@@ -83,9 +92,7 @@ export default async function RoundPage({
         meta={<RoundStatus status={isScheduled(round) ? "scheduled" : round.status} />}
         description={`${utc(round.startsAt)} to ${utc(round.endsAt)}`}
         actions={
-          needsApproval && row.role === "owner" ? (
-            <OwnerWallet owner={session.addr} />
-          ) : round.status === "open" && !isScheduled(round) && row.role === "owner" && vault ? (
+          round.status === "open" && !isScheduled(round) && row.role === "owner" && vault ? (
             <CloseRoundNow
               roundId={round.id}
               roundNumber={round.number}
@@ -97,23 +104,101 @@ export default async function RoundPage({
         }
       />
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="Round totals">
-        <Stat
-          label="Total"
-          value={formatUsdc(round.totalAmount, { withSymbol: false })}
-          hint="USDC"
+      {round.status === "executed" && !nothingToPay ? (
+        <section
+          aria-label="Round paid"
+          className="bg-brand-subtle relative overflow-hidden rounded-[1.5rem] p-6 sm:p-8"
+        >
+          <CoinsArt className="pointer-events-none absolute -right-2 -bottom-4 hidden size-40 sm:block animate-in slide-in-from-top-3 fade-in fill-mode-both delay-300 duration-1000" />
+          <p className="text-brand text-sm font-medium">Paid on Arc</p>
+          <p className="display text-brand mt-1 text-[3rem] leading-none tabular-nums sm:text-[4rem]">
+            {formatUsdc(round.totalAmount, { withSymbol: false })}
+            <span className="ml-2 font-sans text-lg">USDC</span>
+          </p>
+          <p className="text-soft mt-3 text-sm">
+            to {payouts.length} contributor{payouts.length === 1 ? "" : "s"}
+            {round.executedAt ? ` · ${utc(round.executedAt)}` : ""}
+          </p>
+          {round.txHashExecute ? (
+            <a
+              href={explorerTx(round.txHashExecute)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-brand mt-4 inline-flex items-center gap-1.5 text-sm underline-offset-4 hover:underline"
+            >
+              View the transaction{" "}
+              <span className="font-mono">{shortHex(round.txHashExecute, 6, 4)}</span>
+              <ArrowUpRight className="size-3.5" strokeWidth={1.5} aria-hidden="true" />
+            </a>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section
+        aria-labelledby="life-h"
+        className="bg-card shadow-soft rounded-[1.25rem] p-5 sm:p-7"
+      >
+        <div className="mb-5 flex flex-wrap items-baseline justify-between gap-3">
+          <h2 id="life-h" className="text-lg font-medium">
+            Where this round is
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            {nothingToPay
+              ? "Closed: nothing to pay"
+              : (ROUND_STATUS_TEXT[round.status] ?? round.status)}
+            {" · "}
+            <span className="tabular-nums">{formatUsdc(round.totalAmount)}</span> in{" "}
+            {payouts.length} payout
+            {payouts.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <Stepper
+          orientation="horizontal"
+          label="Round progress"
+          steps={lifecycle.map((st) => ({
+            key: st.key,
+            label: st.label,
+            status: st.state,
+            meta: st.meta ?? (st.at ? shortUtc(st.at) : undefined),
+            detail: st.txHash ? (
+              <a
+                href={explorerTx(st.txHash)}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono underline-offset-4 hover:underline"
+              >
+                {shortHex(st.txHash, 6, 4)}
+              </a>
+            ) : (
+              st.detail
+            ),
+          }))}
         />
-        <Stat label="Payouts" value={payouts.length} hint="one per contributor" />
-        <Stat
-          label="Status"
-          value={
-            <span className="font-sans text-base">
-              {nothingToPay
-                ? "Closed: nothing to pay"
-                : (ROUND_STATUS_TEXT[round.status] ?? round.status)}
-            </span>
-          }
-        />
+        {needsApproval && row.role === "owner" && vault && round.roundIdBytes32 ? (
+          <div className="bg-warning-subtle/60 mt-6 grid gap-3 rounded-2xl p-5">
+            <p className="text-sm leading-relaxed">
+              This round totals {formatUsdc(round.totalAmount)}, above the{" "}
+              {formatUsdc(chain!.limits.autoApproveThreshold)} you allow without{" "}
+              <Term k="approvalThreshold">approval</Term>. Check the payouts below, then approve.
+              The agent sends them right after.
+            </p>
+            <ApproveRound
+              roundId={round.id}
+              roundNumber={round.number}
+              vault={vault}
+              roundIdBytes32={round.roundIdBytes32 as Hex}
+              owner={session.addr as Address}
+              total={round.totalAmount.toString()}
+              payoutCount={payouts.length}
+            />
+          </div>
+        ) : null}
+        {round.decisionRoot ? (
+          <p className="text-muted-foreground mt-5 flex flex-wrap items-center gap-2 text-xs">
+            <Term k="decisionHash">Decision root</Term>
+            <HexValue value={round.decisionRoot} label="decision root" />
+          </p>
+        ) : null}
       </section>
 
       {round.lastError ? (
@@ -122,71 +207,8 @@ export default async function RoundPage({
           {round.lastError}
         </Notice>
       ) : null}
-      {needsApproval && row.role === "owner" && vault && round.roundIdBytes32 ? (
-        <Card
-          title="Your approval is needed"
-          description={
-            <>
-              This round totals {formatUsdc(round.totalAmount)}, above the{" "}
-              {formatUsdc(chain!.limits.autoApproveThreshold)} you allow without{" "}
-              <Term k="approvalThreshold">approval</Term>. Check the payouts below, then approve.
-              The agent sends them right after.
-            </>
-          }
-        >
-          <ApproveRound
-            roundId={round.id}
-            roundNumber={round.number}
-            vault={vault}
-            roundIdBytes32={round.roundIdBytes32 as Hex}
-            owner={session.addr as Address}
-            total={round.totalAmount.toString()}
-            payoutCount={payouts.length}
-          />
-        </Card>
-      ) : null}
-
       <section>
-        <h2 className="text-base font-medium">Timeline</h2>
-        <ol className="mt-3 grid gap-2 text-sm">
-          {STEPS.map(([action, label]) => {
-            const e = events.find((x) => x.action === action);
-            const tx = txFor[action];
-            return (
-              <li
-                key={action}
-                className={`flex flex-wrap items-center gap-x-3 ${e ? "" : "text-muted-foreground"}`}
-              >
-                <span
-                  className={`size-2 rounded-full ${e ? "bg-success" : "bg-muted-foreground/40"}`}
-                  aria-hidden="true"
-                />
-                <span className="w-40">{label}</span>
-                <span className="text-muted-foreground tabular-nums">{e ? utc(e.at) : "—"}</span>
-                {tx ? (
-                  <a
-                    href={explorerTx(tx)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-mono text-[13px] hover:underline"
-                  >
-                    {shortHex(tx, 6, 4)}
-                  </a>
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
-        {round.decisionRoot ? (
-          <p className="text-muted-foreground mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <Term k="decisionHash">Decision root</Term>
-            <HexValue value={round.decisionRoot} label="decision root" />
-          </p>
-        ) : null}
-      </section>
-
-      <section>
-        <h2 className="text-base font-medium">Payouts</h2>
+        <h2 className="text-lg font-medium">Payouts</h2>
         {payouts.length === 0 ? (
           <p className="text-muted-foreground mt-3 text-sm">
             {round.status === "open"
@@ -194,16 +216,12 @@ export default async function RoundPage({
               : "Nothing to pay in this round."}
           </p>
         ) : (
-          <div className="bg-card mt-3 overflow-x-auto rounded-xl border">
+          <div className="bg-card shadow-soft mt-3 overflow-x-auto rounded-[1.25rem] px-1">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Contributor</TableHead>
-                  <TableHead>Wallet</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>
-                    <Term k="decisionHash">Decision hash</Term>
-                  </TableHead>
                   <TableHead>Records</TableHead>
                   <TableHead>Transaction</TableHead>
                 </TableRow>
@@ -211,19 +229,16 @@ export default async function RoundPage({
               <TableBody>
                 {payouts.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell>@{p.xHandle}</TableCell>
                     <TableCell>
+                      <div className="font-medium">@{p.xHandle}</div>
                       <HexValue
                         value={p.toAddress}
                         label="payee wallet"
                         href={explorerAddress(p.toAddress)}
                       />
                     </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">
+                    <TableCell className="text-right tabular-nums">
                       {formatUsdc(p.amount, { withSymbol: false })}
-                    </TableCell>
-                    <TableCell>
-                      <HexValue value={p.decisionHash} label="payout decision hash" />
                     </TableCell>
                     <TableCell>
                       {/* The payout hash commits to these records; each can be verified on the public page. */}

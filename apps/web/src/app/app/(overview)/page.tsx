@@ -13,6 +13,8 @@ import { exampleAuditSlug } from "@/lib/server/landing";
 import { programSummaries } from "@/lib/server/program-summary";
 import { getContributorSession, getOwnerSession } from "@/lib/server/session";
 
+export const metadata = { title: "Your programs" };
+
 export default async function OverviewPage() {
   const session = await getOwnerSession();
   if (!session) return null; // layout renders sign-in

@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ComponentType, ReactNode } from "react";
+import { Suspense, type ComponentType, type ReactNode } from "react";
+import { SignedOutNotice } from "@/components/landing/signed-out-notice";
 import {
   BoxArt,
   CoinsArt,
@@ -52,6 +53,9 @@ export default async function Home() {
   return (
     <>
       <SiteHeader />
+      <Suspense fallback={null}>
+        <SignedOutNotice />
+      </Suspense>
       <main id="main" className="flex-1">
         {/* 1 · Hero */}
         <section className="mx-auto grid max-w-[1240px] grid-cols-[minmax(0,1fr)] items-center gap-14 px-4 pt-14 sm:px-6 md:pt-24 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:gap-10">

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export function SignOutButton({
@@ -10,7 +9,6 @@ export function SignOutButton({
   kind: "owner" | "contributor";
   className?: string;
 }) {
-  const router = useRouter();
   return (
     <Button
       variant="ghost"
@@ -22,7 +20,9 @@ export function SignOutButton({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ kind }),
         });
-        router.refresh();
+        // A full load of the landing page: wallet state and cached app pages are dropped with the session.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load is the point
+        window.location.assign(`/?signed_out=${kind}`);
       }}
     >
       Sign out

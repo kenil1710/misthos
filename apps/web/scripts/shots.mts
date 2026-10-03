@@ -42,14 +42,36 @@ const token = (c: Record<string, unknown>) =>
     .sign(key);
 
 type Who = "anon" | "owner" | "contributor" | "both";
-const PAGES: { name: string; path: string; who: Who }[] = [
+const PAGES: { name: string; path: string; who: Who; click?: string }[] = [
   { name: "landing-signed-in", path: "/", who: "both" },
   { name: "landing", path: "/", who: "anon" },
   { name: "home", path: "/app", who: "both" },
   { name: "program-overview", path: `/app/programs/${show.programId}`, who: "owner" },
   { name: "program-overview-new", path: `/app/programs/${show.setupProgramId}`, who: "owner" },
   { name: "submissions", path: `/app/programs/${show.programId}/submissions`, who: "owner" },
+  {
+    name: "submissions-board",
+    path: `/app/programs/${show.programId}/submissions?view=board`,
+    who: "owner",
+  },
+  {
+    name: "submission-drawer",
+    path: `/app/programs/${show.programId}/submissions`,
+    who: "owner",
+    click: "Review submission by @carol_writes",
+  },
+  {
+    name: "submission-drawer-flagged",
+    path: `/app/programs/${show.programId}/submissions`,
+    who: "owner",
+    click: "Review submission by @eve_tests",
+  },
   { name: "rounds", path: `/app/programs/${show.programId}/rounds`, who: "owner" },
+  {
+    name: "round-detail",
+    path: `/app/programs/${show.programId}/rounds/${show.round1}`,
+    who: "owner",
+  },
   { name: "treasury", path: `/app/programs/${show.programId}/treasury`, who: "owner" },
   { name: "settings", path: `/app/programs/${show.programId}/settings`, who: "owner" },
   { name: "audit-log", path: `/app/programs/${show.programId}/audit`, who: "owner" },
@@ -111,12 +133,18 @@ async function run(browser: Browser) {
           window.scrollTo(0, 0);
         });
         await page.waitForTimeout(900);
+        if (p.click) {
+          await page.getByRole("button", { name: p.click }).first().click();
+          await page.getByRole("dialog").waitFor();
+          await page.waitForLoadState("networkidle");
+          await page.waitForTimeout(800);
+        }
         const wide = await page.evaluate(
           () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         );
         if (wide) overflow.push(`${p.name} @${width} ${theme}`);
         const file = `${p.name}-${width}-${theme}.png`;
-        await page.screenshot({ path: path.join(OUT, file), fullPage: true });
+        await page.screenshot({ path: path.join(OUT, file), fullPage: !p.click });
         console.log("  ", file, page.url().replace(BASE, ""));
         await ctx.close();
       }
@@ -129,4 +157,6 @@ try {
   await browser.close();
 }
 writeFileSync(path.join(OUT, "overflow.json"), JSON.stringify(overflow, null, 2));
-console.log(overflow.length ? `horizontal overflow: ${overflow.join("; ")}` : "no horizontal overflow");
+console.log(
+  overflow.length ? `horizontal overflow: ${overflow.join("; ")}` : "no horizontal overflow",
+);
