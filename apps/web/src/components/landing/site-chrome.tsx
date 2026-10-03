@@ -1,19 +1,19 @@
 import Link from "next/link";
-import { Wordmark } from "@/components/brand/wordmark";
+import { Mark, Wordmark } from "@/components/brand/wordmark";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { AccountNav } from "./account-nav";
 import { Button } from "@/components/ui/button";
 import { explorerAddress, factoryAddress } from "@/lib/landing-links";
+import { AccountNav } from "./account-nav";
 
 export function SiteHeader() {
   return (
-    <header className="bg-background/95 sticky top-0 z-40 border-b supports-[backdrop-filter]:bg-background/85 supports-[backdrop-filter]:backdrop-blur-sm">
-      <div className="mx-auto flex h-14 max-w-[1200px] items-center justify-between gap-4 px-4 sm:px-6">
+    <header className="bg-background/80 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-40 supports-[backdrop-filter]:backdrop-blur-md">
+      <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" aria-label="Misthos home" className="rounded-md">
           <Wordmark />
         </Link>
         <nav aria-label="Main" className="flex items-center gap-1">
-          <div className="hidden items-center gap-1 sm:flex">
+          <div className="hidden items-center gap-1 md:flex">
             <Button asChild variant="ghost" size="sm" className="text-soft">
               <a href="#how-it-works">How it works</a>
             </Button>
@@ -34,13 +34,18 @@ export function SiteHeader() {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t">
-      <div className="mx-auto grid max-w-[1200px] gap-8 px-4 py-12 sm:px-6 md:grid-cols-12">
+    <footer className="bg-card mt-32 rounded-t-[2rem] md:mt-40">
+      <div className="mx-auto grid max-w-[1240px] gap-12 px-4 pt-16 pb-10 sm:px-6 md:grid-cols-12 md:pt-20">
         <div className="md:col-span-5">
           <Wordmark />
-          <p className="text-muted-foreground mt-3 max-w-sm text-sm leading-relaxed">
-            Contributor payroll on Arc. Running on Arc testnet with test USDC.
+          <p className="text-soft mt-4 max-w-xs leading-relaxed">
+            Contributor payroll, run by an agent you can audit. Live on Arc testnet with test USDC.
           </p>
+          <Button asChild className="mt-6">
+            <Link href="/app" prefetch={false}>
+              Start a program
+            </Link>
+          </Button>
         </div>
         <nav
           aria-label="Footer"
@@ -48,13 +53,15 @@ export function SiteFooter() {
         >
           <FooterGroup title="Product">
             <Link href="/app" prefetch={false}>
-              Open app
+              Open the app
             </Link>
             <a href="#how-it-works">How it works</a>
-            <a href="#faq">FAQ</a>
+            <a href="#guardrails">Guardrails</a>
+            <a href="#faq">Questions</a>
           </FooterGroup>
           <FooterGroup title="Docs">
             <Link href="/docs">Introduction</Link>
+            <Link href="/docs/quickstart">Quickstart</Link>
             <Link href="/docs/how-the-agent-decides">How the agent decides</Link>
             <Link href="/docs/security">Security</Link>
           </FooterGroup>
@@ -62,9 +69,17 @@ export function SiteFooter() {
             <a href={explorerAddress(factoryAddress)} target="_blank" rel="noreferrer">
               Vault factory
             </a>
-            <Link href="/docs/guardrails">Contract addresses</Link>
+            <Link href="/docs/guardrails#deployed-contracts">Contract addresses</Link>
+            <Link href="/docs/audit-trail">Audit trail</Link>
           </FooterGroup>
         </nav>
+      </div>
+      <div className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-3 border-t px-4 py-6 text-xs sm:px-6">
+        <span className="text-muted-foreground inline-flex items-center gap-2">
+          <Mark className="text-brand size-4" />
+          Misthos pays in USDC on Arc. You keep the keys and the funds.
+        </span>
+        <span className="text-muted-foreground">Arc testnet · test USDC only</span>
       </div>
     </footer>
   );
@@ -74,7 +89,7 @@ function FooterGroup({ title, children }: { title: string; children: React.React
   return (
     <div>
       <p className="font-medium">{title}</p>
-      <div className="text-muted-foreground [&_a:hover]:text-foreground mt-3 flex flex-col gap-2 [&_a]:w-fit [&_a]:rounded-sm [&_a]:transition-colors">
+      <div className="text-muted-foreground [&_a:hover]:text-foreground mt-4 flex flex-col gap-2.5 [&_a]:w-fit [&_a]:rounded-sm [&_a]:transition-colors">
         {children}
       </div>
     </div>

@@ -139,11 +139,11 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
                       {formatUsdc(p.amount, { withSymbol: false })}
                     </TableCell>
                     <TableCell>
-                      <ul className="grid gap-1">
+                      <ul className="grid gap-2">
                         {p.items.map((i) => (
                           <li
                             key={i.submissionId}
-                            className="flex flex-wrap items-center gap-3 text-[13px]"
+                            className="flex min-h-7 flex-wrap items-center gap-3 text-[13px]"
                           >
                             {i.decisionHash ? (
                               <HexValue value={i.decisionHash} label="decision hash" />
@@ -151,7 +151,7 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
                             {i.decisionHash ? (
                               <Link
                                 href={`/p/${program.slug}#verify?d=${i.decisionHash}`}
-                                className="underline-offset-4 hover:underline"
+                                className="inline-flex min-h-6 items-center underline-offset-4 hover:underline"
                               >
                                 Verify
                               </Link>
@@ -160,7 +160,7 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
                               href={i.url}
                               target="_blank"
                               rel="noreferrer"
-                              className="underline underline-offset-4"
+                              className="inline-flex min-h-6 items-center underline underline-offset-4"
                             >
                               Work
                             </a>

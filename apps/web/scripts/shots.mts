@@ -102,7 +102,15 @@ async function run(browser: Browser) {
         await ctx.addCookies(await cookies(p.who));
         const page = await ctx.newPage();
         await page.goto(p.path, { waitUntil: "networkidle" });
-        await page.waitForTimeout(400);
+        // Scroll through once so scroll-reveal content is shown, then back to the top.
+        await page.evaluate(async () => {
+          for (let y = 0; y < document.body.scrollHeight; y += 600) {
+            window.scrollTo(0, y);
+            await new Promise((r) => setTimeout(r, 60));
+          }
+          window.scrollTo(0, 0);
+        });
+        await page.waitForTimeout(900);
         const wide = await page.evaluate(
           () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
         );

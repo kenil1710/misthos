@@ -1,0 +1,41 @@
+{
+  "base": "http://localhost:3200",
+  "at": "2026-10-03T04:36:01.513Z",
+  "rows": [
+    {
+      "page": "Owner overview",
+      "form": "mobile",
+      "scores": {
+        "performance": 91,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 3252,
+      "tbtMs": 142,
+      "cls": 0.025,
+      "jsKb": 737,
+      "failing": [
+        "performance:largest-contentful-paint (3.3 s)",
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Owner overview",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 753,
+      "tbtMs": 0,
+      "cls": 0.013,
+      "jsKb": 811,
+      "failing": [
+        "seo:is-crawlable"
+      ]
+    }
+  ]
+}

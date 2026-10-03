@@ -46,7 +46,9 @@
     ".next-neon/types/**/*.ts",
     ".next-neon/dev/types/**/*.ts",
     ".next-dev2/types/**/*.ts",
-    ".next-dev2/dev/types/**/*.ts"
+    ".next-dev2/dev/types/**/*.ts",
+    ".next-showdev/types/**/*.ts",
+    ".next-showdev/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

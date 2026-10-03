@@ -13,9 +13,9 @@ export function Mark({ className }: { className?: string }) {
 
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-2 font-semibold tracking-tight", className)}>
+    <span className={cn("inline-flex items-center gap-2", className)}>
       <Mark className="text-brand" />
-      <span>Misthos</span>
+      <span className="display text-[1.375rem] leading-none tracking-[-0.01em]">Misthos</span>
     </span>
   );
 }
