@@ -1,5 +1,6 @@
 import { decisions, getDb, submissions } from "@misthos/db";
-import { formatUsdc, Slug, SOURCE_LABELS } from "@misthos/shared";
+import { formatUsdc, Slug } from "@misthos/shared";
+import { listSources } from "@misthos/shared/sources";
 import { and, desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { Check } from "lucide-react";
@@ -7,9 +8,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SignOutButton } from "@/components/app/sign-out-button";
 import { SiteHeader } from "@/components/app/site-header";
-import { WalletLink } from "@/components/contributor/wallet-link";
+import { JoinWallet } from "@/components/contributor/wallet-islands";
+import { PreviewBanner } from "@/components/app/preview-banner";
+import { perfectLine } from "@/lib/program-math";
+import { draftPreviewFor } from "@/lib/server/preview";
 import { Button } from "@/components/ui/button";
-import { Web3Provider } from "@/components/web3/web3-provider";
 import { getContributorMembership, getProgramBySlug, getRounds } from "@/lib/server/queries";
 import { currentRound } from "@/lib/rounds";
 import { getContributorSession } from "@/lib/server/session";
@@ -81,17 +84,22 @@ function JoinStep({
 
 export default async function JoinPage({ params, searchParams }: PageProps<"/join/[slug]">) {
   const { slug } = await params;
-  const program = await load(slug);
+  const program = (await load(slug)) ?? (await draftPreviewFor(slug));
   if (!program) notFound();
+  const preview = program.status !== "active" && program.status !== "paused";
   const xError = (await searchParams).x_error;
-  const session = await getContributorSession();
+  const [session, rounds, example] = await Promise.all([
+    getContributorSession(),
+    getRounds(program.id),
+    bestDecision(program.id),
+  ]);
   const membership = session ? await getContributorMembership(program.id, session.xid) : null;
-  const rounds = await getRounds(program.id);
   const round = currentRound(rounds);
-  const example = await bestDecision(program.id);
+  const first = program.rubricJson.categories[0];
 
   return (
-    <Web3Provider>
+    <>
+      {preview ? <PreviewBanner programId={program.id} what="join page" /> : null}
       <SiteHeader right={session ? <SignOutButton kind="contributor" /> : null} />
       <main
         id="main"
@@ -114,7 +122,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
                 </div>
                 <p className="text-muted-foreground mt-1 text-sm">{c.description}</p>
                 <p className="text-muted-foreground mt-2 text-xs">
-                  {c.sourceTypes.map((t) => SOURCE_LABELS[t]).join(", ")} · scored on{" "}
+                  {listSources(c.sourceTypes)} · scored on{" "}
                   {c.criteria.map((k) => k.name.toLowerCase()).join(", ")}
                 </p>
                 {c.rules ? <p className="mt-2 text-sm">{c.rules}</p> : null}
@@ -175,11 +183,11 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
           ) : (
             <div className="bg-card mt-3 rounded-xl border p-4 text-sm">
               <p className="font-medium">
-                A 10/10 {program.rubricJson.categories[0]?.name.toLowerCase() ?? "submission"} earns{" "}
-                {formatUsdc(
-                  program.ratePerPoint * BigInt(program.rubricJson.categories[0]?.maxPoints ?? 0),
-                )}
-                :
+                {perfectLine(
+                  first?.name ?? "",
+                  formatUsdc(program.ratePerPoint * BigInt(first?.maxPoints ?? 0)),
+                )}{" "}
+                when it scores 10 on:
               </p>
               <ul className="text-soft mt-2 grid list-disc gap-1 pl-5">
                 {(program.rubricJson.categories[0]?.criteria ?? []).map((k) => (
@@ -206,7 +214,11 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
               Round {round.number}: {utcDay(round.startsAt)} to {utcDay(round.endsAt)} (UTC)
             </p>
           ) : null}
-          {program.status === "paused" && !membership ? (
+          {preview ? (
+            <p className="text-muted-foreground mt-3 text-sm">
+              Contributors can join here once you publish the program.
+            </p>
+          ) : program.status === "paused" && !membership ? (
             <p className="mt-3 text-sm">
               This program isn&apos;t accepting new contributors right now.
             </p>
@@ -247,7 +259,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
                         <span className="text-foreground font-medium">@{session.xh}</span>. USDC is
                         paid to this wallet on Arc.
                       </p>
-                      <WalletLink programSlug={program.slug} mode="join" />
+                      <JoinWallet programSlug={program.slug} />
                     </>
                   ) : null}
                 </JoinStep>
@@ -256,6 +268,6 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
           )}
         </aside>
       </main>
-    </Web3Provider>
+    </>
   );
 }

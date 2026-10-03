@@ -1,0 +1,391 @@
+{
+  "base": "http://localhost:3200",
+  "checked": 96,
+  "broken": [],
+  "pages": {
+    "/": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/app": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/c/arc-builders": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/join/arc-builders": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/p/arc-builders": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/docs": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/docs/how-the-agent-decides": {
+      "status": 200,
+      "from": "/"
+    },
+    "/docs/security": {
+      "status": 200,
+      "from": "/"
+    },
+    "/docs/guardrails": {
+      "status": 200,
+      "from": "/"
+    },
+    "/app/programs": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/c": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/app/admin/metrics": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/app/programs/new": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=escalated": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/treasury": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/rounds": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/settings": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/contributors": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/rounds": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/treasury": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/settings": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd"
+    },
+    "/api/auth/github/start?next=%2Fc%2Farc-builders": {
+      "status": 307,
+      "from": "/c/arc-builders"
+    },
+    "/p/arc-builders/rounds/a56401cf-290b-4df2-b5e6-aafb98140010": {
+      "status": 200,
+      "from": "/p/arc-builders"
+    },
+    "/p/arc-builders/rounds/409a53fa-e27e-4988-8070-4712de55ba54": {
+      "status": 200,
+      "from": "/p/arc-builders"
+    },
+    "/docs/quickstart": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/docs/contributors": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/docs/audit-trail": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/docs/architecture": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/docs/faq": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=approved": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=escalated"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=partial": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=escalated"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=paid": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=escalated"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=rejected": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=escalated"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=pending": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/submissions?status=escalated"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors/bc15a9ca-1eb0-469b-a9e2-1535555adb7a": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors/edbbda94-6e76-4ac6-8ca6-ab5923362b44": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors/ca5ae06e-d875-46fc-a9bb-e8dd53342414": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors/0d254a4a-558b-4e56-8776-6383ec24bbb6": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors/6a998a6a-843f-4f44-90ff-1a45beca6e34": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/contributors"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/rounds/409a53fa-e27e-4988-8070-4712de55ba54": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/rounds"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/rounds/a56401cf-290b-4df2-b5e6-aafb98140010": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/rounds"
+    },
+    "/api/owner/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?format=csv": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit"
+    },
+    "/api/owner/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?format=json": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=program": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=decisions": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=contributors": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=rounds": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?actor=agent": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?actor=user": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?actor=system": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions?status=escalated": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions?status=approved": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions?status=partial": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions?status=paid": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions?status=rejected": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions?status=pending": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/submissions"
+    },
+    "/api/owner/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?format=csv": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit"
+    },
+    "/api/owner/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?format=json": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=program": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=decisions": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=contributors": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=rounds": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?actor=agent": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?actor=user": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?actor=system": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=program&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=program"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=program&actor=user": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=program"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=program&actor=system": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=program"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=decisions&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=decisions"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=decisions&actor=user": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=decisions"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=decisions&actor=system": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=decisions"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=contributors&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=contributors"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=contributors&actor=user": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=contributors"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=contributors&actor=system": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=contributors"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=rounds&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=rounds"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=rounds&actor=user": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=rounds"
+    },
+    "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=rounds&actor=system": {
+      "status": 200,
+      "from": "/app/programs/4c27aa55-d813-4c89-98ba-6b2d67fbf63a/audit?group=rounds"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=program&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=program"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=program&actor=user": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=program"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=program&actor=system": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=program"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=decisions&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=decisions"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=decisions&actor=user": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=decisions"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=decisions&actor=system": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=decisions"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=contributors&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=contributors"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=contributors&actor=user": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=contributors"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=contributors&actor=system": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=contributors"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=rounds&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=rounds"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=rounds&actor=user": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=rounds"
+    },
+    "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=rounds&actor=system": {
+      "status": 200,
+      "from": "/app/programs/922b7b29-e96b-4efd-b1f7-bc28f934f4cd/audit?group=rounds"
+    }
+  }
+}

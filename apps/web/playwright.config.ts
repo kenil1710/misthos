@@ -11,7 +11,7 @@ const DB_URL = "postgresql://postgres:postgres@127.0.0.1:54329/postgres?sslmode=
 export const E2E = { baseURL: `http://localhost:${PORT}`, dbUrl: DB_URL };
 
 /**
- * Browser e2e against a throwaway in-memory database (e2e/db-server.mts) and a dev server on :3100.
+ * Browser e2e against a throwaway in-memory database (e2e/db-server.mts) and a production build on :3100.
  * Run: pnpm --filter @misthos/web e2e
  */
 export default defineConfig({
@@ -31,10 +31,13 @@ export default defineConfig({
       stdout: "pipe",
     },
     {
-      command: `next dev -p ${PORT}`,
+      // A production build by default: realistic, and no on-demand compiles stalling clicks. E2E_DEV=1 uses next dev.
+      command: process.env.E2E_DEV
+        ? `next dev -p ${PORT}`
+        : `next build && next start -p ${PORT}`,
       url: `${E2E.baseURL}/api/health`,
       reuseExistingServer: false,
-      timeout: 120_000,
+      timeout: 420_000,
       env: {
         DATABASE_URL: DB_URL,
         DB_POOL_MAX: "1",

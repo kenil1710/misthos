@@ -26,3 +26,5 @@ apps/web/playwright-report
 .qa-wallets.json
 .qa/
 .next-qa
+# Every alternate Next build dir (e2e, QA, showcase, Neon checks, Lighthouse)
+.next-*

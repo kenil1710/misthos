@@ -9,7 +9,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import path from "node:path";
 
-export const E2E_DB_PORT = 54329;
+export const E2E_DB_PORT = Number(process.env.E2E_DB_PORT ?? 54329);
 
 const db = await PGlite.create({ extensions: { pg_trgm } });
 await migrate(drizzle(db), {

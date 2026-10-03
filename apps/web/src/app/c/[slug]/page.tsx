@@ -1,18 +1,20 @@
 import { formatUsdc, Slug } from "@misthos/shared";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { SignOutButton } from "@/components/app/sign-out-button";
 import { SiteHeader } from "@/components/app/site-header";
-import { ChangeWallet } from "@/components/contributor/change-wallet";
+import { ChangeWallet, PayoutWalletBanner } from "@/components/contributor/wallet-islands";
 import { GithubConnect } from "@/components/contributor/github-connect";
-import { formatUsdc as fmt, SOURCE_LABELS } from "@misthos/shared";
+import { Disclosure } from "@/components/ui-kit/disclosure";
+import { contributorNextSteps } from "@/lib/contributor-steps";
 import { Submissions } from "@/components/contributor/submissions";
 import { HexValue } from "@/components/hex-value";
 import { EmptyState, Notice } from "@/components/ui-kit";
-import { Web3Provider } from "@/components/web3/web3-provider";
 import { cooldownEndsAt, currentRound, isScheduled } from "@/lib/rounds";
 import { chainConfig } from "@/lib/server/chain";
 import { contributorDetail } from "@/lib/server/contributors-view";
+import { contributorSubmissionItems } from "@/lib/server/contributor-submissions";
 import { getContributorMembership, getProgramBySlug, getRounds } from "@/lib/server/queries";
 import { getContributorSession } from "@/lib/server/session";
 import { utc, utcDay } from "@/lib/time";
@@ -34,9 +36,10 @@ export default async function ContributorHome({ params, searchParams }: PageProp
 
   const cooldownSeconds = program.limitsJson.payeeCooldownSeconds;
   const cooldownEnds = cooldownEndsAt(me.walletChangedAt, cooldownSeconds);
-  const [detail, rounds] = await Promise.all([
+  const [detail, rounds, initialItems] = await Promise.all([
     contributorDetail(program.id, me.id),
     getRounds(program.id),
+    contributorSubmissionItems(me.id),
   ]);
   const round = currentRound(rounds);
   const scheduled = round ? isScheduled(round) : false;
@@ -59,11 +62,19 @@ export default async function ContributorHome({ params, searchParams }: PageProp
       : 0n;
   const submittedAny = (detail?.submissions.length ?? 0) > 0;
   const sources = [...new Set(program.rubricJson.categories.flatMap((c) => c.sourceTypes))];
-  const wantsGithub = sources.some((t) => t === "github_pr" || t === "github_commit");
 
   return (
-    <Web3Provider>
-      <SiteHeader right={<SignOutButton kind="contributor" />} />
+    <>
+      <SiteHeader
+        right={
+          <>
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link href="/c">Your programs</Link>
+            </Button>
+            <SignOutButton kind="contributor" />
+          </>
+        }
+      />
       <main
         id="main"
         className="mx-auto grid w-full max-w-3xl flex-1 grid-cols-[minmax(0,1fr)] gap-8 px-4 py-8 sm:px-6 sm:py-12"
@@ -88,39 +99,52 @@ export default async function ContributorHome({ params, searchParams }: PageProp
           <Notice>This program has paused new sign-ups. You can keep submitting.</Notice>
         ) : null}
 
+        <PayoutWalletBanner expected={me.walletAddress} />
+
         {!submittedAny ? (
           <section className="bg-card rounded-xl border p-4 sm:p-6" aria-labelledby="next-h">
             <h2 id="next-h" className="font-medium">
               You&apos;re in. Here&apos;s what to do next
             </h2>
-            <ol className="text-soft mt-3 grid list-decimal gap-2 pl-5 text-sm leading-relaxed">
-              <li>
-                Create something this program pays for:{" "}
-                {sources
-                  .map((t) => SOURCE_LABELS[t].replace(/^(?!X )./, (c) => c.toLowerCase()))
-                  .join(", ")}
-                .{sources.includes("x_post") ? ` Post it on X from @${me.xHandle}.` : ""}
-              </li>
-              {wantsGithub && !me.githubUserId ? (
-                <li>
-                  For pull requests or commits, connect GitHub (Account, below) so the agent can
-                  confirm they&apos;re yours.
+            <ol className="mt-4 grid gap-4">
+              {contributorNextSteps({
+                sources,
+                xHandle: me.xHandle,
+                githubConnected: !!me.githubUserId,
+              }).map((step, i) => (
+                <li key={step.title} className="flex gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums"
+                  >
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 text-sm leading-relaxed">
+                    <p className="font-medium">{step.title}</p>
+                    {step.body ? <p className="text-soft">{step.body}</p> : null}
+                    {step.items ? (
+                      <ul className="text-soft mt-1 grid gap-1">
+                        {step.items.map((t) => (
+                          <li key={t}>{t}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
                 </li>
-              ) : null}
-              <li>
-                Paste the link below. The agent reviews it in about a minute and tells you why.
-              </li>
-              <li>Approved work is paid in USDC to your wallet when the round closes.</li>
+              ))}
             </ol>
-            <details className="mt-4 text-sm" open>
-              <summary className="cursor-pointer font-medium">What this program pays for</summary>
-              <ul className="mt-2 grid gap-2">
+            <Disclosure
+              title="What this program pays for"
+              defaultOpen
+              className="mt-5 border-t pt-4"
+            >
+              <ul className="mt-2 grid gap-2 text-sm">
                 {program.rubricJson.categories.map((c) => (
                   <li key={c.key} className="rounded-lg border p-3">
                     <span className="flex justify-between gap-3">
                       <span className="font-medium">{c.name}</span>
                       <span className="mono-num shrink-0">
-                        up to {fmt(program.ratePerPoint * BigInt(c.maxPoints))}
+                        up to {formatUsdc(program.ratePerPoint * BigInt(c.maxPoints))}
                       </span>
                     </span>
                     <span className="text-muted-foreground mt-0.5 block">{c.description}</span>
@@ -132,16 +156,16 @@ export default async function ContributorHome({ params, searchParams }: PageProp
                 ))}
               </ul>
               {program.rubricJson.generalRules ? (
-                <p className="text-soft mt-2 whitespace-pre-line">
+                <p className="text-soft mt-2 text-sm whitespace-pre-line">
                   {program.rubricJson.generalRules}
                 </p>
               ) : null}
-            </details>
+            </Disclosure>
           </section>
         ) : null}
 
         <dl
-          className="bg-card grid grid-cols-2 divide-x rounded-xl border sm:grid-cols-3"
+          className="bg-card grid grid-cols-1 divide-y rounded-xl border sm:grid-cols-3 sm:divide-x sm:divide-y-0"
           aria-label="Your totals"
         >
           <div className="p-4">
@@ -149,7 +173,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
             <dd className="mono-num mt-1 text-xl">{formatUsdc(earned, { withSymbol: false })}</dd>
             <dd className="text-muted-foreground mt-1 text-xs">USDC</dd>
           </div>
-          <div className="col-span-2 border-t p-4 sm:col-span-1 sm:border-t-0">
+          <div className="p-4">
             <dt className="text-muted-foreground text-xs">This round so far</dt>
             <dd className="mono-num mt-1 text-xl">
               {formatUsdc(thisRound, { withSymbol: false })}
@@ -180,6 +204,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
             roundNumber={roundOpen && round ? round.number : null}
             roundEndsAt={roundOpen && round ? round.endsAt.toISOString() : null}
             verifyBase={`/p/${program.slug}`}
+            initial={initialItems}
           />
         </section>
 
@@ -261,6 +286,6 @@ export default async function ContributorHome({ params, searchParams }: PageProp
           </div>
         </section>
       </main>
-    </Web3Provider>
+    </>
   );
 }

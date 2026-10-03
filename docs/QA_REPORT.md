@@ -160,8 +160,7 @@ The only flow not automated, because it needs a real X account.
    reason. A post from before the round starts is rejected as outside the round; that's expected.
 7. Sign out, sign in again: it should go straight through (no second X consent screen is fine either way).
 8. If anything fails, the join page shows a plain message (cancelled, expired, X unavailable). Note which one.
-9. Under **Account → GitHub**, click **Connect GitHub** and approve. You should come back with "Connected as
-   @yourlogin". GitHub only shows your public profile; Misthos asks for no scopes and revokes the token right away.
+9. Under **Account → GitHub**, click **Connect GitHub** and approve. You should come back with "GitHub connected." and "@yourlogin verified". GitHub only shows your public profile; Misthos asks for no scopes and revokes the token right away.
    Then submit one of your own pull requests: it's checked against your verified GitHub id.
 
 ## Update 2026-10-03: GitHub ownership

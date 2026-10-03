@@ -1,0 +1,67 @@
+{
+  "base": "http://localhost:3200",
+  "durationS": 15,
+  "connections": 20,
+  "rows": [
+    {
+      "target": "Landing (/)",
+      "requests": 43762,
+      "rps": 2918,
+      "p50ms": 6,
+      "p90ms": 6,
+      "p97_5ms": 12,
+      "p99ms": 12,
+      "errors": 0,
+      "statuses": {
+        "2xx": 43762,
+        "4xx": 0,
+        "5xx": 0
+      }
+    },
+    {
+      "target": "Join page",
+      "requests": 5772,
+      "rps": 385,
+      "p50ms": 50,
+      "p90ms": 55,
+      "p97_5ms": 63,
+      "p99ms": 68,
+      "errors": 0,
+      "statuses": {
+        "2xx": 5772,
+        "4xx": 0,
+        "5xx": 0
+      }
+    },
+    {
+      "target": "Public audit",
+      "requests": 5415,
+      "rps": 361,
+      "p50ms": 53,
+      "p90ms": 56,
+      "p97_5ms": 84,
+      "p99ms": 99,
+      "errors": 0,
+      "statuses": {
+        "2xx": 5415,
+        "4xx": 0,
+        "5xx": 0
+      }
+    },
+    {
+      "target": "Submit API (POST)",
+      "requests": 7874,
+      "rps": 525,
+      "p50ms": 25,
+      "p90ms": 27,
+      "p97_5ms": 29,
+      "p99ms": 30,
+      "errors": 0,
+      "statuses": {
+        "2xx": 0,
+        "4xx": 7874,
+        "5xx": 0
+      }
+    }
+  ]
+}

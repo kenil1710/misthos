@@ -152,7 +152,11 @@ export const programMembers = pgTable(
     role: memberRole("role").notNull(),
     ...timestamps,
   },
-  (t) => [primaryKey({ columns: [t.programId, t.userId] })],
+  (t) => [
+    primaryKey({ columns: [t.programId, t.userId] }),
+    // "Which programs is this person a member of" (every owner page and the sidebar).
+    index("program_members_user_idx").on(t.userId),
+  ],
 );
 
 export const contributors = pgTable(
@@ -190,6 +194,8 @@ export const contributors = pgTable(
     // One payout wallet per contributor per program: blocks the simplest multi-account farming.
     uniqueIndex("contributors_program_wallet_uq").on(t.programId, t.walletAddress),
     index("contributors_user_idx").on(t.userId),
+    // "Programs you joined": every program an X account is in.
+    index("contributors_x_user_idx").on(t.xUserId),
   ],
 );
 
@@ -260,6 +266,8 @@ export const submissions = pgTable(
     index("submissions_program_status_idx").on(t.programId, t.status),
     index("submissions_round_idx").on(t.roundId),
     index("submissions_payout_idx").on(t.payoutId),
+    // A contributor's own submissions, newest first (their page and its status poll).
+    index("submissions_contributor_created_idx").on(t.contributorId, t.createdAt),
   ],
 );
 
@@ -335,7 +343,11 @@ export const payouts = pgTable(
     status: payoutStatus("status").notNull().default("pending"),
     ...timestamps,
   },
-  (t) => [uniqueIndex("payouts_round_contributor_uq").on(t.roundId, t.contributorId)],
+  (t) => [
+    uniqueIndex("payouts_round_contributor_uq").on(t.roundId, t.contributorId),
+    // A contributor's earnings and payout history.
+    index("payouts_contributor_idx").on(t.contributorId),
+  ],
 );
 
 // ─── Audit + usage ──────────────────────────────────────────────────────────

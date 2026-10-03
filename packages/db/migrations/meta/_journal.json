@@ -36,6 +36,13 @@
       "when": 1790961463458,
       "tag": "0004_github_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790983419267,
+      "tag": "0005_hot_path_indexes",
+      "breakpoints": true
     }
   ]
 }

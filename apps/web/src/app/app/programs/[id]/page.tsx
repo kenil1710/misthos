@@ -1,41 +1,35 @@
-import { payouts, getDb, rounds as roundsTable } from "@misthos/db";
 import { formatUsdc } from "@misthos/shared";
-import { and, eq, sql } from "drizzle-orm";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Address } from "viem";
 import { z } from "zod";
 import { ProgramStatus } from "@/components/app/program-status";
-import { SetupChecklist, StepLink, type SetupStep } from "@/components/app/setup-checklist";
+import { SetupChecklist, type SetupStep } from "@/components/app/setup-checklist";
 import { Button } from "@/components/ui/button";
 import { Card, Notice, PageHeader, Stat } from "@/components/ui-kit";
 import { CopyField } from "@/components/ui-kit/copy-field";
 import { Term } from "@/components/ui-kit/term";
-import { DeployVault } from "@/components/vault/deploy-vault";
-import { FundVault } from "@/components/vault/fund-vault";
-import { OwnerWallet } from "@/components/vault/owner-wallet";
-import { currentRound, recentlyChanged } from "@/lib/rounds";
+import { DeployVault, FundVault, OwnerWallet } from "@/components/vault/islands";
+import { currentRound } from "@/lib/rounds";
 import { appOrigin } from "@/lib/server/env";
-import {
-  getProgramForMember,
-  getRounds,
-  listContributors,
-  submissionCounts,
-} from "@/lib/server/queries";
-import { getOwnerSession } from "@/lib/server/session";
-import {
-  agentAddress,
-  factoryAddress,
-  programIdBytes32,
-  readVault,
-  usdcAddress,
-} from "@/lib/server/vault";
-import { utcDay } from "@/lib/time";
+import { getProgramForMember, getRounds, submissionCounts } from "@/lib/server/queries";
+import { Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { programSummary } from "@/lib/server/program-summary";
+import { programStatusLine } from "@/lib/status-line";
+import { JoinPagePreview, NeedsYou } from "@/components/app/program-home";
+import { CopyButton } from "@/components/ui-kit/copy-button";
+import { getOwnerSession, type OwnerSession } from "@/lib/server/session";
+import { agentAddress, factoryAddress, programIdBytes32, usdcAddress } from "@/lib/server/vault";
 import { PublishButton } from "./publish-button";
 import { ShareOnX } from "@/components/app/share-on-x";
 import { shareOnXUrl } from "@/lib/share";
 
+/**
+ * The header (name, description, status) renders from one quick query and streams first; everything that needs
+ * vault reads and counts streams in behind it, so the page paints fast even when Arc's RPC is slow.
+ */
 export default async function ProgramPage({ params }: PageProps<"/app/programs/[id]">) {
   const session = await getOwnerSession();
   if (!session) return null;
@@ -44,30 +38,59 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
   const row = await getProgramForMember(id, session.sub);
   if (!row) notFound();
   const { program, role } = row;
+  const published = program.status === "active" || program.status === "paused";
+  return (
+    <div className="grid gap-8">
+      <PageHeader
+        title={program.name}
+        meta={<ProgramStatus status={program.status} />}
+        description={program.description}
+        actions={
+          <>
+            {role === "owner" ? <OwnerWallet owner={session.addr} /> : null}
+            {published ? (
+              <Button asChild variant="ghost" size="sm">
+                <Link href={`/p/${program.slug}`} target="_blank">
+                  Public audit page
+                  <ArrowUpRight className="size-3.5" strokeWidth={1.5} />
+                </Link>
+              </Button>
+            ) : null}
+            {role === "owner" && published ? (
+              <PublishButton programId={program.id} status={program.status} />
+            ) : null}
+          </>
+        }
+      />
+      <Suspense fallback={<OverviewSkeleton />}>
+        <OverviewBody id={id} session={session} />
+      </Suspense>
+    </div>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <div className="-mt-2 grid gap-8" aria-busy="true" aria-label="Loading program">
+      <Skeleton className="h-[52px] rounded-xl" />
+      <Skeleton className="h-28 rounded-xl" />
+      <Skeleton className="h-64 rounded-xl" />
+    </div>
+  );
+}
+
+async function OverviewBody({ id, session }: { id: string; session: OwnerSession }) {
+  const summary = await programSummary(id, session.sub);
+  if (!summary) notFound();
+  const { program, role } = summary;
   const isOwner = role === "owner";
-  const [rounds, contributors, counts, [paid]] = await Promise.all([
-    getRounds(program.id),
-    listContributors(program.id),
-    submissionCounts(program.id),
-    getDb()
-      .select({ n: sql<number>`count(*)::int` })
-      .from(payouts)
-      .innerJoin(roundsTable, eq(roundsTable.id, payouts.roundId))
-      .where(and(eq(roundsTable.programId, program.id), eq(payouts.status, "executed"))),
-  ]);
-  const total = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
+  const [rounds, counts] = await Promise.all([getRounds(program.id), submissionCounts(program.id)]);
+  const total = summary.submissions;
   const limits = program.limitsJson;
   const joinUrl = `${appOrigin()}/join/${program.slug}`;
   const agent = agentAddress();
   const vault = program.vaultAddress as Address | null;
-  const vaultState = vault ? await readVault(vault).catch(() => null) : null;
-  const awaiting = rounds.filter(
-    (r) =>
-      r.status === "proposed" &&
-      vaultState &&
-      r.totalAmount > vaultState.limits.autoApproveThreshold,
-  );
-  const recentPayeeChanges = recentlyChanged(contributors, limits.payeeCooldownSeconds);
+  const vaultState = summary.vault;
   const current = currentRound(rounds);
   const published = program.status === "active" || program.status === "paused";
   const needsReview = counts.escalated ?? 0;
@@ -142,134 +165,129 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
     {
       key: "share",
       title: "Publish and share the join link",
-      done: published && contributors.length > 0,
-      description: published
-        ? "The join page is open. Send this link to your contributors; they sign in with X and link a payout wallet."
-        : "Open the join page, then send the link to your contributors.",
-      doneNote: `${contributors.length} contributor${contributors.length === 1 ? "" : "s"} joined.`,
-      action: (
-        <div className="grid max-w-xl gap-3">
-          {published ? (
+      done: published,
+      description: "Open the join page so contributors can sign up.",
+      action: isOwner ? (
+        <PublishButton programId={program.id} status={program.status} size="default" />
+      ) : null,
+    },
+  ];
+
+  // Publishing is allowed at any time: the status bar offers it unless the checklist is already showing it.
+  const shareIsNext = steps.findIndex((s) => !s.done) === 2;
+  const setupDone = steps.every((s) => s.done);
+  const line = programStatusLine({
+    status: program.status,
+    round: summary.round,
+    submissions: total,
+    readyToPay: summary.readyToPay,
+  });
+
+  return (
+    <div className="-mt-2 grid gap-8">
+      <section
+        aria-label="Status"
+        className="bg-card flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-xl border px-4 py-3 sm:px-5"
+      >
+        <p className="text-sm">
+          {line.map((part, i) => (
+            <span key={part}>
+              {i ? <span className="text-muted-foreground">{" · "}</span> : null}
+              <span className={i === 0 ? "font-medium" : "text-soft"}>{part}</span>
+            </span>
+          ))}
+        </p>
+        {published ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <CopyButton value={joinUrl} label="Copy join link" />
+            <ShareOnX href={shareHref} />
+          </div>
+        ) : isOwner && !shareIsNext ? (
+          <PublishButton programId={program.id} status={program.status} />
+        ) : null}
+      </section>
+
+      {setupDone || summary.needs.length ? <NeedsYou items={summary.needs} /> : null}
+
+      <SetupChecklist steps={steps} />
+
+      {setupDone && total === 0 ? (
+        <section
+          aria-labelledby="first-h"
+          className="bg-card grid gap-6 rounded-xl border p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]"
+        >
+          <div className="grid content-start gap-4">
+            <div>
+              <h2 id="first-h" className="text-base font-medium">
+                Get your first submissions
+              </h2>
+              <p className="text-muted-foreground mt-1 text-sm">
+                Contributors join with this link, sign in with X and paste links to their work. The
+                agent reviews each one in about a minute; you&apos;ll see it here.
+              </p>
+            </div>
             <CopyField
               value={joinUrl}
               label="join link"
               display={joinUrl.replace(/^https?:\/\//, "")}
             />
-          ) : null}
-          {isOwner && !published ? (
-            <PublishButton programId={program.id} status={program.status} size="default" />
-          ) : null}
-          {published ? (
-            <div>
-              <ShareOnX href={shareHref} />
-            </div>
-          ) : null}
-          {published ? (
-            <p className="text-muted-foreground text-xs">
-              This step completes when the first contributor joins.
-            </p>
-          ) : null}
-        </div>
-      ),
-    },
-    {
-      key: "submission",
-      title: "Receive the first submission",
-      done: total > 0,
-      description:
-        "Contributors paste links to their work. The agent reviews each one in about a minute.",
-      doneNote: `${total} submission${total === 1 ? "" : "s"} so far.`,
-      action: <StepLink href={`${base}/submissions`}>Open submissions</StepLink>,
-    },
-    {
-      key: "payout",
-      title: "Send the first payout",
-      done: (paid?.n ?? 0) > 0,
-      description: current
-        ? `Approved work is paid when round ${current.number} closes on ${utcDay(current.endsAt)}, or close it early from Rounds.`
-        : "Approved work is paid when the round closes.",
-      action: <StepLink href={`${base}/rounds`}>Go to rounds</StepLink>,
-    },
-  ];
-
-  // Publishing is allowed at any time; the header offers it unless the checklist is already showing it.
-  const shareIsNext = steps.findIndex((s) => !s.done) === 2;
-
-  return (
-    <div className="grid gap-8">
-      <PageHeader
-        title={program.name}
-        meta={<ProgramStatus status={program.status} />}
-        description={program.description}
-        actions={
-          <>
-            {isOwner ? <OwnerWallet owner={session.addr} /> : null}
-            {published ? <ShareOnX href={shareHref} /> : null}
-            {published ? (
-              <Button asChild variant="ghost" size="sm">
-                <Link href={`/p/${program.slug}`} target="_blank">
-                  Public audit page
+            <div className="flex flex-wrap gap-2">
+              <ShareOnX href={shareHref} size="default" />
+              <Button asChild variant="ghost">
+                <Link href={`/join/${program.slug}`} target="_blank">
+                  Open the join page
                   <ArrowUpRight className="size-3.5" strokeWidth={1.5} />
                 </Link>
               </Button>
-            ) : null}
-            {isOwner && (published || !shareIsNext) ? (
-              <PublishButton programId={program.id} status={program.status} />
-            ) : null}
-          </>
-        }
-      />
-
-      {awaiting.map((r) => (
-        <Notice key={r.id}>
-          <Link href={`${base}/rounds/${r.id}`} className="underline underline-offset-4">
-            Round {r.number} ({formatUsdc(r.totalAmount)}) is waiting for your approval.
-          </Link>
-        </Notice>
-      ))}
-      {recentPayeeChanges.length ? (
-        <Notice>
-          Payout wallet changed recently:{" "}
-          {recentPayeeChanges.map((c) => `@${c.xHandle}`).join(", ")}. The vault won&apos;t pay a
-          new wallet until its <Term k="cooldown">cooldown</Term> ends; check this was really them.
-        </Notice>
+            </div>
+          </div>
+          <JoinPagePreview
+            name={program.name}
+            description={program.description}
+            categories={program.rubricJson.categories.map((c) => ({
+              key: c.key,
+              name: c.name,
+              payout: program.ratePerPoint * BigInt(c.maxPoints),
+            }))}
+          />
+        </section>
       ) : null}
 
-      <SetupChecklist steps={steps} />
-
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Program totals">
-        <Stat
-          label="Vault balance"
-          value={vaultState ? formatUsdc(vaultState.balance, { withSymbol: false }) : "—"}
-          hint={vaultState ? "USDC" : "Vault not deployed"}
-        />
-        <Stat
-          label="Contributors"
-          value={contributors.length}
-          hint={published ? "Joined" : "Join page not open"}
-        />
-        <Stat
-          label="Needs review"
-          value={needsReview}
-          hint={
-            needsReview ? (
-              <Link
-                href={`${base}/submissions?status=escalated`}
-                className="text-foreground underline underline-offset-4"
-              >
-                Review now
-              </Link>
-            ) : (
-              "Nothing waiting for you"
-            )
-          }
-        />
-        <Stat
-          label={current ? `Round ${current.number}` : "Round"}
-          value={approvedUnpaid}
-          hint={current ? `approved, paid after ${utcDay(current.endsAt)}` : "approved, unpaid"}
-        />
-      </section>
+      {total > 0 ? (
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Program totals">
+          <Stat
+            label="Vault balance"
+            value={vaultState ? formatUsdc(vaultState.balance, { withSymbol: false }) : "—"}
+            hint={vaultState ? "USDC" : "Vault not deployed"}
+          />
+          <Stat label="Contributors" value={summary.contributors} hint="Joined" />
+          <Stat
+            label="Needs review"
+            value={needsReview}
+            hint={
+              needsReview ? (
+                <Link
+                  href={`${base}/submissions?status=escalated`}
+                  className="text-foreground underline underline-offset-4"
+                >
+                  Review now
+                </Link>
+              ) : (
+                "Nothing waiting for you"
+              )
+            }
+          />
+          <Stat
+            label="Ready to pay"
+            value={formatUsdc(summary.readyToPay, { withSymbol: false })}
+            hint={
+              current?.status === "open"
+                ? `USDC from ${approvedUnpaid} approved item${approvedUnpaid === 1 ? "" : "s"}, paid when round ${current.number} closes`
+                : `USDC from ${approvedUnpaid} approved item${approvedUnpaid === 1 ? "" : "s"}`
+            }
+          />
+        </section>
+      ) : null}
 
       <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px]">
         <Card

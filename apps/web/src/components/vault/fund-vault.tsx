@@ -1,6 +1,8 @@
 "use client";
 
-import { formatUsdc, getChainConfig, misthosVaultAbi, parseUsdc, shortHex } from "@misthos/shared";
+import { formatUsdc, parseUsdc, shortHex } from "@misthos/shared/money";
+import { getChainConfig } from "@misthos/shared/chains";
+import { misthosVaultAbi } from "@misthos/shared/abi";
 import { useState } from "react";
 import { erc20Abi, type Address } from "viem";
 import { useReadContract, useWriteContract } from "wagmi";
@@ -82,7 +84,9 @@ export function FundVault(p: { programId: string; vault: Address; usdc: Address;
         label="Fund vault"
         busyLabel="Funding…"
         disabled={!valid}
-        disabledReason={!amount ? "Enter an amount to deposit." : (error ?? undefined)}
+        disabledReason={
+          !amount ? "Enter an amount to deposit." : error ? "Fix the amount above." : undefined
+        }
         success={`Deposited ${units ? formatUsdc(units) : ""} into the vault.`}
         confirm={{
           title: `Deposit ${units ? formatUsdc(units) : ""}`,

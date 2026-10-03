@@ -46,7 +46,7 @@ export async function createSubmission(
   if (!accepts)
     return {
       ok: false,
-      error: `This program doesn't pay for ${SOURCE_LABELS[classified.sourceType].toLowerCase()}.`,
+      error: `This program doesn't pay for ${SOURCE_LABELS[classified.sourceType]}.`,
     };
   if (
     (classified.sourceType === "github_pr" || classified.sourceType === "github_commit") &&

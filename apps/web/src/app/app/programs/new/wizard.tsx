@@ -1,28 +1,22 @@
 "use client";
 
-import {
-  BudgetInput,
-  formatUsdc,
-  LimitsInput,
-  ProgramBasics,
-  Rubric,
-  SOURCE_LABELS,
-  SOURCE_TYPES,
-  type SourceType,
-} from "@misthos/shared";
+import { formatUsdc } from "@misthos/shared/money";
+import { SOURCE_LABELS, SOURCE_TYPES, type SourceType } from "@misthos/shared/sources";
+import { BudgetInput, LimitsInput, ProgramBasics, Rubric } from "@misthos/shared";
 import { Plus, Trash2 } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import type { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CooldownWarning } from "@/components/vault/owner-wallet";
+import { CooldownWarning } from "@/components/vault/cooldown-warning";
 import { LIMIT_HELP } from "@/lib/limits-help";
 import {
   deriveDefaultLimits,
   limitWarnings,
+  itemNoun,
   perfectPayout,
   tryParseUsdc,
 } from "@/lib/program-math";
@@ -216,10 +210,44 @@ function toPayload(f: Form, now: Date) {
   };
 }
 
+/** Zod's default messages ("Too small: expected string to have >=10 characters") in plain words. */
+function humanize(i: z.core.$ZodIssue): string {
+  const issue = i as {
+    code: string;
+    origin?: string;
+    minimum?: number | bigint;
+    maximum?: number | bigint;
+    format?: string;
+  };
+  if (!/^(Too small|Too big|Invalid)/.test(i.message)) return i.message; // our own message
+  if (issue.code === "too_small" && issue.origin === "string")
+    return Number(issue.minimum) <= 1 ? "Required." : `Use at least ${issue.minimum} characters.`;
+  if (issue.code === "too_big" && issue.origin === "string")
+    return `Keep it under ${issue.maximum} characters.`;
+  if (issue.code === "too_small" && issue.origin === "array")
+    return `Add at least ${issue.minimum}.`;
+  if (issue.code === "too_big" && issue.origin === "array") return `At most ${issue.maximum}.`;
+  if (issue.code === "too_small") return `Must be at least ${issue.minimum}.`;
+  if (issue.code === "too_big") return `Must be at most ${issue.maximum}.`;
+  if (issue.format === "url") return "Use a full https:// link.";
+  return "Check this value.";
+}
+
+/** The value at an error key like "basics.slug" or "rubric.categories.0.name". */
+function valueAt(obj: unknown, key: string): unknown {
+  return key
+    .split(".")
+    .reduce<unknown>(
+      (o, part) => (o && typeof o === "object" ? (o as Record<string, unknown>)[part] : undefined),
+      obj,
+    );
+}
+
 function issues(schema: z.ZodType, value: unknown, prefix: string): Record<string, string> {
   const r = schema.safeParse(value);
   const out: Record<string, string> = {};
-  if (!r.success) for (const i of r.error.issues) out[[prefix, ...i.path].join(".")] ??= i.message;
+  if (!r.success)
+    for (const i of r.error.issues) out[[prefix, ...i.path].join(".")] ??= humanize(i);
   return out;
 }
 
@@ -308,13 +336,27 @@ function UnitInput(props: {
 // ─── Wizard ─────────────────────────────────────────────────────────────────
 
 export function ProgramWizard() {
-  const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
+  // The step lives in React state so a click always moves it at once. The URL mirrors it (shareable, and Back /
+  // Forward work) but is only read on load and on popstate: right after hydration the router can still rewrite the
+  // URL, and a step kept only in the URL could be silently undone.
+  const stepFromUrl = (q: { get: (k: string) => string | null }) =>
+    Math.min(STEPS.length, Math.max(1, Number(q.get("step")) || 1)) - 1;
+  const [requested, setRequested] = useState(() => stepFromUrl(search));
+  useEffect(() => {
+    const onPop = () => setRequested(stepFromUrl(new URLSearchParams(window.location.search)));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   // Rendered client-only (see wizard-loader), so the saved draft can seed the first render.
   const [restored] = useState(() => loadDraft());
   const [form, setForm] = useState<Form>(() => restored?.form ?? initialForm());
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Errors from the server (e.g. a join link someone else took), shown until that field's value changes.
+  const [serverErrors, setServerErrors] = useState<
+    Record<string, { message: string; value: string }>
+  >({});
   const [formError, setFormError] = useState<string | null>(null);
   const [touched, setTouched] = useState<Set<string>>(() => new Set());
   const [savedAt, setSavedAt] = useState<string | null>(restored?.savedAt ?? null);
@@ -322,7 +364,6 @@ export function ProgramWizard() {
   const [pending, startTransition] = useTransition();
   const submitting = useRef(false);
 
-  const requested = Math.min(STEPS.length, Math.max(1, Number(search.get("step")) || 1)) - 1;
   const [now] = useState(() => new Date());
   const payload = toPayload(form, now);
   const eff = effective(form);
@@ -361,7 +402,13 @@ export function ProgramWizard() {
     }
   }, [form]);
 
-  const goTo = (s: number) => router.push(`${pathname}?step=${s + 1}`, { scroll: true });
+  // Steps are client-only history entries: instant, no server round trip, and Back/Forward still work (Next keeps
+  // useSearchParams in sync with the native history API).
+  const goTo = (s: number) => {
+    setRequested(s);
+    window.history.pushState(null, "", `${pathname}?step=${s + 1}`);
+    window.scrollTo({ top: 0 });
+  };
 
   const update = <K extends "basics" | "rubric" | "budget">(section: K, patch: Partial<Form[K]>) =>
     setForm((f) => ({ ...f, [section]: { ...f[section], ...patch } }));
@@ -421,6 +468,7 @@ export function ProgramWizard() {
     }
     setForm(initialForm());
     setErrors({});
+    setServerErrors({});
     setSavedAt(null);
     goTo(0);
   }
@@ -433,7 +481,15 @@ export function ProgramWizard() {
       // On success the action redirects (and the draft is cleared below); anything returned is an error.
       submitting.current = false;
       if (res?.fieldErrors) {
-        setErrors(res.fieldErrors);
+        const sent = toPayload(form, new Date());
+        setServerErrors(
+          Object.fromEntries(
+            Object.entries(res.fieldErrors).map(([k, message]) => [
+              k,
+              { message, value: JSON.stringify(valueAt(sent, k)) },
+            ]),
+          ),
+        );
         const keys = Object.keys(res.fieldErrors);
         const first = ["basics", "rubric", "budget"].findIndex((p) =>
           keys.some((k) => k.startsWith(p) || (p === "budget" && k.startsWith("limits"))),
@@ -456,7 +512,13 @@ export function ProgramWizard() {
     [],
   );
 
-  const e = errors;
+  // A flagged field (left once, or caught by Continue) shows its error only while it's still wrong, so the error goes
+  // away the moment the value is fixed. Clearing it on blur instead shifted the layout mid-click and lost the click.
+  const live = validate(step);
+  const e: Record<string, string> = {};
+  for (const k of new Set([...touched, ...Object.keys(errors)])) if (live[k]) e[k] = live[k];
+  for (const [k, se] of Object.entries(serverErrors))
+    if (!e[k] && JSON.stringify(valueAt(payload, k)) === se.value) e[k] = se.message;
   const warnings = limitWarnings({
     maxCategoryPayout: eff.maxItem > 0n ? eff.maxItem : null,
     maxAutoApproveItem: tryParseUsdc(eff.maxAutoApproveItem),
@@ -662,7 +724,7 @@ export function ProgramWizard() {
                     </Field>
                   </div>
                   <p className="bg-muted/50 rounded-md px-3 py-2 text-sm">
-                    A perfect submission earns{" "}
+                    A perfect {itemNoun(c.name)} (10/10) earns{" "}
                     <span className="mono-num font-medium">
                       {eff.perfect[i] !== null && eff.perfect[i] !== undefined
                         ? formatUsdc(eff.perfect[i]!)
@@ -957,7 +1019,7 @@ export function ProgramWizard() {
                     <>
                       {form.rubric.categories.map((c, i) => (
                         <span key={i} className="block">
-                          A perfect {c.name || `category ${i + 1}`} submission earns{" "}
+                          A perfect {itemNoun(c.name)} (10/10) earns{" "}
                           <span className="mono-num text-foreground">
                             {eff.perfect[i] !== null && eff.perfect[i] !== undefined
                               ? formatUsdc(eff.perfect[i]!)
@@ -1099,7 +1161,7 @@ export function ProgramWizard() {
               <dd className="grid gap-1">
                 {form.rubric.categories.map((c, i) => (
                   <span key={i}>
-                    {c.name}: perfect submission earns{" "}
+                    {c.name || `Category ${i + 1}`}: a perfect one earns{" "}
                     <span className="mono-num">
                       {eff.perfect[i] ? formatUsdc(eff.perfect[i]!) : "—"}
                     </span>

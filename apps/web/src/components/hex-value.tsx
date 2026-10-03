@@ -2,7 +2,7 @@
 
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { useState } from "react";
-import { shortHex } from "@misthos/shared";
+import { shortHex } from "@misthos/shared/money";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** Address or tx hash: 0x3a4f…9c21 with copy button and optional explorer link. */
@@ -29,7 +29,7 @@ export function HexValue({ value, href, label }: { value: string; href?: string;
         type="button"
         onClick={copy}
         aria-label={`Copy ${label}`}
-        className="text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors duration-150"
+        className="text-muted-foreground hover:text-foreground -my-1 inline-flex size-6 items-center justify-center rounded transition-colors duration-150"
       >
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </button>
@@ -39,7 +39,7 @@ export function HexValue({ value, href, label }: { value: string; href?: string;
           target="_blank"
           rel="noreferrer"
           aria-label={`View ${label} on explorer`}
-          className="text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors duration-150"
+          className="text-muted-foreground hover:text-foreground -my-1 inline-flex size-6 items-center justify-center rounded transition-colors duration-150"
         >
           <ExternalLink className="size-3.5" />
         </a>

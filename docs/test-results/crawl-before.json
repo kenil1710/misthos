@@ -1,0 +1,383 @@
+{
+  "base": "http://localhost:3200",
+  "checked": 94,
+  "broken": [],
+  "pages": {
+    "/": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/app": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/c/arc-builders": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/join/arc-builders": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/p/arc-builders": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/docs": {
+      "status": 200,
+      "from": "(start)"
+    },
+    "/docs/how-the-agent-decides": {
+      "status": 200,
+      "from": "/"
+    },
+    "/docs/security": {
+      "status": 200,
+      "from": "/"
+    },
+    "/docs/guardrails": {
+      "status": 200,
+      "from": "/"
+    },
+    "/app/admin/metrics": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/app/programs/new": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions": {
+      "status": 200,
+      "from": "/app"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/rounds": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/treasury": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/settings": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions?status=escalated": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/contributors": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/rounds": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/treasury": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/settings": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681"
+    },
+    "/api/auth/github/start?next=%2Fc%2Farc-builders": {
+      "status": 307,
+      "from": "/c/arc-builders"
+    },
+    "/p/arc-builders/rounds/7e9f5c2a-d2cb-4fb2-9c33-aac77e92e6e1": {
+      "status": 200,
+      "from": "/p/arc-builders"
+    },
+    "/p/arc-builders/rounds/6fd98e32-0051-4ea5-9b03-c95253b19fee": {
+      "status": 200,
+      "from": "/p/arc-builders"
+    },
+    "/docs/quickstart": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/docs/contributors": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/docs/audit-trail": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/docs/architecture": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/docs/faq": {
+      "status": 200,
+      "from": "/docs"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions?status=approved": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions?status=partial": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions?status=paid": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions?status=rejected": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions?status=pending": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/submissions"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors/7a1a51cb-3397-4501-adc2-f6eea631bc11": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors/05f08cb9-9d97-4fd3-bfd9-1e11156b7a75": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors/87212a43-9be6-4b47-b85c-60c885c5aaed": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors/e4ad9943-d171-4d9e-9f8a-254d3b91da3c": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors/518786b6-9965-4993-b059-4176e9471a64": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/contributors"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/rounds/6fd98e32-0051-4ea5-9b03-c95253b19fee": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/rounds"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/rounds/7e9f5c2a-d2cb-4fb2-9c33-aac77e92e6e1": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/rounds"
+    },
+    "/api/owner/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?format=csv": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit"
+    },
+    "/api/owner/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?format=json": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=program": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=decisions": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=contributors": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=rounds": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?actor=agent": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?actor=user": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?actor=system": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions?status=escalated": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions?status=approved": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions?status=partial": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions?status=paid": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions?status=rejected": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions?status=pending": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/submissions"
+    },
+    "/api/owner/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?format=csv": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit"
+    },
+    "/api/owner/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?format=json": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=program": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=decisions": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=contributors": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=rounds": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?actor=agent": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?actor=user": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?actor=system": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=program&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=program"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=program&actor=user": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=program"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=program&actor=system": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=program"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=decisions&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=decisions"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=decisions&actor=user": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=decisions"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=decisions&actor=system": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=decisions"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=contributors&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=contributors"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=contributors&actor=user": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=contributors"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=contributors&actor=system": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=contributors"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=rounds&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=rounds"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=rounds&actor=user": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=rounds"
+    },
+    "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=rounds&actor=system": {
+      "status": 200,
+      "from": "/app/programs/239859b0-836f-4a1e-b25b-9c2b978229b6/audit?group=rounds"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=program&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=program"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=program&actor=user": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=program"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=program&actor=system": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=program"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=decisions&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=decisions"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=decisions&actor=user": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=decisions"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=decisions&actor=system": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=decisions"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=contributors&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=contributors"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=contributors&actor=user": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=contributors"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=contributors&actor=system": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=contributors"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=rounds&actor=agent": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=rounds"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=rounds&actor=user": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=rounds"
+    },
+    "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=rounds&actor=system": {
+      "status": 200,
+      "from": "/app/programs/15511c1f-5276-4ad8-b824-62a04928a681/audit?group=rounds"
+    }
+  }
+}

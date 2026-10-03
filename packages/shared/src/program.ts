@@ -6,9 +6,11 @@ import { parseUsdc } from "./money";
  * 6-decimal base units. Stored JSON keeps base units as decimal-integer strings (JSON has no bigint).
  */
 
-export const SOURCE_TYPES = ["x_post", "github_pr", "github_commit", "article"] as const;
+import { SOURCE_TYPES, type SourceType as SourceTypeName } from "./sources";
+
+export { SOURCE_LABEL, SOURCE_LABELS, SOURCE_TYPES, listSources } from "./sources";
 export const SourceType = z.enum(SOURCE_TYPES);
-export type SourceType = z.infer<typeof SourceType>;
+export type SourceType = SourceTypeName;
 
 /** Paths under the app root that a program slug must never shadow. */
 export const RESERVED_SLUGS = new Set([
@@ -185,10 +187,3 @@ export function toStoredLimits(limits: LimitsInput, budget: BudgetInput): Stored
     maxAutoApproveItem: budget.maxAutoApproveItem.toString(),
   };
 }
-
-export const SOURCE_LABELS: Record<SourceType, string> = {
-  x_post: "X posts",
-  github_pr: "GitHub pull requests",
-  github_commit: "GitHub commits",
-  article: "Articles",
-};

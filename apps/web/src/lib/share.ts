@@ -1,4 +1,5 @@
-import { formatUsdc, SOURCE_LABELS, type SourceType } from "@misthos/shared";
+import { formatUsdc } from "@misthos/shared/money";
+import { listSources, type SourceType } from "@misthos/shared/sources";
 
 /** A ready-made X post announcing a program: name, what it pays for and up to how much, and the join link. */
 export function shareOnXUrl(p: {
@@ -7,9 +8,7 @@ export function shareOnXUrl(p: {
   sources: SourceType[];
   bestPayout: bigint;
 }): string {
-  const what = p.sources
-    .map((t) => SOURCE_LABELS[t].replace(/^(?!X )./, (c) => c.toLowerCase()))
-    .join(", ");
+  const what = listSources(p.sources);
   const text = `${p.name} pays contributors in USDC on Arc for ${what}, up to ${formatUsdc(p.bestPayout)} per piece. An AI agent reviews every submission and explains its decision. Join:`;
   const url = new URL("https://x.com/intent/post");
   url.searchParams.set("text", text);

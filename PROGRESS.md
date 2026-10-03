@@ -1,6 +1,6 @@
 # Misthos — Progress
 
-**Current phase:** 6.5 + owner-feedback fixes complete; awaiting the owner's contributor test, then Phase 7.
+**Current phase:** 6.5 + owner and contributor feedback fixes complete; awaiting go-ahead for Phase 7.
 **Last updated:** 2026-10-03
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
@@ -21,6 +21,28 @@
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (contributor-test feedback + full test pass, 2026-10-03)
+
+Tracked as CF-1 … CF-16 in `docs/UX_AUDIT.md`; every automated check and its result is in `docs/TEST_REPORT.md`.
+
+- **Wallet:** ConnectKit replaced by our own picker (MetaMask, Rabby, Coinbase Wallet, WalletConnect). Prompts only
+  follow a click; account/network mismatches show a calm notice with one-click fixes; silent reconnect; WalletConnect
+  "Proposal expired" and every other connector rejection is caught and shown as a message with a retry.
+- **Homes:** `/app/programs` cards with "Needs you"; `/c` programs you joined; single-program owners land in their
+  program; the landing header knows who's signed in (non-secret `misthos_hint` cookie).
+- **Program overview:** status line, "Needs you" first, "Get your first submissions" until there's activity.
+- **404s:** owner preview for unpublished programs' join/audit pages; audit page empty state; better 404; link crawl
+  (0 broken).
+- **Copy:** proper source names everywhere; next steps tailored to the program's sources; "A perfect thread or post
+  (10/10) earns …"; styled disclosure.
+- **Performance:** wallet code only where needed, zod out of client bundles, streamed overview header, cached public
+  queries and list vault reads, migration `0005_hot_path_indexes` (**applied to Neon**), backoff polling, optimistic
+  submit and review. Lighthouse 90+ on the five pages measured (numbers in the test report).
+- **Resilience:** transient Neon connection errors are retried before any query runs; an idle connection
+  dropped by Neon no longer crashes the server or worker; root/global error boundaries.
+- **Tests:** new e2e specs (wallet, home), unit tests for every fix, axe, crawl, Lighthouse, load, EXPLAIN scripts in
+  `apps/web/scripts/`; e2e now runs against a production build.
 
 ## Done (owner-feedback fixes, 2026-10-03)
 
@@ -418,7 +440,9 @@ None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fa
 - The browser e2e env has no worker, so `payee-sync` enqueues fail there (logged); joins still succeed by design.
 - The live vault used for the showcase holds ~0.47 test USDC after the 2026-10-03 reseed (each seed pays ~0.25–0.65);
   top up before it runs low.
-- Browser e2e covers Phase 2 flows only; extending it to submissions needs a fixture upstream server (Phase 8).
+- Browser e2e runs against a production build (`E2E_DEV=1` for next dev); the live QA harness
+  (`apps/web/e2e/qa/live-qa.mts`) covers agent decisions and payouts on Arc testnet.
+- The Circle testnet faucet answers 403 for our API key; QA wallets are topped up from the deployer or by hand.
 - Arc RPC `eth_getLogs` rejects ranges above ~10k blocks (~1.4 h); treasury uses vault totals + recorded events
   instead of log scans. Deposits made outside Misthos show in totals but not in the deposit list.
 - Circle refuses to sign from an undeployed SCA; `circle:setup` deploys it. Circle refuses reverting calls at

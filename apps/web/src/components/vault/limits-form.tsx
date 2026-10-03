@@ -1,12 +1,14 @@
 "use client";
 
-import { formatUsdc, LimitsInput, misthosVaultAbi } from "@misthos/shared";
+import { formatUsdc } from "@misthos/shared/money";
+import { misthosVaultAbi } from "@misthos/shared/abi";
+import { LimitsInput } from "@misthos/shared";
 import { useState } from "react";
 import type { Address } from "viem";
 import { useWriteContract } from "wagmi";
 import { UsdcInput } from "@/components/ui-kit/usdc-input";
 import { LIMIT_HELP } from "@/lib/limits-help";
-import { CooldownWarning } from "./owner-wallet";
+import { CooldownWarning } from "./cooldown-warning";
 import { recordTx } from "./use-owner-tx";
 import { TxAction } from "./tx-action";
 

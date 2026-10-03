@@ -59,13 +59,42 @@ export function cookieOptions(maxAge: number) {
   };
 }
 
+/**
+ * A non-secret hint for static pages (the landing page is cached, so it can't read the httpOnly sessions):
+ * which sessions exist, the owner's short address and the contributor's handle. It grants nothing; every page
+ * and API still checks the real session.
+ */
+export const HINT_COOKIE = "misthos_hint";
+type Hint = { o?: string; c?: string };
+
+async function writeHint(update: (h: Hint) => Hint) {
+  const jar = await cookies();
+  let h: Hint = {};
+  try {
+    h = JSON.parse(decodeURIComponent(jar.get(HINT_COOKIE)?.value ?? "")) as Hint;
+  } catch {}
+  const next = update(h);
+  if (!next.o && !next.c) jar.delete(HINT_COOKIE);
+  else
+    jar.set(HINT_COOKIE, encodeURIComponent(JSON.stringify(next)), {
+      ...cookieOptions(MAX_AGE_SECONDS),
+      httpOnly: false,
+    });
+}
+
 export async function startSession(claims: OwnerSession | ContributorSession): Promise<void> {
   const token = await signToken(claims, MAX_AGE_SECONDS);
   (await cookies()).set(SESSION_COOKIES[claims.kind], token, cookieOptions(MAX_AGE_SECONDS));
+  await writeHint((h) =>
+    claims.kind === "owner"
+      ? { ...h, o: `${claims.addr.slice(0, 6)}…${claims.addr.slice(-4)}` }
+      : { ...h, c: claims.xh },
+  );
 }
 
 export async function endSession(kind: SessionKind): Promise<void> {
   (await cookies()).delete(SESSION_COOKIES[kind]);
+  await writeHint((h) => (kind === "owner" ? { ...h, o: undefined } : { ...h, c: undefined }));
 }
 
 async function read(kind: SessionKind) {

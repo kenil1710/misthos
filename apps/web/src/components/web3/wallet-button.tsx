@@ -1,12 +1,14 @@
 "use client";
 
-import { shortHex } from "@misthos/shared";
-import { ConnectKitButton } from "connectkit";
+import { shortHex } from "@misthos/shared/money";
 import { Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useWalletAccount } from "./use-wallet-account";
+import { chain } from "./wallet-config";
+import { useWalletUi } from "./web3-provider";
 
-/** ConnectKit's modal behind a button from our own design system. */
+/** Opens the wallet picker (or, once connected, the account panel) from a button in our own design system. */
 export function WalletButton({
   label = "Connect wallet",
   size = "default",
@@ -18,26 +20,24 @@ export function WalletButton({
   variant?: "outline" | "default" | "ghost";
   className?: string;
 }) {
+  const { openConnect } = useWalletUi();
+  const { address, isConnected, chainId } = useWalletAccount();
   return (
-    <ConnectKitButton.Custom>
-      {({ isConnected, show, address, chain, unsupported }) => (
-        <Button
-          type="button"
-          variant={variant}
-          size={size}
-          onClick={show}
-          className={cn("gap-2", className)}
-        >
-          <Wallet className="size-4" strokeWidth={1.5} aria-hidden="true" />
-          {isConnected && address ? (
-            <span className="font-mono text-[13px]">
-              {unsupported || !chain ? "Wrong network" : shortHex(address)}
-            </span>
-          ) : (
-            label
-          )}
-        </Button>
+    <Button
+      type="button"
+      variant={variant}
+      size={size}
+      onClick={openConnect}
+      className={cn("gap-2", className)}
+    >
+      <Wallet className="size-4" strokeWidth={1.5} aria-hidden="true" />
+      {isConnected && address ? (
+        <span className="font-mono text-[13px]">
+          {chainId !== chain.id ? "Wrong network" : shortHex(address)}
+        </span>
+      ) : (
+        label
       )}
-    </ConnectKitButton.Custom>
+    </Button>
   );
 }

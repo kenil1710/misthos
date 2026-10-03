@@ -2,11 +2,10 @@ import Link from "next/link";
 import { AppShell } from "@/components/app/app-shell";
 import { Wordmark } from "@/components/brand/wordmark";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { OwnerSignIn } from "@/components/web3/owner-sign-in";
-import { Web3Provider } from "@/components/web3/web3-provider";
+import { OwnerSignIn } from "@/components/web3/islands";
 import { isFounder } from "@/lib/server/founders";
 import { listProgramsForUser, needsReviewCounts } from "@/lib/server/queries";
-import { getOwnerSession } from "@/lib/server/session";
+import { getContributorSession, getOwnerSession } from "@/lib/server/session";
 
 export const metadata = { title: "App" };
 
@@ -14,7 +13,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
   const session = await getOwnerSession();
   if (!session)
     return (
-      <Web3Provider>
+      <>
         <div className="flex min-h-dvh flex-col">
           <header className="flex h-14 items-center justify-between px-4 sm:px-6">
             <Link href="/" aria-label="Misthos home" className="rounded-md">
@@ -33,29 +32,29 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             </section>
           </main>
         </div>
-      </Web3Provider>
+      </>
     );
 
-  const [programs, review, founder] = await Promise.all([
+  const [programs, review, founder, contributor] = await Promise.all([
     listProgramsForUser(session.sub),
     needsReviewCounts(session.sub),
     isFounder(session),
+    getContributorSession(),
   ]);
   return (
-    <Web3Provider>
-      <AppShell
-        address={session.addr}
-        founder={founder}
-        programs={programs.map((p) => ({
-          id: p.id,
-          name: p.name,
-          slug: p.slug,
-          status: p.status,
-          review: review[p.id] ?? 0,
-        }))}
-      >
-        {children}
-      </AppShell>
-    </Web3Provider>
+    <AppShell
+      address={session.addr}
+      founder={founder}
+      contributor={!!contributor}
+      programs={programs.map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        status: p.status,
+        review: review[p.id] ?? 0,
+      }))}
+    >
+      {children}
+    </AppShell>
   );
 }

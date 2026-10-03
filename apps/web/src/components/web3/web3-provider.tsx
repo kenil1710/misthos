@@ -1,76 +1,71 @@
 "use client";
 
-import { getChainConfig } from "@misthos/shared";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ConnectKitProvider, getDefaultConfig } from "connectkit";
-import { useTheme } from "next-themes";
-import { useState, type ReactNode } from "react";
-import { createConfig, http, WagmiProvider } from "wagmi";
-import { injected } from "wagmi/connectors";
-import { discoverAllowedWallets } from "@/lib/wallets";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { WagmiContext, WagmiProvider } from "wagmi";
+import { classifyWalletError, isWalletNoise, WALLET_NOTICE_EVENT } from "@/lib/wallet-errors";
+import { ConnectDialog } from "./connect-dialog";
+import { getQueryClient, getWalletConfig } from "./wallet-config";
 
-const chainConfig = getChainConfig();
+type WalletUi = { openConnect: () => void };
+const WalletUiContext = createContext<WalletUi | null>(null);
 
-function makeConfig() {
-  const defaults = getDefaultConfig({
-    appName: "Misthos",
-    appDescription: "Contributor payroll, run by an agent you can audit.",
-    appUrl: process.env.NEXT_PUBLIC_APP_URL,
-    chains: [chainConfig.chain],
-    transports: { [chainConfig.chain.id]: http() },
-    // WalletConnect's client needs browser storage (indexedDB); only add it in the browser so server
-    // rendering doesn't start it. The connect button renders the same either way.
-    walletConnectProjectId:
-      typeof window === "undefined" ? "" : (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? ""),
-    enableAaveAccount: false,
-    ssr: true,
-  });
-  // Only allowlisted browser wallets (MetaMask, Rabby, Coinbase), each as its own connector, plus ConnectKit's
-  // Coinbase SDK and WalletConnect. Discovery of every other installed extension is turned off.
-  const discovered = discoverAllowedWallets().map((w) =>
-    injected({
-      target: () => ({
-        id: w.info.rdns,
-        name: w.info.name,
-        icon: w.info.icon,
-        provider: w.provider as never,
-      }),
-    }),
-  );
-  return createConfig({
-    ...defaults,
-    connectors: [...discovered, ...(defaults.connectors ?? [])],
-    multiInjectedProviderDiscovery: false,
-  });
+/** Open the wallet picker from any button inside a Web3Provider. */
+export function useWalletUi(): WalletUi {
+  const ui = useContext(WalletUiContext);
+  if (!ui) throw new Error("useWalletUi must be used inside <Web3Provider>");
+  return ui;
 }
 
-let browserConfig: ReturnType<typeof makeConfig> | undefined;
-
-/** One config per browser tab: each config starts its own WalletConnect client, which must only happen once. */
-function getConfig() {
-  if (typeof window === "undefined") return makeConfig();
-  return (browserConfig ??= makeConfig());
+let guardInstalled = false;
+/**
+ * Wallet SDKs (WalletConnect especially) reject promises nobody awaits, e.g. "Proposal expired" when a QR code
+ * times out. Those are expected outcomes, not crashes: swallow them before Next's error overlay or the console
+ * sees them, and tell the open connect dialog so it can show a calm message with a retry.
+ */
+function installRejectionGuard() {
+  if (guardInstalled || typeof window === "undefined") return;
+  guardInstalled = true;
+  const onRejection = (ev: PromiseRejectionEvent) => {
+    if (!isWalletNoise(ev.reason)) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    window.dispatchEvent(
+      new CustomEvent(WALLET_NOTICE_EVENT, { detail: classifyWalletError(ev.reason) }),
+    );
+  };
+  // Capture phase on window runs before the bubbling listeners Next's dev overlay registers.
+  window.addEventListener("unhandledrejection", onRejection, { capture: true });
 }
 
-/** wagmi + ConnectKit, themed to follow the app's light/dark mode. */
+installRejectionGuard();
+let hydrationStarted = false;
+
+/** wagmi with our own connect dialog. One config per tab, so several providers on a page share one connection. */
 export function Web3Provider({ children }: { children: ReactNode }) {
-  const [config] = useState(getConfig);
-  const [queryClient] = useState(() => new QueryClient());
-  const { resolvedTheme } = useTheme();
-  return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <ConnectKitProvider
-          mode={resolvedTheme === "dark" ? "dark" : "light"}
-          customTheme={{
-            "--ck-font-family": "var(--font-geist-sans)",
-            "--ck-border-radius": "10px",
-          }}
-          options={{ hideBalance: true, enforceSupportedChains: true }}
-        >
-          {children}
-        </ConnectKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+  const [config] = useState(getWalletConfig);
+  const [queryClient] = useState(getQueryClient);
+  const [open, setOpen] = useState(false);
+  // Several islands on a page share one config. The first restores and reconnects the wallet (WagmiProvider);
+  // later ones only provide the context, since wagmi's provider would otherwise reset or re-run the connection.
+  const [first] = useState(() => {
+    const isFirst = !hydrationStarted;
+    hydrationStarted = true;
+    return isFirst;
+  });
+  useEffect(installRejectionGuard, []);
+  const ui = useMemo(() => ({ openConnect: () => setOpen(true) }), []);
+  const inner = (
+    <QueryClientProvider client={queryClient}>
+      <WalletUiContext.Provider value={ui}>
+        {children}
+        <ConnectDialog open={open} onOpenChange={setOpen} />
+      </WalletUiContext.Provider>
+    </QueryClientProvider>
+  );
+  return first ? (
+    <WagmiProvider config={config}>{inner}</WagmiProvider>
+  ) : (
+    <WagmiContext.Provider value={config}>{inner}</WagmiContext.Provider>
   );
 }

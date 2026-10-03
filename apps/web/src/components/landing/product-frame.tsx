@@ -37,6 +37,7 @@ export function ProductFrame({
         alt={alt}
         sizes={sizes}
         priority={priority}
+        quality={priority ? 70 : undefined}
         placeholder="blur"
         className={cn("block h-auto dark:hidden", img)}
       />

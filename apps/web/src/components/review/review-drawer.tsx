@@ -1,6 +1,6 @@
 "use client";
 
-import { formatUsdc, shortHex } from "@misthos/shared";
+import { formatUsdc, shortHex } from "@misthos/shared/money";
 import { ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -79,21 +79,31 @@ const toDecimal = (units: string) => {
   return `${v / 1_000_000n}.${(v % 1_000_000n).toString().padStart(6, "0")}`.replace(/\.?0+$/, "");
 };
 
+export type Optimistic = { status: "approved" | "rejected"; amount: string | null };
+
 export function ReviewDrawer({
   submissionId,
   onClose,
   maxPerPayout,
+  onOptimistic,
 }: {
   submissionId: string | null;
   onClose: () => void;
   maxPerPayout: string;
+  /** Called with the decision as soon as it's made (null to undo if saving fails). */
+  onOptimistic?: (id: string, o: Optimistic | null) => void;
 }) {
   return (
     <Sheet open={submissionId !== null} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
         {/* Keyed so each submission starts with fresh state. */}
         {submissionId ? (
-          <DrawerBody key={submissionId} submissionId={submissionId} maxPerPayout={maxPerPayout} />
+          <DrawerBody
+            key={submissionId}
+            submissionId={submissionId}
+            maxPerPayout={maxPerPayout}
+            onOptimistic={onOptimistic}
+          />
         ) : null}
       </SheetContent>
     </Sheet>
@@ -103,9 +113,11 @@ export function ReviewDrawer({
 function DrawerBody({
   submissionId,
   maxPerPayout,
+  onOptimistic,
 }: {
   submissionId: string;
   maxPerPayout: string;
+  onOptimistic?: (id: string, o: Optimistic | null) => void;
 }) {
   const router = useRouter();
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -158,8 +170,14 @@ function DrawerBody({
     if (!detail) return;
     setBusy(true);
     setError(null);
+    const id = detail.submission.id;
+    onOptimistic?.(id, {
+      status: action === "approve" ? "approved" : "rejected",
+      amount: action === "approve" ? amount : null,
+    });
+    let saved = false;
     try {
-      const res = await fetch(`/api/owner/submissions/${detail.submission.id}/override`, {
+      const res = await fetch(`/api/owner/submissions/${id}/override`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
@@ -176,6 +194,7 @@ function DrawerBody({
         setError(body.error ?? "Couldn't save the decision.");
         toast.error(body.error ?? "Couldn't save the decision.");
       } else {
+        saved = true;
         setWaitingFor(detail.decisions.length);
         toast.success(action === "approve" ? `Approved ${amount} USDC` : "Rejected", {
           description: "The agent is signing your decision. The contributor sees your reason.",
@@ -184,6 +203,7 @@ function DrawerBody({
     } catch {
       setError("Couldn't reach Misthos. Check your connection and try again.");
     } finally {
+      if (!saved) onOptimistic?.(id, null);
       setBusy(false);
     }
   }

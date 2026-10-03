@@ -114,7 +114,7 @@ describe("createSubmission", () => {
 
   it.each([
     ["not a link", /full link/],
-    ["https://blog.example.com/post", /doesn't pay for articles/],
+    ["https://blog.example.com/post", /doesn't pay for Articles/],
     ["https://youtu.be/abc", /YouTube/],
   ])("rejects %s instantly", async (url, msg) => {
     const r = await submit(url);

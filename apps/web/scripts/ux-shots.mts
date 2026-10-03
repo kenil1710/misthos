@@ -16,7 +16,7 @@ import { installWallet } from "../e2e/qa/wallet";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 nextEnv.loadEnvConfig(root);
-const BASE = "http://localhost:3100";
+const BASE = process.env.SHOW_BASE ?? "http://localhost:3100";
 const OUT = path.join(root, process.env.SHOTS_DIR ?? "docs/screenshots/owner-fixes/after");
 mkdirSync(OUT, { recursive: true });
 const show = JSON.parse(
@@ -72,7 +72,7 @@ async function shot(page: Page, name: string, full = true) {
 
 async function main() {
   const db = new pg.Client({
-    connectionString: "postgresql://postgres:postgres@127.0.0.1:54329/postgres?sslmode=disable",
+    connectionString: process.env.SHOW_DB ?? "postgresql://postgres:postgres@127.0.0.1:54329/postgres?sslmode=disable",
   });
   await db.connect();
   const { rows } = await db.query<{ id: string }>(

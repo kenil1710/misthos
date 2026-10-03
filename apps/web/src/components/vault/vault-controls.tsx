@@ -1,6 +1,8 @@
 "use client";
 
-import { formatUsdc, getChainConfig, misthosVaultAbi, parseUsdc, shortHex } from "@misthos/shared";
+import { formatUsdc, parseUsdc, shortHex } from "@misthos/shared/money";
+import { getChainConfig } from "@misthos/shared/chains";
+import { misthosVaultAbi } from "@misthos/shared/abi";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
 import { useWriteContract } from "wagmi";
@@ -108,7 +110,11 @@ export function WithdrawVault(p: {
         busyLabel="Withdrawing…"
         disabled={!valid}
         disabledReason={
-          !amount ? "Enter an amount to withdraw." : (amountError ?? toError ?? undefined)
+          !amount
+            ? "Enter an amount to withdraw."
+            : amountError || toError
+              ? "Fix the highlighted field above."
+              : undefined
         }
         success={`Withdrew ${units ? formatUsdc(units) : ""} from the vault.`}
         confirm={{

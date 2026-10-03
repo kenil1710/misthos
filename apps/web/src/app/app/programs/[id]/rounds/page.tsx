@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState, Notice, PageHeader, TableFrame } from "@/components/ui-kit";
 import { Term } from "@/components/ui-kit/term";
-import { CloseRoundNow } from "@/components/vault/round-actions";
+import { CloseRoundNow } from "@/components/vault/close-round";
 import { getProgramForMember } from "@/lib/server/queries";
 import { listRounds } from "@/lib/server/rounds-view";
 import { getOwnerSession } from "@/lib/server/session";

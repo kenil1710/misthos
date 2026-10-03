@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { deriveDefaultLimits, limitWarnings, payoutFor, perfectPayout } from "@/lib/program-math";
+import {
+  deriveDefaultLimits,
+  itemNoun,
+  limitWarnings,
+  payoutFor,
+  perfectLine,
+  perfectPayout,
+} from "@/lib/program-math";
 import { fromNow, localAndUtc } from "@/lib/when";
 
 const U = 1_000_000n;
@@ -62,5 +69,25 @@ describe("unambiguous times", () => {
     expect(fromNow(new Date(now + 6 * 86_400_000), now)).toBe("in 6 days");
     expect(fromNow(new Date(now + 3 * 3_600_000), now)).toBe("in 3 hours");
     expect(fromNow(new Date(now), now)).toBe("now");
+  });
+});
+
+describe("itemNoun / perfectLine (grammar of generated copy)", () => {
+  it("turns plural category names into the singular", () => {
+    expect(itemNoun("Threads and posts")).toBe("thread or post");
+    expect(itemNoun("Pull requests")).toBe("pull request");
+    expect(itemNoun("Articles")).toBe("article");
+    expect(itemNoun("Guides, tutorials & demos")).toBe("guide or tutorial or demo");
+    expect(itemNoun("Bounties")).toBe("bounty");
+    expect(itemNoun("GitHub commits")).toBe("GitHub commit");
+  });
+  it("quotes names that aren't plural lists", () => {
+    expect(itemNoun("Code")).toBe("“Code” submission");
+    expect(itemNoun("")).toBe("submission");
+  });
+  it("writes the full sentence", () => {
+    expect(perfectLine("Threads and posts", "0.50 USDC")).toBe(
+      "A perfect thread or post (10/10) earns 0.50 USDC",
+    );
   });
 });

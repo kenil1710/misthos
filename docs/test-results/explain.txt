@@ -1,0 +1,80 @@
+## Programs a person owns (sidebar, home) ok
+Hash Join  (cost=17.16..500.08 rows=177 width=351)
+  Hash Cond: (pm.program_id = p.id)
+  ->  Bitmap Heap Scan on program_members pm  (cost=5.66..488.10 rows=177 width=52)
+        Recheck Cond: (user_id = '6646306d-6bcf-487f-a565-e2f9dac0f34b'::uuid)
+        ->  Bitmap Index Scan on program_members_user_idx  (cost=0.00..5.62 rows=177 width=0)
+              Index Cond: (user_id = '6646306d-6bcf-487f-a565-e2f9dac0f34b'::uuid)
+  ->  Hash  (cost=9.00..9.00 rows=200 width=299)
+        ->  Seq Scan on programs p  (cost=0.00..9.00 rows=200 width=299)
+
+## Programs you joined ok
+Nested Loop  (cost=0.43..16.54 rows=1 width=648)
+  ->  Index Scan using contributors_x_user_idx on contributors c  (cost=0.28..8.30 rows=1 width=349)
+        Index Cond: (x_user_id = 'x400'::text)
+  ->  Index Scan using programs_pkey on programs p  (cost=0.14..8.16 rows=1 width=299)
+        Index Cond: (id = c.program_id)
+
+## Contributor membership ok
+Index Scan using contributors_x_user_idx on contributors  (cost=0.28..8.30 rows=1 width=349)
+  Index Cond: (x_user_id = 'x400'::text)
+  Filter: (program_id = '742d51a3-a11a-4549-9693-3dfae194764e'::uuid)
+
+## A contributor's submissions (page + poll) ok
+Limit  (cost=41.89..41.92 rows=10 width=256)
+  ->  Sort  (cost=41.89..41.92 rows=10 width=256)
+        Sort Key: created_at DESC
+        ->  Bitmap Heap Scan on submissions  (cost=4.37..41.73 rows=10 width=256)
+              Recheck Cond: (contributor_id = '0f4070d1-0407-4ab5-be9f-7977f7ec0904'::uuid)
+              ->  Bitmap Index Scan on submissions_contributor_created_idx  (cost=0.00..4.37 rows=10 width=0)
+                    Index Cond: (contributor_id = '0f4070d1-0407-4ab5-be9f-7977f7ec0904'::uuid)
+
+## Latest decisions for those submissions ok
+Nested Loop  (cost=4.66..124.90 rows=10 width=324)
+  ->  Bitmap Heap Scan on submissions  (cost=4.37..41.73 rows=10 width=16)
+        Recheck Cond: (contributor_id = '0f4070d1-0407-4ab5-be9f-7977f7ec0904'::uuid)
+        ->  Bitmap Index Scan on submissions_contributor_created_idx  (cost=0.00..4.37 rows=10 width=0)
+              Index Cond: (contributor_id = '0f4070d1-0407-4ab5-be9f-7977f7ec0904'::uuid)
+  ->  Index Scan using decisions_submission_idx on decisions  (cost=0.29..8.31 rows=1 width=324)
+        Index Cond: (submission_id = submissions.id)
+
+## A contributor's earnings ok
+Aggregate  (cost=8.30..8.31 rows=1 width=32)
+  ->  Index Scan using payouts_contributor_idx on payouts  (cost=0.28..8.30 rows=1 width=8)
+        Index Cond: (contributor_id = '0f4070d1-0407-4ab5-be9f-7977f7ec0904'::uuid)
+        Filter: (status = 'executed'::payout_status)
+
+## Review queue by status ok
+Sort  (cost=144.24..144.34 rows=40 width=256)
+  Sort Key: created_at DESC
+  ->  Bitmap Heap Scan on submissions  (cost=4.70..143.18 rows=40 width=256)
+        Recheck Cond: ((program_id = '5673000f-24de-4e75-b13b-3adb32d6cb0c'::uuid) AND (status = 'escalated'::submission_status))
+        ->  Bitmap Index Scan on submissions_program_status_idx  (cost=0.00..4.69 rows=40 width=0)
+              Index Cond: ((program_id = '5673000f-24de-4e75-b13b-3adb32d6cb0c'::uuid) AND (status = 'escalated'::submission_status))
+
+## Counts by status per program ok
+HashAggregate  (cost=529.31..529.36 rows=5 width=12)
+  Group Key: status
+  ->  Bitmap Heap Scan on submissions  (cost=5.84..528.31 rows=200 width=4)
+        Recheck Cond: (program_id = '5673000f-24de-4e75-b13b-3adb32d6cb0c'::uuid)
+        ->  Bitmap Index Scan on submissions_program_status_idx  (cost=0.00..5.79 rows=200 width=0)
+              Index Cond: (program_id = '5673000f-24de-4e75-b13b-3adb32d6cb0c'::uuid)
+
+## Rounds of a program ok
+Sort  (cost=16.05..16.06 rows=5 width=288)
+  Sort Key: number
+  ->  Bitmap Heap Scan on rounds  (cost=4.31..15.99 rows=5 width=288)
+        Recheck Cond: (program_id = '5673000f-24de-4e75-b13b-3adb32d6cb0c'::uuid)
+        ->  Bitmap Index Scan on rounds_program_number_uq  (cost=0.00..4.31 rows=5 width=0)
+              Index Cond: (program_id = '5673000f-24de-4e75-b13b-3adb32d6cb0c'::uuid)
+
+## Program by slug (join, audit) ok
+Index Scan using programs_slug_unique on programs  (cost=0.14..8.16 rows=1 width=299)
+  Index Cond: (slug = 'p1'::text)
+
+## Audit log page ok
+Limit  (cost=0.01..0.02 rows=1 width=200)
+  ->  Sort  (cost=0.01..0.02 rows=1 width=200)
+        Sort Key: created_at DESC
+        ->  Seq Scan on audit_events  (cost=0.00..0.00 rows=1 width=200)
+              Filter: (program_id = '5673000f-24de-4e75-b13b-3adb32d6cb0c'::uuid)

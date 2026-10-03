@@ -14,7 +14,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState, Section, Stat, TableFrame } from "@/components/ui-kit";
-import { getPublicProgram, publicPayouts, publicRounds } from "@/lib/server/public";
+import {
+  getPublicProgramCached as getPublicProgram,
+  publicPayoutsCached as publicPayouts,
+  publicRoundsCached as publicRounds,
+} from "@/lib/server/public-cached";
 import { explorerAddress, explorerTx } from "@/lib/server/vault";
 
 export const metadata: Metadata = { title: "Round receipt" };

@@ -1,0 +1,110 @@
+{
+  "base": "http://localhost:3200",
+  "at": "2026-10-02T23:47:09.989Z",
+  "rows": [
+    {
+      "page": "Landing",
+      "form": "mobile",
+      "scores": {
+        "performance": 91,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 3460,
+      "tbtMs": 12,
+      "cls": 0,
+      "jsKb": 211,
+      "failing": [
+        "performance:largest-contentful-paint (3.5 s)"
+      ]
+    },
+    {
+      "page": "Landing",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 708,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 285,
+      "failing": []
+    },
+    {
+      "page": "Public audit",
+      "form": "mobile",
+      "scores": {
+        "performance": 94,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 3082,
+      "tbtMs": 11,
+      "cls": 0,
+      "jsKb": 293,
+      "failing": [
+        "performance:largest-contentful-paint (3.1 s)",
+        "accessibility:target-size"
+      ]
+    },
+    {
+      "page": "Public audit",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 628,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 293,
+      "failing": [
+        "accessibility:target-size"
+      ]
+    },
+    {
+      "page": "Owner overview",
+      "form": "mobile",
+      "scores": {
+        "performance": 87,
+        "accessibility": 100,
+        "best-practices": 96,
+        "seo": 63
+      },
+      "lcpMs": 3928,
+      "tbtMs": 81,
+      "cls": 0,
+      "jsKb": 741,
+      "failing": [
+        "performance:largest-contentful-paint (3.9 s)",
+        "best-practices:errors-in-console",
+        "seo:is-crawlable"
+      ]
+    },
+    {
+      "page": "Owner overview",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 96,
+        "seo": 63
+      },
+      "lcpMs": 699,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 815,
+      "failing": [
+        "best-practices:errors-in-console",
+        "seo:is-crawlable"
+      ]
+    }
+  ]
+}

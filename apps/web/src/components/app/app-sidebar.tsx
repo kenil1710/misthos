@@ -1,6 +1,6 @@
 "use client";
 
-import { shortHex } from "@misthos/shared";
+import { shortHex } from "@misthos/shared/money";
 import {
   BarChart3,
   BookOpen,
@@ -14,6 +14,7 @@ import {
   Repeat,
   ScrollText,
   Settings,
+  UserRound,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -51,11 +52,14 @@ export function AppSidebar({
   programs,
   founder,
   address,
+  contributor = false,
   onNavigate,
 }: {
   programs: ShellProgram[];
   founder: boolean;
   address: string;
+  /** Also signed in with X: link to the programs they joined. */
+  contributor?: boolean;
   onNavigate?: () => void;
 }) {
   const path = usePathname();
@@ -66,7 +70,15 @@ export function AppSidebar({
   return (
     <div className="flex h-full flex-col gap-6 px-3 py-4">
       <div className="px-2">
-        <Link href="/app" aria-label="Misthos home" className="rounded-md" onClick={onNavigate}>
+        <Link
+          href="/app"
+          aria-label="Misthos home"
+          className="rounded-md"
+          onClick={(e) => {
+            if (e.detail > 0) e.currentTarget.blur();
+            onNavigate?.();
+          }}
+        >
           <Wordmark />
         </Link>
       </div>
@@ -130,7 +142,7 @@ export function AppSidebar({
           </>
         ) : (
           <NavItem
-            href="/app"
+            href="/app/programs"
             exact
             icon={Layers}
             label="All programs"
@@ -144,10 +156,20 @@ export function AppSidebar({
         <p className="text-muted-foreground px-2 pb-1 text-xs">Workspace</p>
         {current ? (
           <NavItem
-            href="/app"
+            href="/app/programs"
             exact
             icon={Layers}
             label="All programs"
+            path={path}
+            onNavigate={onNavigate}
+          />
+        ) : null}
+        {contributor ? (
+          <NavItem
+            href="/c"
+            exact
+            icon={UserRound}
+            label="Programs you joined"
             path={path}
             onNavigate={onNavigate}
           />
@@ -220,6 +242,10 @@ function ProgramSwitcher({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
+        // Picking a program with the mouse shouldn't leave a focus ring on the trigger; keyboard use keeps it.
+        onCloseAutoFocus={(e) => {
+          if (!document.querySelector(":focus-visible")) e.preventDefault();
+        }}
         className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
       >
         {programs.length ? (

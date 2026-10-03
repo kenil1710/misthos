@@ -1,4 +1,4 @@
-import type { SourceType } from "./program";
+import type { SourceType } from "./sources";
 
 /**
  * Classify a pasted link into the one resource Misthos will fetch. We never crawl or search: the resource id is

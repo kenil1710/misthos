@@ -15,8 +15,9 @@ async function signIn(page: Page) {
     .getByRole("button", { name: /^connect/i })
     .first()
     .click();
-  await page.getByRole("button", { name: /metamask/i }).click();
-  await expect(page.getByRole("dialog")).toBeHidden();
+  const dialog = page.getByRole("dialog", { name: "Connect a wallet" });
+  await dialog.getByRole("button", { name: /metamask/i }).click();
+  await expect(dialog).toBeHidden();
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Welcome to Misthos" })).toBeVisible();
 }
@@ -27,7 +28,8 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
   const db = new pg.Client({ connectionString: E2E.dbUrl });
   await db.connect();
   try {
-    const ctx = await browser.newContext();
+    // 1360×900 like a laptop: the Continue button is on screen without scrolling (see the lost-click check below).
+    const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
     await injectWallet(ctx, generatePrivateKey());
     const page = await ctx.newPage();
     const errors: string[] = [];
@@ -42,11 +44,17 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
     await expect(page.getByRole("button", { name: "Back" })).toHaveCount(0);
     await page.getByLabel("Program name").fill("Kency Arc Creators");
     await expect(page.locator("#slug")).toHaveValue("kency-arc-creators"); // filled from the name
+    // Leave Description empty once: its error shows in plain words…
+    await page.getByLabel("Description").click();
+    await page.getByLabel("Program name").click();
+    await expect(page.getByText("Use at least 10 characters.")).toBeVisible();
+    // …and clears while typing, so the first Continue click lands (it used to shift the button mid-click).
     await page
       .getByLabel("Description")
       .fill("Pays creators for original threads about building on Arc.");
+    await expect(page.getByText("Use at least 10 characters.")).toHaveCount(0);
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page).toHaveURL(/step=2/);
+    await expect(page).toHaveURL(/step=2/, { timeout: 3_000 });
     await page.goBack();
     await expect(page.getByLabel("Program name")).toHaveValue("Kency Arc Creators");
     await page.reload();
@@ -56,7 +64,10 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
 
     // ── OF-9: how scores become USDC, live per category ──
     await expect(page.getByText("How a score becomes USDC")).toBeVisible();
-    await expect(page.getByText(/A perfect submission earns\s*5\.00 USDC/).first()).toBeVisible();
+    // OF/CJ copy: singular, with the score spelled out.
+    await expect(
+      page.getByText(/A perfect thread or post \(10\/10\) earns\s*5\.00 USDC/).first(),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Continue" }).click();
 
     // ── OF-1, OF-10, OF-11: Now by default, 7-day rounds, safe derived limits, inline warnings ──
@@ -79,6 +90,10 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
     await expect(page.getByRole("button", { name: /switch program/i })).toContainText(
       "Kency Arc Creators",
     );
+
+    // A single program: /app goes straight to it.
+    await page.goto("/app");
+    await expect(page).toHaveURL(new RegExp(`/app/programs/${programId}$`));
 
     // Round 1 started at creation, not days later.
     const { rows } = await db.query<{ starts: Date }>(

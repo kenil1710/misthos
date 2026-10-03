@@ -1,0 +1,192 @@
+[
+  {
+    "page": "Landing",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Docs",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Join",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Public audit",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Round receipt",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "404",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Owner sign-in",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Programs",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Program overview",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "New program overview",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Submissions",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Contributors",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Rounds",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Treasury",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Audit log",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Settings",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Wizard",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Contributor home",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Contributor program",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Landing",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Docs",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Join",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Public audit",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Round receipt",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "404",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Owner sign-in",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Programs",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Program overview",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "New program overview",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Submissions",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Contributors",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Rounds",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Treasury",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Audit log",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Settings",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Wizard",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Contributor home",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Contributor program",
+    "theme": "dark",
+    "serious": []
+  }
+]

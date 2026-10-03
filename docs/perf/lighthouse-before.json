@@ -1,0 +1,146 @@
+{
+  "base": "http://localhost:3200",
+  "at": "2026-10-02T22:50:19.317Z",
+  "rows": [
+    {
+      "page": "Landing",
+      "form": "mobile",
+      "scores": {
+        "performance": 91,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 3484,
+      "tbtMs": 14,
+      "cls": 0,
+      "jsKb": 210
+    },
+    {
+      "page": "Landing",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 691,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 284
+    },
+    {
+      "page": "Join",
+      "form": "mobile",
+      "scores": {
+        "performance": 87,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 3323,
+      "tbtMs": 259,
+      "cls": 0,
+      "jsKb": 961
+    },
+    {
+      "page": "Join",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 643,
+      "tbtMs": 3,
+      "cls": 0,
+      "jsKb": 961
+    },
+    {
+      "page": "Contributor home",
+      "form": "mobile",
+      "scores": {
+        "performance": 91,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 2941,
+      "tbtMs": 214,
+      "cls": 0,
+      "jsKb": 967
+    },
+    {
+      "page": "Contributor home",
+      "form": "desktop",
+      "scores": {
+        "performance": 95,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 1535,
+      "tbtMs": 7,
+      "cls": 0.014,
+      "jsKb": 972
+    },
+    {
+      "page": "Public audit",
+      "form": "mobile",
+      "scores": {
+        "performance": 78,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 91
+      },
+      "lcpMs": 5950,
+      "tbtMs": 49,
+      "cls": 0,
+      "jsKb": 760
+    },
+    {
+      "page": "Public audit",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 96,
+        "best-practices": 100,
+        "seo": 91
+      },
+      "lcpMs": 655,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 760
+    },
+    {
+      "page": "Owner overview",
+      "form": "mobile",
+      "scores": {
+        "performance": 84,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 2649,
+      "tbtMs": 278,
+      "cls": 0.162,
+      "jsKb": 981
+    },
+    {
+      "page": "Owner overview",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 624,
+      "tbtMs": 5,
+      "cls": 0.002,
+      "jsKb": 1055
+    }
+  ]
+}

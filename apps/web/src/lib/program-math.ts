@@ -1,4 +1,4 @@
-import { formatUsdc, parseUsdc } from "@misthos/shared";
+import { formatUsdc, parseUsdc } from "@misthos/shared/money";
 
 /**
  * How a score becomes money, in one place (mirrors the agent's computeAmount):
@@ -85,4 +85,33 @@ export function limitWarnings(l: LimitNumbers): { field: string; text: string }[
   if (l.maxCategoryPayout !== null && l.maxAutoApproveItem !== null && l.maxAutoApproveItem === 0n)
     out.push({ field: "maxAutoApproveItem", text: "Every submission will wait for your review." });
   return out;
+}
+
+const singularWord = (w: string) =>
+  /ies$/.test(w) ? w.replace(/ies$/, "y") : /(ss|us)$/.test(w) ? w : w.replace(/s$/, "");
+
+/**
+ * What one item of a category is called, for sentences like "A perfect thread or post (10/10) earns 0.50 USDC".
+ * Owners name categories in the plural ("Threads and posts", "Pull requests"); this turns that into the singular
+ * ("thread or post", "pull request"). Names that aren't plural lists fall back to a quoted name: "“Code” submission".
+ */
+export function itemNoun(categoryName: string): string {
+  const name = categoryName.trim();
+  if (!name) return "submission";
+  const parts = name.split(/\s*(?:,|\band\b|&|\bor\b|\/)\s*/i).filter(Boolean);
+  const plural = parts.every((p) => /s$/i.test(p) && !/(ss|us)$/i.test(p));
+  if (!plural) return `“${name}” submission`;
+  const keepCase = (w: string) => (/^[A-Z]{2,}|^[A-Z][a-z]*[A-Z]/.test(w) ? w : w.toLowerCase());
+  return parts
+    .map((p) => {
+      const words = p.split(/\s+/).map(keepCase);
+      words[words.length - 1] = singularWord(words[words.length - 1]!);
+      return words.join(" ");
+    })
+    .join(" or ");
+}
+
+/** "A perfect thread or post (10/10) earns 0.50 USDC" */
+export function perfectLine(categoryName: string, amount: string): string {
+  return `A perfect ${itemNoun(categoryName)} (10/10) earns ${amount}`;
 }

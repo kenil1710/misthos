@@ -1,4 +1,4 @@
-import { formatUsdc, shortHex, SOURCE_LABELS } from "@misthos/shared";
+import { formatUsdc, shortHex, SOURCE_LABEL } from "@misthos/shared";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -17,13 +17,15 @@ import {
 } from "@/components/ui/table";
 import { EmptyState, Section, Stat, TableFrame } from "@/components/ui-kit";
 import {
-  getPublicProgram,
-  publicDecisions,
-  publicPayouts,
-  publicRounds,
-  publicStats,
-} from "@/lib/server/public";
+  getPublicProgramCached as getPublicProgram,
+  publicDecisionsCached as publicDecisions,
+  publicPayoutsCached as publicPayouts,
+  publicRoundsCached as publicRounds,
+  publicStatsCached as publicStats,
+} from "@/lib/server/public-cached";
 import { explorerAddress, explorerTx } from "@/lib/server/vault";
+import { PreviewBanner } from "@/components/app/preview-banner";
+import { draftPreviewFor } from "@/lib/server/preview";
 
 export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Promise<Metadata> {
   const p = await getPublicProgram((await params).slug);
@@ -36,8 +38,10 @@ export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Prom
 }
 
 export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">) {
-  const program = await getPublicProgram((await params).slug);
+  const { slug } = await params;
+  const program = (await getPublicProgram(slug)) ?? (await draftPreviewFor(slug));
   if (!program) notFound();
+  const preview = program.status === "draft";
   const [stats, rounds, payouts, recent] = await Promise.all([
     publicStats(program.id),
     publicRounds(program.id),
@@ -45,8 +49,15 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
     publicDecisions(program.id, 20),
   ]);
 
+  const quiet = stats.reviewed === 0 && payouts.length === 0;
+
   return (
     <>
+      {preview ? (
+        <div className="-mx-4 -mt-10 sm:-mx-6">
+          <PreviewBanner programId={program.id} what="audit page" />
+        </div>
+      ) : null}
       <header className="grid gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold tracking-tight">{program.name}</h1>
@@ -76,7 +87,23 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
         </div>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Program totals">
+      {quiet ? (
+        <section className="bg-card rounded-xl border p-5 sm:p-6" aria-labelledby="quiet-h">
+          <h2 id="quiet-h" className="font-medium">
+            Nothing to audit yet
+          </h2>
+          <p className="text-soft mt-1 max-w-2xl text-sm leading-relaxed">
+            This program hasn&apos;t reviewed any work yet. As soon as the agent decides on a
+            submission, its signed decision record appears here, and every payout shows the
+            transaction on Arc and the decisions it paid for.
+          </p>
+        </section>
+      ) : null}
+
+      <section
+        className={quiet ? "hidden" : "grid grid-cols-2 gap-3 lg:grid-cols-5"}
+        aria-label="Program totals"
+      >
         <Stat
           label="USDC paid"
           value={formatUsdc(stats.usdcPaid, { withSymbol: false })}
@@ -223,7 +250,7 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
                   <ActionBadge action={d.action} />
                   <span>@{d.handle}</span>
                   <span className="text-muted-foreground">
-                    {SOURCE_LABELS[d.sourceType].replace(/s$/, "")}
+                    {SOURCE_LABEL[d.sourceType]}
                   </span>
                   {d.decidedBy === "human" ? (
                     <span className="text-muted-foreground">decided by the program team</span>

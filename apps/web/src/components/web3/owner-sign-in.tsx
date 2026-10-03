@@ -1,13 +1,16 @@
 "use client";
 
-import { getChainConfig, shortHex } from "@misthos/shared";
+import { getChainConfig } from "@misthos/shared/chains";
+import { shortHex } from "@misthos/shared/money";
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createSiweMessage } from "viem/siwe";
 import { useAccount, useDisconnect, useSignMessage, useSwitchChain } from "wagmi";
+import { useWalletAccount } from "./use-wallet-account";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { classifyWalletError } from "@/lib/wallet-errors";
 import { WalletButton } from "./wallet-button";
 
 const chain = getChainConfig().chain;
@@ -19,16 +22,16 @@ const ERRORS: Record<string, string> = {
   wrong_chain: `Switch your wallet to ${chain.name} and try again.`,
 };
 
-/** Connect a wallet, then prove control of it with Sign-In with Ethereum (works for EOAs and smart wallets). */
-export function OwnerSignIn() {
-  const { address, isConnected, chainId } = useAccount();
-  const { switchChain, isPending: switching } = useSwitchChain();
-  const { disconnect } = useDisconnect();
+/**
+ * Sign-In with Ethereum for the connected wallet. Only ever runs from a click: nothing here reacts to account or
+ * network changes on its own.
+ */
+export function useSiweSignIn(onSignedIn?: () => void) {
+  const { address } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const wrongChain = isConnected && chainId !== chain.id;
 
   async function signIn() {
     if (!address) return;
@@ -59,18 +62,31 @@ export function OwnerSignIn() {
         setError(ERRORS[body.error ?? ""] ?? "Sign-in failed. Try again.");
         return;
       }
+      onSignedIn?.();
       router.refresh();
     } catch (e) {
-      const rejected = e instanceof Error && /reject|denied/i.test(e.message);
+      const err = classifyWalletError(e);
       setError(
-        rejected
+        err.kind === "rejected"
           ? "You declined the signature in your wallet. Sign in again when you're ready."
-          : "Sign-in failed. Check your connection and try again.",
+          : err.kind === "unknown"
+            ? "Sign-in failed. Check your connection and try again."
+            : err.message,
       );
     } finally {
       setBusy(false);
     }
   }
+  return { signIn, busy, error };
+}
+
+/** Connect a wallet, then prove control of it with Sign-In with Ethereum (works for EOAs and smart wallets). */
+export function OwnerSignIn() {
+  const { address, isConnected, chainId } = useWalletAccount();
+  const { switchChain, isPending: switching } = useSwitchChain();
+  const { disconnect } = useDisconnect();
+  const { signIn, busy, error } = useSiweSignIn();
+  const wrongChain = isConnected && chainId !== chain.id;
 
   return (
     <ol className="grid gap-5">
@@ -131,17 +147,18 @@ function Step({
   children: React.ReactNode;
 }) {
   return (
-    <li className={cn("flex gap-4", disabled && "opacity-50")}>
+    <li className="flex gap-4">
       <span
         className={cn(
           "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums",
           done && "bg-foreground text-background border-foreground",
+          disabled && "text-muted-foreground",
         )}
       >
         {done ? <Check className="size-3.5" strokeWidth={2.5} /> : n}
       </span>
       <div className="grid min-w-0 flex-1 gap-2.5">
-        <p className="leading-6 font-medium">{title}</p>
+        <p className={cn("leading-6 font-medium", disabled && "text-muted-foreground")}>{title}</p>
         {disabled ? null : children}
       </div>
     </li>

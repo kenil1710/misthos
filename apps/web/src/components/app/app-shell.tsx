@@ -7,6 +7,7 @@ import { Wordmark } from "@/components/brand/wordmark";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { WalletBanner } from "@/components/web3/islands";
 import { AppSidebar, type ShellProgram } from "./app-sidebar";
 
 /** Owner app frame: fixed sidebar on desktop, a top bar with a menu sheet below 1024px. */
@@ -14,11 +15,13 @@ export function AppShell({
   programs,
   founder,
   address,
+  contributor = false,
   children,
 }: {
   programs: ShellProgram[];
   founder: boolean;
   address: string;
+  contributor?: boolean;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -27,7 +30,12 @@ export function AppShell({
       {/* The column spans the page height; the sidebar inside it stays put while the content scrolls. */}
       <div className="bg-sidebar hidden w-60 shrink-0 border-r lg:block">
         <aside className="sticky top-0 h-dvh">
-          <AppSidebar programs={programs} founder={founder} address={address} />
+          <AppSidebar
+            programs={programs}
+            founder={founder}
+            address={address}
+            contributor={contributor}
+          />
         </aside>
       </div>
       <header className="bg-background sticky top-0 z-30 flex h-14 items-center justify-between border-b px-4 lg:hidden">
@@ -43,6 +51,7 @@ export function AppShell({
               programs={programs}
               founder={founder}
               address={address}
+              contributor={contributor}
               onNavigate={() => setOpen(false)}
             />
           </SheetContent>
@@ -53,7 +62,12 @@ export function AppShell({
         <ThemeToggle />
       </header>
       <main id="main" className="min-w-0 flex-1">
-        <div className="mx-auto w-full max-w-[1120px] px-4 py-8 sm:px-8 lg:py-10">{children}</div>
+        <div className="mx-auto w-full max-w-[1120px] px-4 py-8 sm:px-8 lg:py-10">
+          <div className="empty:hidden mb-6">
+            <WalletBanner expected={address} kind="owner" />
+          </div>
+          {children}
+        </div>
       </main>
     </div>
   );

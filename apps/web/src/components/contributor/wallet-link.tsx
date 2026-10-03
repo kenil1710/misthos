@@ -1,12 +1,15 @@
 "use client";
 
-import { shortHex } from "@misthos/shared";
+import { shortHex } from "@misthos/shared/money";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useAccount, useDisconnect, useSignMessage } from "wagmi";
+import { useDisconnect, useSignMessage } from "wagmi";
+import { useWalletAccount } from "@/components/web3/use-wallet-account";
 import { Button } from "@/components/ui/button";
 import { WalletButton } from "@/components/web3/wallet-button";
+import { useWalletUi } from "@/components/web3/web3-provider";
+import { classifyWalletError } from "@/lib/wallet-errors";
 
 const ERRORS: Record<string, string> = {
   wallet_in_use:
@@ -16,7 +19,7 @@ const ERRORS: Record<string, string> = {
   stale: "The request expired. Try again.",
   program_not_open: "This program isn't accepting contributors right now.",
   sign_in_required: "Your X session expired. Sign in with X again.",
-  invalid_body: "Check your GitHub username and try again.",
+  invalid_body: "Something in the request was off. Reload the page and try again.",
 };
 
 /**
@@ -28,14 +31,25 @@ export function WalletLink({
   cooldownHours = 0,
   currentWallet,
   onDone,
+  autoOpen = false,
 }: {
   programSlug: string;
   mode: "join" | "change";
   cooldownHours?: number;
   currentWallet?: string | null;
   onDone?: () => void;
+  /** Open the wallet picker once if no wallet reconnects (the person just clicked "Connect"). */
+  autoOpen?: boolean;
 }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, status } = useWalletAccount();
+  const { openConnect } = useWalletUi();
+  const opened = useRef(false);
+  useEffect(() => {
+    if (autoOpen && !opened.current && status === "disconnected") {
+      opened.current = true;
+      openConnect();
+    }
+  }, [autoOpen, status, openConnect]);
   const { disconnect } = useDisconnect();
   const { signMessageAsync } = useSignMessage();
   const router = useRouter();
@@ -98,11 +112,14 @@ export function WalletLink({
       }
       router.refresh();
     } catch (e) {
-      const rejected = e instanceof Error && /reject|denied/i.test(e.message);
+      const err = classifyWalletError(e);
       setError({
-        text: rejected
-          ? "You declined the signature in your wallet. Sign when you're ready; it's free."
-          : "Something went wrong. Check your connection and try again.",
+        text:
+          err.kind === "rejected"
+            ? "You declined the signature in your wallet. Sign when you're ready; it's free."
+            : err.kind === "unknown"
+              ? "Something went wrong. Check your connection and try again."
+              : err.message,
       });
     } finally {
       setBusy(false);

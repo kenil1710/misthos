@@ -34,7 +34,14 @@ export function GithubConnect({
       {verified && login ? (
         <span className="inline-flex items-center gap-1.5">
           <BadgeCheck className="text-success size-4" strokeWidth={1.5} aria-hidden="true" />
-          <span>{login}</span>
+          <a
+            href={`https://github.com/${login}`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-4 hover:underline"
+          >
+            @{login}
+          </a>
           <span className="text-muted-foreground text-xs">verified</span>
         </span>
       ) : (

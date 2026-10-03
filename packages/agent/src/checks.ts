@@ -133,6 +133,16 @@ export function runChecks(ctx: CheckContext): Flag[] {
             r.timestampKind === "unknown"
               ? "Created"
               : r.timestampKind[0]!.toUpperCase() + r.timestampKind.slice(1);
+          // Just outside a boundary, minutes alone can look identical; say how far off it was instead.
+          const before = t < ctx.round.startsAt;
+          const gap = Math.abs(
+            t.getTime() - (before ? ctx.round.startsAt : ctx.round.endsAt).getTime(),
+          );
+          if (gap < 3_600_000) {
+            const n = gap < 60_000 ? Math.max(1, Math.round(gap / 1000)) : Math.round(gap / 60_000);
+            const unit = gap < 60_000 ? "second" : "minute";
+            return `${verb} ${n} ${unit}${n === 1 ? "" : "s"} ${before ? "before this round started" : "after this round ended"} (${minute(ctx.round.startsAt)} to ${minute(ctx.round.endsAt)}).`;
+          }
           return `${verb} ${close ? "at" : "on"} ${f(t)}, outside this round (${f(ctx.round.startsAt)} to ${f(ctx.round.endsAt)}).`;
         })(),
         evidence: {

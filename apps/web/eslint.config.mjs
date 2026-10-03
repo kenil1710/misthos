@@ -12,10 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // e2e dev server output and Playwright artifacts
-    ".next-e2e/**",
-    ".next-lh/**",
-    ".next-qa/**",
+    // Every alternate build dir (e2e, QA, showcase, Lighthouse) and Playwright artifacts
+    ".next-*/**",
     ".source/**",
     "test-results/**",
     "playwright-report/**",

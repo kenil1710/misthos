@@ -17,13 +17,17 @@ const SLUG = "e2e-builders";
 const X = { id: "1000000001", handle: "e2e_alice" };
 
 async function connectWallet(page: Page) {
-  await page
-    .getByRole("button", { name: /^connect/i })
-    .first()
-    .click();
-  await page.getByRole("button", { name: /metamask/i }).click();
-  // ConnectKit closes the modal once the injected wallet connects.
-  await expect(page.getByRole("dialog")).toBeHidden();
+  const dialog = page.getByRole("dialog", { name: "Connect a wallet" });
+  // Some buttons open the picker by themselves once the wallet code loads (e.g. "Change payout wallet").
+  await dialog.waitFor({ state: "visible", timeout: 2_000 }).catch(() => {});
+  if (!(await dialog.isVisible()))
+    await page
+      .getByRole("button", { name: /^connect/i })
+      .first()
+      .click();
+  await dialog.getByRole("button", { name: /metamask/i }).click();
+  // The picker closes once the wallet connects.
+  await expect(dialog).toBeHidden();
 }
 
 async function contributorCookie(db: pg.Client) {
@@ -56,6 +60,8 @@ test("owner creates and publishes a program; contributor joins and switches wall
 }) => {
   const db = new pg.Client({ connectionString: E2E.dbUrl });
   await db.connect();
+  // Other specs share this database: every check below is scoped to this test's program and time window.
+  const since = new Date(Date.now() - 1000);
   try {
     // ── Owner ──────────────────────────────────────────────────────────────
     const ownerCtx = await browser.newContext();
@@ -93,7 +99,7 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await expect(op.getByRole("heading", { name: "E2E Builders" })).toBeVisible();
     await expect(op.getByText("draft", { exact: true })).toBeVisible();
     await expect(op.getByRole("region", { name: "Get your program live" })).toContainText(
-      "0 of 5 done",
+      "0 of 3 done",
     );
     await op.getByRole("button", { name: "Publish join page" }).click();
     await expect(op.getByText("active", { exact: true })).toBeVisible();
@@ -133,13 +139,19 @@ test("owner creates and publishes a program; contributor joins and switches wall
 
     // ── Owner sees the contributor and the wallet-change flag ──────────────
     await op.getByRole("link", { name: "Overview" }).click();
-    await expect(op.getByText(`Payout wallet changed recently: @${X.handle}`)).toBeVisible();
+    await expect(
+      op
+        .getByRole("region", { name: "Needs you" })
+        .getByText(`@${X.handle} changed their payout wallet`),
+    ).toBeVisible();
     await op.getByRole("link", { name: "Contributors" }).click();
     await expect(op.getByRole("link", { name: `@${X.handle}` })).toBeVisible();
 
     // ── Database state ─────────────────────────────────────────────────────
     const c = await db.query(
-      "select wallet_address, wallet_changed_at, github_login, wallet_proof_message from contributors",
+      `select wallet_address, wallet_changed_at, github_login, wallet_proof_message from contributors
+       where program_id = (select id from programs where slug = $1)`,
+      [SLUG],
     );
     expect(c.rows).toHaveLength(1);
     expect(c.rows[0].wallet_address).toBe(wallet2.address.toLowerCase());
@@ -147,16 +159,28 @@ test("owner creates and publishes a program; contributor joins and switches wall
     expect(c.rows[0].github_login).toBeNull();
     expect(c.rows[0].wallet_proof_message).toContain(`@${X.handle} (${X.id})`);
 
+    // The program's owner is the wallet that signed in; the contributor's wallets never became users.
     const owners = await db.query(
-      "select wallet_address from users where wallet_address is not null",
+      "select u.wallet_address from programs p join users u on u.id = p.owner_user_id where p.slug = $1",
+      [SLUG],
     );
     expect(owners.rows.map((r) => r.wallet_address)).toEqual([owner.address.toLowerCase()]);
+    const strays = await db.query("select 1 from users where wallet_address = any($1)", [
+      [wallet1.address.toLowerCase(), wallet2.address.toLowerCase()],
+    ]);
+    expect(strays.rows).toHaveLength(0);
 
+    const signedIn = await db.query(
+      "select 1 from audit_events where action = 'owner.signed_in' and created_at >= $1",
+      [since],
+    );
+    expect(signedIn.rows.length).toBeGreaterThan(0);
     const audit = await db.query<{ action: string; data_json: Record<string, string> }>(
-      "select action, data_json from audit_events order by created_at",
+      `select action, data_json from audit_events
+       where program_id = (select id from programs where slug = $1) order by created_at`,
+      [SLUG],
     );
     expect(audit.rows.map((r) => r.action)).toEqual([
-      "owner.signed_in",
       "program.created",
       "program.published",
       "contributor.joined",
@@ -170,7 +194,8 @@ test("owner creates and publishes a program; contributor joins and switches wall
 
     // Every nonce issued was consumed exactly once.
     const nonces = await db.query(
-      "select count(*)::int n, count(used_at)::int used from auth_nonces",
+      "select count(*)::int n, count(used_at)::int used from auth_nonces where created_at >= $1",
+      [since],
     );
     expect(nonces.rows[0]).toEqual({ n: 3, used: 3 });
 

@@ -1,4 +1,4 @@
-import { formatUsdc, shortHex, SOURCE_LABELS } from "@misthos/shared";
+import { formatUsdc, shortHex, SOURCE_LABEL } from "@misthos/shared";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -80,7 +80,7 @@ export default async function ContributorPage({
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <StatusBadge status={s.status} />
                   <span className="text-muted-foreground">
-                    {SOURCE_LABELS[s.sourceType].replace(/s$/, "")}
+                    {SOURCE_LABEL[s.sourceType]}
                   </span>
                   <a
                     href={s.url}

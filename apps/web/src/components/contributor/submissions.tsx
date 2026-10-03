@@ -1,6 +1,8 @@
 "use client";
 
-import { classifySubmissionUrl, formatUsdc, SOURCE_LABELS, type SourceType } from "@misthos/shared";
+import { classifySubmissionUrl } from "@misthos/shared/submission-url";
+import { formatUsdc } from "@misthos/shared/money";
+import { listSources, SOURCE_LABEL, SOURCE_LABELS, type SourceType } from "@misthos/shared/sources";
 import { ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -27,7 +29,7 @@ interface Item {
 }
 
 const IN_FLIGHT: Status[] = ["pending", "processing"];
-const singular = (t: SourceType) => SOURCE_LABELS[t].replace(/s$/, "");
+const singular = (t: SourceType) => SOURCE_LABEL[t];
 
 export function Submissions({
   programSlug,
@@ -35,56 +37,72 @@ export function Submissions({
   roundNumber,
   roundEndsAt,
   verifyBase,
+  initial,
 }: {
   programSlug: string;
   acceptedSources: SourceType[];
   roundNumber: number | null;
   roundEndsAt: string | null;
   verifyBase: string;
+  /** Rendered on the server, so the list is there on first paint (no loading flash). */
+  initial: Item[];
 }) {
-  const [items, setItems] = useState<Item[] | null>(null);
+  const [items, setItems] = useState<Item[] | null>(initial);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
 
-  const fetchItems = useCallback(async (): Promise<Item[] | null> => {
-    const res = await fetch(
-      `/api/contributor/submissions?program=${encodeURIComponent(programSlug)}`,
-      {
-        cache: "no-store",
-      },
-    );
-    if (res.status === 401) {
-      setExpired(true);
-      return null;
-    }
-    return res.ok ? ((await res.json()) as { submissions: Item[] }).submissions : null;
-  }, [programSlug]);
-  const load = useCallback(async () => {
-    const next = await fetchItems();
-    if (next) setItems(next);
-  }, [fetchItems]);
+  const fetchItems = useCallback(
+    async (ids?: string[]): Promise<Item[] | null> => {
+      const q = new URLSearchParams({ program: programSlug });
+      if (ids) q.set("ids", ids.join(","));
+      const res = await fetch(`/api/contributor/submissions?${q}`, { cache: "no-store" });
+      if (res.status === 401) {
+        setExpired(true);
+        return null;
+      }
+      return res.ok ? ((await res.json()) as { submissions: Item[] }).submissions : null;
+    },
+    [programSlug],
+  );
 
+  // Poll only the items still being reviewed: quickly at first, then backing off (2s → 15s). Paused while the tab
+  // is hidden, and stopped once every decision is final.
+  const inFlightIds = (items ?? [])
+    .filter((i) => IN_FLIGHT.includes(i.status) && !i.id.startsWith("temp-"))
+    .map((i) => i.id)
+    .join(",");
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const next = await fetchItems();
-      if (!cancelled) setItems(next ?? []);
-    })();
-    return () => {
-      cancelled = true;
+    if (!inFlightIds) return;
+    let delay = 2000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      if (document.hidden) return; // resumed by visibilitychange
+      const fresh = await fetchItems(inFlightIds.split(","));
+      if (stopped) return;
+      if (fresh) setItems((prev) => (prev ?? []).map((i) => fresh.find((f) => f.id === i.id) ?? i));
+      delay = Math.min(Math.round(delay * 1.6), 15_000);
+      timer = setTimeout(tick, delay);
     };
-  }, [fetchItems]);
-
-  // Poll only while something is still being reviewed.
-  const inFlight = items?.some((i) => IN_FLIGHT.includes(i.status)) ?? false;
-  useEffect(() => {
-    if (!inFlight) return;
-    const t = setInterval(() => void load(), 3000);
-    return () => clearInterval(t);
-  }, [inFlight, load]);
+    const onVisible = () => {
+      if (!document.hidden) {
+        clearTimeout(timer);
+        delay = 2000;
+        void tick();
+      }
+    };
+    timer = setTimeout(tick, delay);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [inFlightIds, fetchItems]);
 
   const hint = useMemo(() => {
     if (!url.trim()) return null;
@@ -93,7 +111,7 @@ export function Submissions({
     if (!acceptedSources.includes(c.sourceType))
       return {
         ok: false,
-        text: `This program doesn't pay for ${SOURCE_LABELS[c.sourceType].toLowerCase()}.`,
+        text: `This program doesn't pay for ${SOURCE_LABELS[c.sourceType]}.`,
       };
     return {
       ok: true,
@@ -104,8 +122,30 @@ export function Submissions({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!hint?.ok || busy) return;
+    const c = classifySubmissionUrl(url);
+    if (!c.ok) return;
+    // Optimistic: the item shows up as queued right away; replaced by the real one (or removed on failure).
+    const tempId = `temp-${Date.now()}`;
+    const submitted = url;
+    setItems((prev) => [
+      {
+        id: tempId,
+        url: c.canonicalUrl,
+        sourceType: c.sourceType,
+        status: "pending",
+        amount: null,
+        createdAt: new Date().toISOString(),
+        decision: null,
+      },
+      ...(prev ?? []),
+    ]);
+    setUrl("");
     setBusy(true);
     setError(null);
+    const undo = () => {
+      setItems((prev) => (prev ?? []).filter((i) => i.id !== tempId));
+      setUrl(submitted);
+    };
     try {
       const res = await fetch("/api/contributor/submissions", {
         method: "POST",
@@ -113,28 +153,30 @@ export function Submissions({
         body: JSON.stringify({ programSlug, url }),
       });
       if (res.status === 401) {
+        undo();
         setExpired(true);
         return;
       }
-      const body = (await res.json()) as { ok: boolean; error?: string };
-      if (!body.ok) {
+      const body = (await res.json()) as { ok: boolean; error?: string; submissionId?: string };
+      if (!body.ok || !body.submissionId) {
+        undo();
         setError(body.error ?? "Couldn't submit that link.");
         return;
       }
-      setUrl("");
+      setItems((prev) =>
+        (prev ?? []).map((i) => (i.id === tempId ? { ...i, id: body.submissionId! } : i)),
+      );
       setJustSubmitted(true);
       toast.success("Submitted. The agent is reviewing it.");
-      await load();
     } catch {
+      undo();
       setError("Couldn't reach Misthos. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
   }
 
-  const accepts = acceptedSources
-    .map((t) => SOURCE_LABELS[t].replace(/^(?!X )./, (c) => c.toLowerCase()))
-    .join(", ");
+  const accepts = listSources(acceptedSources);
 
   return (
     <div className="grid min-w-0 gap-6">

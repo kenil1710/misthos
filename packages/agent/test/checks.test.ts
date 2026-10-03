@@ -147,6 +147,21 @@ describe("runChecks", () => {
     ).toBeUndefined();
   });
 
+  it("OUT_OF_WINDOW just outside a boundary says how far off it was (minutes alone looked identical)", () => {
+    expect(
+      only(ctx({ resource: R({ timestamp: "2026-10-04T23:59:55.000Z" }) }), "OUT_OF_WINDOW")
+        ?.message,
+    ).toBe(
+      "Posted 5 seconds before this round started (2026-10-05 00:00 UTC to 2026-10-19 00:00 UTC).",
+    );
+    expect(
+      only(ctx({ resource: R({ timestamp: "2026-10-19T00:12:00.000Z" }) }), "OUT_OF_WINDOW")
+        ?.message,
+    ).toBe(
+      "Posted 12 minutes after this round ended (2026-10-05 00:00 UTC to 2026-10-19 00:00 UTC).",
+    );
+  });
+
   it("DATE_UNVERIFIED (soft) when no timestamp exists", () => {
     expect(
       only(ctx({ resource: R({ timestamp: null, timestampKind: "unknown" }) }), "DATE_UNVERIFIED")

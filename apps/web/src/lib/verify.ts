@@ -1,5 +1,8 @@
 import { decisions, payouts, programs, submissions, type DbLike } from "@misthos/db";
-import { canonicalize, hashOfHashes, misthosVaultAbi, verifyDecisionRecord } from "@misthos/shared";
+import { misthosVaultAbi } from "@misthos/shared/abi";
+import { canonicalize } from "@misthos/shared/canonical";
+import { hashOfHashes } from "@misthos/shared/ids";
+import { verifyDecisionRecord } from "@misthos/shared/signatures";
 import { desc, eq, inArray } from "drizzle-orm";
 import {
   keccak256,

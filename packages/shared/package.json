@@ -5,7 +5,15 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./chains": "./src/chains.ts"
+    "./chains": "./src/chains.ts",
+    "./money": "./src/money.ts",
+    "./sources": "./src/sources.ts",
+    "./submission-url": "./src/submission-url.ts",
+    "./abi": "./src/abi/index.ts",
+    "./canonical": "./src/canonical.ts",
+    "./signatures": "./src/signatures.ts",
+    "./ids": "./src/ids.ts",
+    "./deployments": "./src/deployments.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -20,5 +28,6 @@
     "@types/node": "^22",
     "typescript": "^5",
     "vitest": "^4"
-  }
+  },
+  "sideEffects": false
 }

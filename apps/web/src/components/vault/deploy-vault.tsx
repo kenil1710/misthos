@@ -1,6 +1,7 @@
 "use client";
 
-import { formatUsdc, misthosVaultFactoryAbi, shortHex } from "@misthos/shared";
+import { formatUsdc, shortHex } from "@misthos/shared/money";
+import { misthosVaultFactoryAbi } from "@misthos/shared/abi";
 import type { Address, Hex } from "viem";
 import { useWriteContract } from "wagmi";
 import { recordTx } from "./use-owner-tx";

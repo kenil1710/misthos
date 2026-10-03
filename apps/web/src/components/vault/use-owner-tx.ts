@@ -1,11 +1,12 @@
 "use client";
 
-import { getChainConfig } from "@misthos/shared";
+import { getChainConfig } from "@misthos/shared/chains";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Hex } from "viem";
-import { useAccount, usePublicClient } from "wagmi";
+import { usePublicClient } from "wagmi";
+import { useWalletAccount } from "@/components/web3/use-wallet-account";
 import { humanizeTxError } from "@/lib/tx-errors";
 
 const chain = getChainConfig().chain;
@@ -36,7 +37,7 @@ export class SessionExpiredError extends Error {
  * confirmed. Every failure becomes one sentence and a toast; a failed run can be retried from the failed step.
  */
 export function useOwnerTx(ownerAddress: string) {
-  const { address, chainId, isConnected, status } = useAccount();
+  const { address, chainId, isConnected, status } = useWalletAccount();
   const client = usePublicClient({ chainId: chain.id });
   const router = useRouter();
   const [steps, setSteps] = useState<StepView[]>([]);

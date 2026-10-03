@@ -13,8 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { OwnerWallet } from "@/components/vault/owner-wallet";
-import { ApproveRound, CloseRoundNow } from "@/components/vault/round-actions";
+import { ApproveRound, OwnerWallet } from "@/components/vault/islands";
+import { CloseRoundNow } from "@/components/vault/close-round";
 import { getProgramForMember } from "@/lib/server/queries";
 import { getRoundDetail, listRounds } from "@/lib/server/rounds-view";
 import { Card, Notice, PageHeader, Stat } from "@/components/ui-kit";

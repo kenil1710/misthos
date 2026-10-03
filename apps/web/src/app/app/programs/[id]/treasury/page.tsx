@@ -12,9 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Card, EmptyState, PageHeader, Stat, TableFrame } from "@/components/ui-kit";
 import { Term } from "@/components/ui-kit/term";
-import { FundVault } from "@/components/vault/fund-vault";
-import { OwnerWallet } from "@/components/vault/owner-wallet";
-import { PauseVault, WithdrawVault } from "@/components/vault/vault-controls";
+import { FundVault, OwnerWallet, PauseVault, WithdrawVault } from "@/components/vault/islands";
 import { getProgramForMember } from "@/lib/server/queries";
 import { treasuryActivity } from "@/lib/server/rounds-view";
 import { getOwnerSession } from "@/lib/server/session";

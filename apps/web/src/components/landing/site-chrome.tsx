@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Wordmark } from "@/components/brand/wordmark";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AccountNav } from "./account-nav";
 import { Button } from "@/components/ui/button";
 import { explorerAddress, factoryAddress } from "@/lib/landing-links";
 
@@ -24,11 +25,7 @@ export function SiteHeader() {
             </Button>
           </div>
           <ThemeToggle />
-          <Button asChild size="sm" className="ml-1">
-            <Link href="/app" prefetch={false}>
-              Open app
-            </Link>
-          </Button>
+          <AccountNav />
         </nav>
       </div>
     </header>

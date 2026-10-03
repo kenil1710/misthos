@@ -1,4 +1,5 @@
 import { formatUsdc, shortHex } from "@misthos/shared";
+import { SOURCE_LABEL, type SourceType } from "@misthos/shared/sources";
 import { ArrowUpRight, Check } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -25,12 +26,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-const SOURCE_LABEL: Record<string, string> = {
-  x_post: "X post",
-  github_pr: "Pull request",
-  github_commit: "Commit",
-  article: "Article",
-};
 
 export default async function Home() {
   const { metrics, showMetrics, featured, examples } = await landingData();
@@ -487,7 +482,7 @@ function DecisionCard({ example: e, slug }: { example: Example; slug: string }) 
         <ActionBadge action={e.action} />
         <span className="font-medium">@{e.handle}</span>
         <span className="text-muted-foreground text-sm">
-          {SOURCE_LABEL[e.sourceType] ?? e.sourceType}
+          {SOURCE_LABEL[e.sourceType as SourceType] ?? e.sourceType}
         </span>
         {e.action === "approve" ? (
           <span className="ml-auto font-mono text-sm tabular-nums">{formatUsdc(e.amount)}</span>
