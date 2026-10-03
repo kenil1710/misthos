@@ -248,7 +248,19 @@ New tests for this batch's fixes: `wallet-errors`, `contributor-steps`, `status-
 
 ## 9. CI on a clean clone
 
-CI_PLACEHOLDER
+A fresh `git clone` of commit `f355b3d` (no `.env`, Node 22, pnpm 12.6, Foundry) running exactly the steps in
+`.github/workflows/ci.yml`:
+
+| Step                                                             | Result              |
+| ---------------------------------------------------------------- | ------------------- |
+| `pnpm install --frozen-lockfile`                                 | Pass                |
+| `pnpm typecheck`                                                 | 6 / 6 packages pass |
+| `pnpm lint`                                                      | 6 / 6 pass          |
+| `pnpm test` (incl. Foundry)                                      | 6 / 6 pass          |
+| `NEXT_PUBLIC_CHAIN=arc-testnet pnpm --filter @misthos/web build` | Pass                |
+
+The browser e2e and live QA aren't in CI yet (they need Chromium, and live QA needs funded testnet wallets and API
+keys); that's planned for the deployment phase.
 
 ## 10. Bugs found by testing (and fixed)
 
