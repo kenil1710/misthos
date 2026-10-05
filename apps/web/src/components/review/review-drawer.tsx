@@ -217,7 +217,10 @@ function DrawerBody({
 
   const latest = detail?.decisions[0];
   const agent = detail?.decisions.find((d) => d.decidedBy === "agent");
-  const decided = detail && !["pending", "processing", "paid"].includes(detail.submission.status);
+  // In a planned round the vault pays the item on execution, so the decision can't change any more.
+  const inPayout = !!detail?.payout && detail.submission.status !== "paid";
+  const decided =
+    detail && !inPayout && !["pending", "processing", "paid"].includes(detail.submission.status);
   const reasonOk = reason.trim().length >= 10;
 
   return (
@@ -365,6 +368,12 @@ function DrawerBody({
             </Disclosure>
           ) : null}
 
+          {inPayout ? (
+            <p className="text-muted-foreground border-t pt-5 text-sm">
+              This item is in a payout round, so its decision is final. To stop the payment, cancel
+              that round or pause the vault.
+            </p>
+          ) : null}
           {decided ? (
             <section className="grid gap-3 border-t pt-5">
               <h3 className="font-medium">Your decision</h3>
@@ -435,7 +444,7 @@ function DrawerBody({
               description={
                 confirming === "approve"
                   ? "It's paid when the round closes, within the vault limits."
-                  : "The contributor sees your reason. You can change this decision until the round pays."
+                  : "The contributor sees your reason. You can change this decision until the round is proposed."
               }
               rows={[
                 ...(confirming === "approve"

@@ -8,11 +8,14 @@ import {
 import { buildGithubAuthorizeUrl, createGithubFlow } from "@/lib/server/github-oauth";
 import { cookieOptions, getContributorSession, signToken } from "@/lib/server/session";
 import { safeNextPath } from "@/lib/server/x-oauth";
+import { allow, clientKey } from "@/lib/server/rate-limit";
 
 const TTL = GITHUB_FLOW_TTL_SECONDS;
 
 /** Begin "Connect GitHub" for the signed-in contributor. `next` is where to land afterwards. */
 export async function GET(req: NextRequest) {
+  if (!allow(`github-start:${clientKey(req)}`, 20, 60_000))
+    return new Response("Too many attempts. Wait a minute and try again.", { status: 429 });
   const next = safeNextPath(req.nextUrl.searchParams.get("next"), "/");
   const session = await getContributorSession();
   const back = (reason: string) => {

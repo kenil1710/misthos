@@ -34,7 +34,9 @@ for (const [net, prefix] of [
   ["::1", 128],
   ["64:ff9b::", 96],
   ["100::", 64],
+  ["2001::", 32], // Teredo: tunnels IPv4, including private addresses
   ["2001:db8::", 32],
+  ["2002::", 16], // 6to4: embeds an IPv4 address (2002:7f00:1:: is 127.0.0.1)
   ["fc00::", 7],
   ["fe80::", 10],
   ["ff00::", 8],

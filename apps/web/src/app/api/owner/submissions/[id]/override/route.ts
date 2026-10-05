@@ -49,6 +49,12 @@ export async function POST(
   if (row.s.status === "pending" || row.s.status === "processing")
     return jsonError("The agent hasn't decided yet.", 409);
   if (row.s.status === "paid") return jsonError("This submission was already paid.", 409);
+  // A planned round pays this item on execution whatever is recorded here, so don't pretend an override stops it.
+  if (row.s.payoutId)
+    return jsonError(
+      "This item is already in a payout round. To stop it, cancel that round or pause the vault.",
+      409,
+    );
 
   let amount: string | undefined;
   if (body.data.action === "approve") {

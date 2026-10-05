@@ -3,9 +3,12 @@ import { env } from "@/lib/server/env";
 import { cookieOptions, signToken } from "@/lib/server/session";
 import { buildAuthorizeUrl, createPkce, safeNextPath } from "@/lib/server/x-oauth";
 import { X_FLOW_COOKIE, X_FLOW_TTL_SECONDS, xRedirectUri } from "@/lib/server/x-flow";
+import { allow, clientKey } from "@/lib/server/rate-limit";
 
 /** Begin Sign in with X. `next` is where to land afterwards (same-origin paths only). */
 export async function GET(req: NextRequest) {
+  if (!allow(`x-start:${clientKey(req)}`, 20, 60_000))
+    return new Response("Too many sign-in attempts. Wait a minute and try again.", { status: 429 });
   const { verifier, challenge, state } = createPkce();
   const next = safeNextPath(req.nextUrl.searchParams.get("next"));
   const flow = await signToken({ state, verifier, next }, X_FLOW_TTL_SECONDS);

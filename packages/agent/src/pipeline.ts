@@ -521,6 +521,8 @@ async function persist(
     auditAction: string;
     /** For a re-process: the decision being replaced. Audited as `decision.superseded` next to the new decision. */
     supersedes?: { decisionId: string; decisionHash: string; actor: string; reason: string };
+    /** Overrides: write only while the item isn't in a payout (a planned round pays it regardless). */
+    requireNoPayout?: boolean;
     now: Date;
   },
 ) {
@@ -549,7 +551,7 @@ async function persist(
         overrideReason: p.overrideReason,
       })
       .returning({ id: decisions.id });
-    await tx
+    const updated = await tx
       .update(submissions)
       .set({
         status: p.status,
@@ -557,7 +559,15 @@ async function persist(
         processedAt: p.now,
         lastError: null,
       })
-      .where(eq(submissions.id, p.submissionId));
+      .where(
+        and(
+          eq(submissions.id, p.submissionId),
+          p.requireNoPayout ? isNull(submissions.payoutId) : undefined,
+        ),
+      )
+      .returning({ id: submissions.id });
+    // Rolls back the decision insert too: the round planned this item between our read and this write.
+    if (!updated.length) throw new InPayoutError();
     await tx.insert(auditEvents).values({
       programId: p.programId,
       actor: p.decidedBy === "agent" ? "agent" : `user:${p.decidedByUserId}`,
@@ -597,7 +607,13 @@ async function persist(
 
 export type OverrideResult =
   | { ok: true; decisionHash: Hex }
-  | { ok: false; error: "not_found" | "not_decided" | "invalid_amount" | "not_member" };
+  | {
+      ok: false;
+      error: "not_found" | "not_decided" | "invalid_amount" | "not_member" | "in_payout";
+    };
+
+/** The item was planned into a payout round, which pays it whatever the database says next. */
+class InPayoutError extends Error {}
 
 /**
  * A reviewer's decision. Recorded as a new signed record (decided_by = human) that supersedes the agent's,
@@ -627,6 +643,9 @@ export async function processOverride(
     .limit(1);
   if (!prev || sub.status === "pending" || sub.status === "processing" || sub.status === "paid")
     return { ok: false, error: "not_decided" };
+  // Once planned into a round, the vault pays it on execution: a database-only override would be a lie. Stopping it
+  // takes the owner's on-chain controls (cancel the round, or pause the vault).
+  if (sub.payoutId) return { ok: false, error: "in_payout" };
 
   const limits = program.limitsJson;
   const amount = job.action === "approve" ? BigInt(job.amount ?? prev.amount.toString()) : 0n;
@@ -668,21 +687,27 @@ export async function processOverride(
     },
     deps.signer,
   );
-  await persist(db, {
-    submissionId: sub.id,
-    programId: program.id,
-    status: job.action === "approve" ? "approved" : "rejected",
-    amount,
-    signed,
-    llmOutput: prev.llmOutputJson,
-    model: prev.model,
-    promptVersion: prev.promptVersion,
-    decidedBy: "human",
-    decidedByUserId: job.userId,
-    overrideReason: job.reason,
-    auditAction: "decision.overridden",
-    now: now(),
-  });
+  try {
+    await persist(db, {
+      submissionId: sub.id,
+      programId: program.id,
+      status: job.action === "approve" ? "approved" : "rejected",
+      amount,
+      signed,
+      llmOutput: prev.llmOutputJson,
+      model: prev.model,
+      promptVersion: prev.promptVersion,
+      decidedBy: "human",
+      decidedByUserId: job.userId,
+      overrideReason: job.reason,
+      auditAction: "decision.overridden",
+      requireNoPayout: true,
+      now: now(),
+    });
+  } catch (e) {
+    if (e instanceof InPayoutError) return { ok: false, error: "in_payout" };
+    throw e;
+  }
   return { ok: true, decisionHash: signed.decisionHash };
 }
 

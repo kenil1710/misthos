@@ -1,4 +1,4 @@
-import { contributors, programMembers, programs, rounds, type DbLike } from "@misthos/db";
+import { programMembers, programs, rounds, type DbLike } from "@misthos/db";
 import { toStoredLimits, type ProgramInput } from "@misthos/shared";
 import { and, eq } from "drizzle-orm";
 import { audit } from "./audit";
@@ -97,10 +97,3 @@ export async function setProgramStatus(
   });
 }
 
-export async function contributorCount(db: DbLike, programId: string): Promise<number> {
-  const rows = await db
-    .select({ id: contributors.id })
-    .from(contributors)
-    .where(eq(contributors.programId, programId));
-  return rows.length;
-}

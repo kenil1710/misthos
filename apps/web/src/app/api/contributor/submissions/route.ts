@@ -8,6 +8,7 @@ import { enqueue } from "@/lib/server/queue";
 import { getContributorSession } from "@/lib/server/session";
 import { contributorSubmissionItems } from "@/lib/server/contributor-submissions";
 import { createSubmission } from "@/lib/server/submissions";
+import { allow } from "@/lib/server/rate-limit";
 
 const Body = z.object({ programSlug: Slug, url: z.string().min(1).max(2000) });
 
@@ -15,6 +16,9 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return jsonError("bad_origin", 403);
   const session = await getContributorSession();
   if (!session) return jsonError("Sign in with X first.", 401);
+  // Burst guard; the daily per-program quota (DAILY_SUBMISSION_LIMIT) is enforced in the database.
+  if (!allow(`submit:${session.sub}`, 10, 60_000))
+    return jsonError("Too many submissions at once. Wait a minute and try again.", 429);
   const body = Body.safeParse(await readJson(req));
   if (!body.success) return jsonError("Paste a link to submit.", 400);
   const res = await createSubmission(

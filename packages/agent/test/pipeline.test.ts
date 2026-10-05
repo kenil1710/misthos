@@ -698,3 +698,26 @@ describe("re-processing", () => {
     expect((fresh!.payloadJson as { x: { thread?: unknown } }).x.thread).toBeDefined();
   });
 });
+
+describe("overrides and payouts", () => {
+  it("refuses to override an item already in a payout round, leaving the record unchanged", async () => {
+    const id = await submit(
+      "alice_builds",
+      "https://x.com/alice_builds/status/1840000000000000001",
+    );
+    await processSubmission(deps(), id);
+    await db
+      .update(submissions)
+      .set({ payoutId: "00000000-0000-4000-8000-000000000002" })
+      .where(eq(submissions.id, id));
+    const r = await processOverride(deps(), {
+      submissionId: id,
+      userId: ownerId,
+      action: "reject",
+      reason: "Changed my mind after the round was planned.",
+    });
+    expect(r).toEqual({ ok: false, error: "in_payout" });
+    expect(await statusOf(id)).toMatchObject({ status: "approved" });
+    expect(await db.select().from(decisions)).toHaveLength(1);
+  });
+});

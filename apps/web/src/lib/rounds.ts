@@ -25,19 +25,6 @@ export function cooldownEndsAt(
   return ends.getTime() > now ? ends : null;
 }
 
-/** Contributors whose payout wallet changed within the payee cooldown (owner alert). */
-export function recentlyChanged<C extends { walletChangedAt: Date | null }>(
-  list: C[],
-  cooldownSeconds: number,
-  now: number = Date.now(),
-): C[] {
-  return list.filter(
-    (c) =>
-      c.walletChangedAt &&
-      now - c.walletChangedAt.getTime() < Math.max(cooldownSeconds, 3600) * 1000,
-  );
-}
-
 /** A round whose window hasn't begun yet (shown as "Scheduled", can't be closed). */
 export function isScheduled(
   r: { startsAt: Date; status: string },

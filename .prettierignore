@@ -4,3 +4,5 @@ dist
 packages/contracts/lib
 packages/contracts/out
 packages/contracts/cache
+# Signed bytes: reformatting would change the hash
+docs/examples

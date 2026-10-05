@@ -12,3 +12,7 @@ minimumReleaseAgeExclude:
   - fumadocs-core@16.15.18
   - fumadocs-mdx@15.4.6
   - fumadocs-ui@16.15.18
+# Security overrides for transitive dependencies (docs/SECURITY_AUDIT.md, pnpm audit 2026-10-05).
+overrides:
+  lodash-es: ^4.18.1
+  ws@8: ^8.21.0

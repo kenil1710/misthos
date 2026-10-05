@@ -7,6 +7,7 @@ import { jsonError, readJson, sameOrigin } from "@/lib/server/http";
 import { consumeNonce } from "@/lib/server/nonces";
 import { enqueue } from "@/lib/server/queue";
 import { getContributorSession } from "@/lib/server/session";
+import { allow } from "@/lib/server/rate-limit";
 
 const Body = z.object({
   programSlug: Slug,
@@ -33,6 +34,8 @@ export async function POST(req: Request) {
   if (!sameOrigin(req)) return jsonError("bad_origin", 403);
   const session = await getContributorSession();
   if (!session) return jsonError("sign_in_required", 401);
+  if (!allow(`wallet-verify:${session.sub}`, 10, 60_000))
+    return jsonError("Too many attempts. Wait a minute and try again.", 429);
   const body = Body.safeParse(await readJson(req));
   if (!body.success) return jsonError("invalid_body", 400);
   const b = body.data;

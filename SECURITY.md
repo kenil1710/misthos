@@ -11,6 +11,10 @@ Misthos moves money on behalf of other people's programs. These are the controls
   at any time (also while paused). The agent can only register payees and propose and execute rounds.
 - **Idempotent.** `paid[payoutId]` is never reset; a `payoutId` can't be paid twice. Agent transactions carry
   deterministic Circle idempotency keys, so a retried job gets the original transaction back.
+- **Rounds fit in a block.** The agent proposes at most 50 payouts per round (~6.3M gas; Arc's block limit is 30M,
+  and a full 200-payout proposal wouldn't fit). The rest carry over.
+- **No silent overrides.** Once an item is in a planned round, the vault pays it on execution, so the app refuses
+  overrides and re-processing for it; stopping it takes cancelling the round or pausing the vault.
 - **Tested.** Unit tests for every revert path, fuzzing of every cap, invariants (paid + withdrawn ≤ deposited, a
   payoutId is paid at most once, only owner/agent move funds), and a model of the vault driving the round job.
 
@@ -28,10 +32,11 @@ Misthos moves money on behalf of other people's programs. These are the controls
 
 - **Untrusted content.** Submission text is fenced in a per-request random boundary; look-alike tags are neutralized;
   the judge is told nothing inside can change its instructions; output is a strict tool schema re-validated with zod.
-- **Prompt injection** is detected deterministically (normalized and de-leetified text, titles and hidden article
-  text) and always escalated to a human, even if the model was fooled.
+- **Prompt injection** is detected deterministically (normalized and de-leetified text, titles, hidden article
+  text, and every post of an X thread) and always escalated to a human, even if the model was fooled.
 - **The model decides nothing alone.** A pure rules engine maps flags, scores and confidence to actions; hard flags
-  reject regardless of the model; only high-confidence, flag-free, small items are approved automatically.
+  reject regardless of the model; only high-confidence, flag-free, small items are approved automatically. Amounts
+  are computed in code (never taken from the model), bounded by the rubric maximum and the vault's caps.
 
 ## Web
 
@@ -46,12 +51,15 @@ Misthos moves money on behalf of other people's programs. These are the controls
   validates input with zod, and checks program membership (404, not 403, for other people's programs).
 - Server-side article fetching is SSRF-guarded: http(s) only, default ports, every resolved IP checked at connect
   time (private, loopback, link-local, metadata ranges blocked), redirects re-validated, 10 s and 2 MB limits.
-- Public verification is rate-limited per IP. Audit exports neutralize spreadsheet formulas.
+- Public and sign-in endpoints are rate-limited per IP (per session for signed-in actions); submissions also have
+  a database-enforced daily quota. The limiter is per instance; production adds edge rate limiting (see
+  [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)). Audit exports neutralize spreadsheet formulas.
 - `audit_events` is append-only at the database level (triggers block UPDATE, DELETE and TRUNCATE).
 
 ## Data
 
-We read only the links contributors submit (never crawl or search), store the fetched content to evaluate it, and
+We read only the links contributors submit (never crawl), plus, for an X post, the author's own replies in that
+post's thread (one search scoped to the conversation and the author), store the fetched content to evaluate it, and
 keep X identity (id, handle, account age), the connected GitHub account (id and login) and payout wallet. Decision records published on audit
 pages contain handles, wallets and hashes, not the content itself.
 

@@ -52,12 +52,17 @@ flowchart LR
 
 1. Contributor submits a link. The web app validates it (type, membership, verified wallet, round open, duplicates,
    daily limit), stores it, and enqueues `submission-process`.
-2. The worker claims it atomically (lease for crashed workers), fetches the one resource (cached), and runs the
-   deterministic checks against earlier submissions in the program.
-3. If no rejecting flag already decides, Claude scores it via the `record_judgment` tool (`judge-v2`).
-4. The decision engine (`rules-v2`) picks the action and amount; the explanation is written from facts.
+2. The worker claims it atomically (lease for crashed workers), fetches the one resource (cached; for an X post, also
+   the author's own self-reply thread via one capped search), and runs the deterministic checks against earlier
+   submissions in the program.
+3. If no rejecting flag already decides, Claude scores it via the `record_judgment` tool (`judge-v3`).
+4. The decision engine (`rules-v3`) picks the action and amount (points always from the criterion scores; 0 when the
+   judge recommends rejecting); the explanation is written from facts.
 5. The record is canonicalized, hashed and signed; decision, status and audit event commit in one transaction.
 6. Retryable upstream errors go back to the queue with backoff; the last attempt escalates instead of failing.
+7. A decided item not yet in a payout can be re-processed (`reprocess`): fresh fetch, current rules, and a new signed
+   record that supersedes the old one, audited on both sides. Once an item is in a planned round, neither a
+   re-process nor a reviewer override can change it; stopping it takes the owner's on-chain controls.
 
 ## Round flow
 

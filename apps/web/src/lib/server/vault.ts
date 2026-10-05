@@ -6,7 +6,7 @@ import { parseEventLogs, type Address, type Hex } from "viem";
 import { chainConfig, publicClient } from "./chain";
 import { env } from "./env";
 
-export { programIdBytes32, roundIdBytes32 } from "@misthos/shared";
+export { programIdBytes32 } from "@misthos/shared";
 
 export function factoryAddress(): Address {
   const f = getDeployment(chainConfig().key).vaultFactory;

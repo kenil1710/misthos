@@ -41,8 +41,14 @@ export async function setProgramStatusAction(programId: string, status: "active"
   const session = await getOwnerSession();
   if (!session) return { ok: false as const };
   const id = z.uuid().safeParse(programId);
-  if (!id.success) return { ok: false as const };
-  const ok = await setProgramStatus(getDb(), { programId: id.data, userId: session.sub, status });
+  // Server actions take untrusted input: the TypeScript type isn't a check.
+  const next = z.enum(["active", "paused"]).safeParse(status);
+  if (!id.success || !next.success) return { ok: false as const };
+  const ok = await setProgramStatus(getDb(), {
+    programId: id.data,
+    userId: session.sub,
+    status: next.data,
+  });
   revalidatePath("/app", "layout");
   return { ok };
 }

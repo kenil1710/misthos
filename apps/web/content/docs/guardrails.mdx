@@ -26,8 +26,10 @@ Set when you create the program, changeable at any time from **Settings** (one t
 | Approval threshold | Rounds with a larger total wait for the owner's `approveRound` (`ApprovalRequired`). |
 | Payee cooldown | A newly registered or changed payout wallet can't be paid until the cooldown ends (`PayeeInCooldown`). |
 
-A round can hold up to 200 payouts. Execution re-checks every payout against the limits and payout wallets as they are
-at that moment, so lowering a limit or pausing takes effect even for a round that was already proposed.
+The vault accepts up to 200 payouts per round; the agent puts at most 50 in one, so each transaction stays well
+under Arc's 30M block gas limit, and carries the rest to the next round. Execution re-checks every payout against
+the limits and payout wallets as they are at that moment, so lowering a limit or pausing takes effect even for a
+round that was already proposed.
 
 ## Exactly once
 

@@ -37,6 +37,19 @@ const PATTERNS: { id: string; re: RegExp }[] = [
     re: /\b(respond|reply|output|answer|return)\s+(only\s+)?(with|in)\s+(json|the following|this|yes|approve)\b|"?(recommended_action|rubric_scores|confidence|total_points)"?\s*[:=]/,
   },
   {
+    id: "mode_switch",
+    re: /\b(admin|god|debug|maintenance|root|sudo|unrestricted)\s+mode\b|\byou are now (in|operating in|running in)\b.{0,30}\bmode\b/,
+  },
+  {
+    id: "max_payout_demand",
+    re: /\b(approve|award|grant|pay (me|this|it|us|my \w+))\b.{0,30}\b(max(imum)?|full|highest|top|largest)\s+(amount|payout|reward|points|score|bounty)\b/,
+  },
+  {
+    // A chat-role label opening a sentence ("… ] SYSTEM: you are …"), as pasted from a fake transcript.
+    id: "role_label",
+    re: /(^|[\].!?:] )(system|assistant|developer|admin(istrator)?)\s*:\s/,
+  },
+  {
     id: "jailbreak",
     re: /\b(jailbreak|dan mode|developer mode|do anything now|prompt injection)\b/,
   },

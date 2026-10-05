@@ -1,8 +1,12 @@
 import type { Address, Hex } from "viem";
 import { hashOfHashes, payoutIdFor } from "./ids";
 
-/** Must match MisthosVault.MAX_PAYOUTS_PER_ROUND. */
-export const MAX_PAYOUTS_PER_ROUND = 200;
+/**
+ * Payouts the agent puts in one round. The vault accepts up to 200 (MisthosVault.MAX_PAYOUTS_PER_ROUND), but a
+ * 200-payout proposeRound costs ~30.4M gas and Arc's block gas limit is 30M, so it could never land. 50 keeps
+ * proposeRound (~6.3M) and executeRound (~3.1M) under half a block (MisthosVault.gas.t.sol). The rest carry over.
+ */
+export const MAX_PAYOUTS_PER_ROUND = 50;
 
 export interface PayableItem {
   submissionId: string;
@@ -59,7 +63,7 @@ export interface RoundPlan {
 /**
  * Turn approved, unpaid items into vault payouts, deterministically. Nothing here can exceed what the vault would
  * accept: payee must be registered to the same wallet and out of cooldown; per-contributor total ≤ maxPerPayout;
- * round total ≤ min(maxPerRound, maxPerDay − spentInWindow); ≤ 200 payouts. Whole submissions are never split:
+ * round total ≤ min(maxPerRound, maxPerDay − spentInWindow); ≤ MAX_PAYOUTS_PER_ROUND payouts. Whole submissions are never split:
  * anything that doesn't fit is deferred to a later round with a reason.
  */
 export function planRound(p: {

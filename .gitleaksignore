@@ -1,0 +1,5 @@
+# Public Circle CCTP contract addresses on Arc testnet (packages/shared/src/chains.ts), not secrets.
+15881b75aa1684bf58abdbaa6092e63d4cccaefa:packages/shared/src/chains.ts:generic-api-key:131
+15881b75aa1684bf58abdbaa6092e63d4cccaefa:packages/shared/src/chains.ts:generic-api-key:133
+15881b75aa1684bf58abdbaa6092e63d4cccaefa:packages/shared/src/chains.ts:generic-api-key:162
+15881b75aa1684bf58abdbaa6092e63d4cccaefa:packages/shared/src/chains.ts:generic-api-key:164

@@ -8,6 +8,7 @@ import { jsonError, readJson, sameOrigin } from "@/lib/server/http";
 import { consumeNonce } from "@/lib/server/nonces";
 import { startSession } from "@/lib/server/session";
 import { verifySiwe } from "@/lib/server/siwe";
+import { allow, clientKey } from "@/lib/server/rate-limit";
 
 const Body = z.object({
   message: z.string().min(1).max(4000),
@@ -19,6 +20,8 @@ const Body = z.object({
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return jsonError("bad_origin", 403);
+  if (!allow(`siwe-verify:${clientKey(req)}`, 20, 60_000))
+    return jsonError("Too many sign-in attempts. Wait a minute and try again.", 429);
   const body = Body.safeParse(await readJson(req));
   if (!body.success) return jsonError("invalid_body", 400);
 

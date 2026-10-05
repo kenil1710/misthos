@@ -343,6 +343,8 @@ describe("SSRF guard", () => {
     "fe80::1",
     "fd00::1",
     "::ffff:127.0.0.1",
+    "2002:7f00:1::1", // 6to4 wrapping 127.0.0.1
+    "2001:0:4136:e378:8000:63bf:3fff:fdd2", // Teredo
   ])("blocks %s", (ip) => expect(isPublicAddress(ip)).toBe(false));
   it.each(["93.184.216.34", "1.1.1.1", "2606:4700:4700::1111"])("allows %s", (ip) =>
     expect(isPublicAddress(ip)).toBe(true),

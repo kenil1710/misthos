@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    "apps/web": {
+      "entry": ["scripts/**/*.{mts,mjs}", "e2e/**/*.{mts,ts}"],
+      "ignoreDependencies": ["postcss"]
+    },
+    "apps/worker": { "entry": ["scripts/**/*.ts"] },
+    "packages/contracts": {
+      "ignoreDependencies": ["@openzeppelin/contracts", "forge-std"],
+      "ignoreBinaries": ["forge"]
+    },
+    ".": { "ignoreDependencies": ["@vitest/coverage-v8"] }
+  }
+}
