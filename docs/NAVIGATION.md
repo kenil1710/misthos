@@ -6,13 +6,15 @@ Every rule below is covered by `apps/web/e2e/navigation.spec.ts` (plus the flows
 
 ## Areas
 
-| Area | Routes | Who | Logo goes to |
-| --- | --- | --- | --- |
-| Public site | `/`, `/docs/**`, `/join/[slug]`, `/p/[slug]`, `/p/[slug]/rounds/[roundId]` | Everyone | `/` |
-| Contributor app | `/c`, `/c/[slug]` | Signed in with X | `/` |
-| Owner app | `/app`, `/app/programs/**`, `/app/admin/metrics` | Signed in with a wallet | `/app` |
+| Area            | Routes                                                                     | Who                     | Logo goes to |
+| --------------- | -------------------------------------------------------------------------- | ----------------------- | ------------ |
+| Public site     | `/`, `/docs/**`, `/join/[slug]`, `/p/[slug]`, `/p/[slug]/rounds/[roundId]` | Everyone                | `/`          |
+| Contributor app | `/c`, `/c/[slug]`                                                          | Signed in with X        | `/`          |
+| Owner app       | `/app`, `/app/programs/**`, `/app/admin/metrics`                           | Signed in with a wallet | `/app`       |
 
-The owner app's rail (and the mobile menu) also has **Back to site** (`/`) and **Docs**. `/app` is the app home:
+The owner app's rail (and the mobile menu) also has **Back to site** (`/`) and **Docs**. Guided flows (the new
+program wizard, "Your program is ready" and the vault setup) are full screen: no rail, a header with the logo
+(→ `/app`), the flow's progress and one way out ("Save and exit", "Go to overview" or "Finish later"). `/app` is the app home:
 the list of your programs, or that program directly when you own exactly one, or the welcome screen when you
 own none.
 
@@ -27,8 +29,12 @@ own none.
 ├─ /c                               programs you joined
 │  └─ /c/[slug]                     your contributions ── "← Programs you joined"
 └─ /app                             your programs (or welcome)
-   ├─ /app/programs/new             wizard, ?step=1..4 ── breadcrumb "All programs"; in-page Back button
+   ├─ /app/programs/new             wizard, full screen, ?step=1..4 ── "Save and exit" (→ /app, draft kept); in-page Back
+   │  └─ Create program → /app/programs/[id]/ready
    └─ /app/programs/[id]            overview (rail: Overview, Submissions, Contributors, Rounds, Treasury, Audit, Settings)
+      ├─ ready                      "Your program is ready", full screen ── "Set up the vault" → setup; "Go to overview"
+      ├─ setup                      guided deploy → fund → publish → "You're live", full screen; the step follows the
+      │                             program's real state ── "Finish later" (→ overview); overview's setup track links here
       ├─ submissions                list / ?view=board; a row opens the review drawer
       ├─ contributors               ── breadcrumb
       │  └─ [contributorId]         ── breadcrumb (Program › Contributors › @handle)
@@ -54,19 +60,21 @@ Misthos`, with the program name on program-level pages).
 - **Filters and views** (`?status=`, `?view=board`) are links, so Back returns to the previous filter.
 - Redirects (`/app` → your only program, `/c/[slug]` → join page) replace history instead of adding to it, so Back
   never bounces.
+- **Guided setup:** a confirmed transaction refreshes the page in place (no new history entry), so the flow moves to
+  the next step and Back still returns to where you came from (the ready screen or the overview).
 
 ## Sign-in and sign-out
 
-| Situation | What happens |
-| --- | --- |
-| Owner opens any `/app/**` page signed out | Sign-in shows in place on that URL; after signing, the same page renders. |
-| Owner clicks Sign in / Start a program on the site | `/app` → sign-in → app home. |
-| Contributor joins | `/join/[slug]` → X → back to `/join/[slug]` for the wallet step → `/c/[slug]`. |
-| Contributor opens `/c/[slug]` signed out | `/join/[slug]?return=dashboard`; its Sign in with X returns to `/c/[slug]` (non-members are sent back to join). |
-| Contributor opens `/c` signed out | Sign in with X → back to `/c`. |
-| Connect GitHub | `/api/auth/github/start?next=/c/[slug]` → GitHub → back to `/c/[slug]` (errors as `?github_error=`). |
-| X or GitHub cancelled / failed | Back to the same `next` page with `?x_error=` / `?github_error=` explained inline. |
-| Sign out (owner or contributor) | Session ends, then a full load of `/` with "You're signed out." The app then shows sign-in again. |
+| Situation                                          | What happens                                                                                                    |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Owner opens any `/app/**` page signed out          | Sign-in shows in place on that URL; after signing, the same page renders.                                       |
+| Owner clicks Sign in / Start a program on the site | `/app` → sign-in → app home.                                                                                    |
+| Contributor joins                                  | `/join/[slug]` → X → back to `/join/[slug]` for the wallet step → `/c/[slug]`.                                  |
+| Contributor opens `/c/[slug]` signed out           | `/join/[slug]?return=dashboard`; its Sign in with X returns to `/c/[slug]` (non-members are sent back to join). |
+| Contributor opens `/c` signed out                  | Sign in with X → back to `/c`.                                                                                  |
+| Connect GitHub                                     | `/api/auth/github/start?next=/c/[slug]` → GitHub → back to `/c/[slug]` (errors as `?github_error=`).            |
+| X or GitHub cancelled / failed                     | Back to the same `next` page with `?x_error=` / `?github_error=` explained inline.                              |
+| Sign out (owner or contributor)                    | Session ends, then a full load of `/` with "You're signed out." The app then shows sign-in again.               |
 
 `next` is always a same-origin path: `safeNextPath` rejects absolute URLs, `//host`, backslashes and control
 characters (unit-tested in `test/x-oauth.test.ts`), and the value travels inside the signed OAuth flow cookie.

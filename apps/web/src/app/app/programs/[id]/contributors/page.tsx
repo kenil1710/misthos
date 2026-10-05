@@ -38,6 +38,8 @@ export default async function ContributorsPage({
       />
       {list.length === 0 ? (
         <EmptyState
+          art="link"
+          title="Nobody yet"
           action={
             row.program.status === "active"
               ? { label: "Open the join page", href: `/join/${row.program.slug}` }

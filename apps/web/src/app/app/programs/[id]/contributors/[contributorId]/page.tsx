@@ -80,7 +80,7 @@ export default async function ContributorPage({
 
       <Section title="Submissions">
         {d.submissions.length === 0 ? (
-          <EmptyState>No submissions yet.</EmptyState>
+          <EmptyState art="rubric">No submissions yet.</EmptyState>
         ) : (
           <ul className="bg-card divide-y rounded-lg border">
             {d.submissions.map((s) => (

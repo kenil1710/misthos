@@ -3,7 +3,7 @@
 import { classifySubmissionUrl } from "@misthos/shared/submission-url";
 import { formatUsdc } from "@misthos/shared/money";
 import { listSources, SOURCE_LABEL, SOURCE_LABELS, type SourceType } from "@misthos/shared/sources";
-import { ExternalLink, X } from "lucide-react";
+import { ChevronDown, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -12,21 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FLAG_COPY } from "@/lib/flags";
+import { submissionJourney, type JourneyStep } from "@/lib/journey";
+import type { SubmissionItem } from "@/lib/server/contributor-submissions";
+import { cn } from "@/lib/utils";
+import { JourneyStepper } from "@/components/review/reasoning";
 
-interface Item {
-  id: string;
-  url: string;
-  sourceType: SourceType;
-  status: Status;
-  amount: string | null;
-  createdAt: string;
-  decision: {
-    summary: string;
-    decisionHash: string;
-    decidedBy: "agent" | "human";
-    flags: { code: string; severity: string }[];
-  } | null;
-}
+type Item = Omit<SubmissionItem, "status"> & { status: Status };
 
 const IN_FLIGHT: Status[] = ["pending", "processing"];
 const singular = (t: SourceType) => SOURCE_LABEL[t];
@@ -136,6 +127,8 @@ export function Submissions({
         amount: null,
         createdAt: new Date().toISOString(),
         decision: null,
+        round: null,
+        payout: null,
       },
       ...(prev ?? []),
     ]);
@@ -196,7 +189,7 @@ export function Submissions({
         </div>
       ) : null}
       <form onSubmit={submit} className="grid min-w-0 gap-2">
-        <label htmlFor="submit-url" className="font-medium">
+        <label htmlFor="submit-url" className="display text-[1.5rem] leading-tight">
           Submit your work
         </label>
         <p className="text-muted-foreground text-sm">
@@ -234,7 +227,7 @@ export function Submissions({
       {justSubmitted ? (
         <section
           aria-label="What happens next"
-          className="bg-muted/40 relative rounded-lg border p-4 text-sm"
+          className="bg-brand-subtle/60 relative rounded-[1.25rem] p-5 text-sm"
         >
           <button
             type="button"
@@ -266,14 +259,14 @@ export function Submissions({
       ) : null}
 
       <div className="min-w-0">
-        <h2 className="font-medium">Your submissions</h2>
+        <h2 className="display text-[1.5rem] leading-tight">Your submissions</h2>
         {items === null ? (
           <div className="mt-3 grid gap-2">
             <Skeleton className="h-20" />
             <Skeleton className="h-20" />
           </div>
         ) : items.length === 0 ? (
-          <p className="text-muted-foreground mt-3 rounded-lg border border-dashed px-4 py-8 text-center text-sm">
+          <p className="text-muted-foreground mt-3 rounded-[1.25rem] border border-dashed px-4 py-10 text-center text-sm">
             Nothing yet. Paste a link to your first piece of work above.
           </p>
         ) : (
@@ -288,14 +281,55 @@ export function Submissions({
   );
 }
 
+const SEGMENT: Record<JourneyStep["state"], string> = {
+  done: "bg-brand",
+  current: "bg-brand/45 animate-pulse [animation-duration:2.4s]",
+  failed: "bg-danger",
+  skipped: "bg-muted",
+  waiting: "bg-muted",
+};
+
+/** Where a submission stands: the last step that happened (or is happening), in the contributor's words. */
+function whereItIs(steps: JourneyStep[]): JourneyStep {
+  return (
+    steps.find((s) => s.state === "failed") ??
+    steps.find((s) => s.state === "current") ??
+    [...steps].reverse().find((s) => s.state === "done") ??
+    steps[0]!
+  );
+}
+
+/**
+ * One submission as a journey card: status and amount, the link, the agent's reason, a segmented track of the
+ * seven steps (submitted → paid) with where it is now, how to fix a rejection, and the full journey on demand.
+ */
 function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
+  const [open, setOpen] = useState(false);
   const paidish = i.status === "approved" || i.status === "partial" || i.status === "paid";
   const fixes =
     i.status === "rejected" || i.status === "escalated"
       ? [...new Set((i.decision?.flags ?? []).map((f) => FLAG_COPY[f.code]?.fix).filter(Boolean))]
       : [];
+  const steps = submissionJourney({
+    status: i.status,
+    createdAt: i.createdAt,
+    decision: i.decision
+      ? {
+          action: i.decision.action,
+          amount: i.decision.amount,
+          createdAt: i.decision.createdAt,
+          flags: i.decision.flags,
+          scored: i.decision.scored,
+          decidedBy: i.decision.decidedBy,
+        }
+      : null,
+    round: i.round,
+    payout: i.payout,
+  });
+  const now = whereItIs(steps);
+  const journeyId = `journey-${i.id}`;
   return (
-    <li className="bg-card min-w-0 overflow-hidden rounded-lg border p-4">
+    <li className="bg-card shadow-soft min-w-0 overflow-hidden rounded-[1.25rem] p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <StatusBadge status={i.status} />
@@ -304,7 +338,10 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
           </span>
         </div>
         {i.amount && i.amount !== "0" && paidish ? (
-          <span className="mono-num shrink-0 text-sm">{formatUsdc(BigInt(i.amount))}</span>
+          <span className="display shrink-0 text-[1.5rem] leading-none tabular-nums">
+            {formatUsdc(BigInt(i.amount), { withSymbol: false })}
+            <span className="text-muted-foreground ml-1 font-sans text-xs">USDC</span>
+          </span>
         ) : null}
       </div>
       <a
@@ -316,27 +353,68 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
         <span className="truncate">{i.url.replace(/^https?:\/\//, "")}</span>
         <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
       </a>
-      {i.decision ? (
-        <>
-          <p className="mt-2 text-sm leading-relaxed">{i.decision.summary}</p>
-          {fixes.length ? (
-            <div className="bg-muted/50 mt-3 rounded-md px-3 py-2 text-sm">
-              <p className="font-medium">
-                {i.status === "rejected" ? "How to get paid next time" : "Why it's being reviewed"}
-              </p>
-              <ul className="text-soft mt-1 grid list-disc gap-0.5 pl-4">
-                {fixes.map((f) => (
-                  <li key={f}>{f}</li>
-                ))}
-              </ul>
-            </div>
+
+      <div className="mt-4">
+        <div className="flex gap-1" aria-hidden="true">
+          {steps.map((s) => (
+            <span key={s.key} className={cn("h-1.5 flex-1 rounded-full", SEGMENT[s.state])} />
+          ))}
+        </div>
+        <p
+          className={cn(
+            "mt-2 text-xs font-medium",
+            now.state === "failed" ? "text-danger" : "text-foreground",
+          )}
+        >
+          <span className="sr-only">Where it is: </span>
+          {now.label}
+          {i.status === "pending" || i.status === "processing" ? (
+            <span className="text-muted-foreground font-normal">
+              {" "}
+              ·{" "}
+              {i.status === "processing"
+                ? "the agent is reviewing it now"
+                : "usually under a minute"}
+            </span>
           ) : null}
-          <p className="text-muted-foreground mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            {i.decision.decidedBy === "human" ? (
-              <span>Reviewed by the program team</span>
-            ) : (
-              <span>Decided by the agent</span>
-            )}
+        </p>
+      </div>
+
+      {i.decision ? <p className="mt-3 text-sm leading-relaxed">{i.decision.summary}</p> : null}
+      {fixes.length ? (
+        <div className="bg-muted/60 mt-3 rounded-xl px-3.5 py-2.5 text-sm">
+          <p className="font-medium">
+            {i.status === "rejected" ? "How to get paid next time" : "Why it's being reviewed"}
+          </p>
+          <ul className="text-soft mt-1 grid list-disc gap-0.5 pl-4">
+            {fixes.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-xs">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={journeyId}
+          onClick={() => setOpen((o) => !o)}
+          className="hover:text-foreground inline-flex items-center gap-1 rounded-sm font-medium"
+        >
+          Full journey
+          <ChevronDown
+            className={cn("size-3.5 transition-transform", open && "rotate-180")}
+            aria-hidden="true"
+          />
+        </button>
+        {i.decision ? (
+          <>
+            <span>
+              {i.decision.decidedBy === "human"
+                ? "Reviewed by the program team"
+                : "Decided by the agent"}
+            </span>
             <Link
               href={`${verifyBase}#verify?d=${i.decision.decisionHash}`}
               className="text-foreground underline underline-offset-4"
@@ -344,15 +422,14 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
             >
               Verify this decision
             </Link>
-          </p>
-        </>
-      ) : (
-        <p className="text-muted-foreground mt-2 text-sm">
-          {i.status === "processing"
-            ? "The agent is reviewing this now."
-            : "Queued for review. Usually under a minute."}
-        </p>
-      )}
+          </>
+        ) : null}
+      </div>
+      {open ? (
+        <div id={journeyId} className="mt-4">
+          <JourneyStepper steps={steps} audience="contributor" />
+        </div>
+      ) : null}
     </li>
   );
 }

@@ -13,7 +13,15 @@ import { TxAction } from "./tx-action";
 const faucet = getChainConfig().faucetUrl;
 
 /** Approve + deposit USDC (6-decimal ERC-20 interface) into the vault. */
-export function FundVault(p: { programId: string; vault: Address; usdc: Address; owner: Address }) {
+export function FundVault(p: {
+  programId: string;
+  vault: Address;
+  usdc: Address;
+  owner: Address;
+  /** Quick picks (base-unit strings), e.g. one round at the per-round cap. */
+  suggestions?: { label: string; amount: string }[];
+  size?: "default" | "lg";
+}) {
   const { writeContractAsync } = useWriteContract();
   const [amount, setAmount] = useState("");
   const { data: walletBalance, refetch } = useReadContract({
@@ -38,6 +46,29 @@ export function FundVault(p: { programId: string; vault: Address; usdc: Address;
   const valid = units !== null && units > 0n && !tooMuch;
   return (
     <div className="grid gap-4">
+      {p.suggestions?.length ? (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Suggested amounts">
+          {p.suggestions.map((s) => {
+            const value = formatUsdc(BigInt(s.amount), { withSymbol: false }).replace(/,/g, "");
+            const active = amount === value;
+            return (
+              <button
+                key={s.label}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setAmount(value)}
+                className={
+                  active
+                    ? "border-brand bg-brand-subtle text-brand rounded-full border px-3 py-1.5 text-xs font-medium"
+                    : "hover:bg-muted rounded-full border px-3 py-1.5 text-xs"
+                }
+              >
+                {s.label} · <span className="mono-num">{formatUsdc(BigInt(s.amount))}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <UsdcInput
         id="fund-amount"
         label="Amount to deposit"
@@ -80,6 +111,7 @@ export function FundVault(p: { programId: string; vault: Address; usdc: Address;
         }
       />
       <TxAction
+        size={p.size}
         owner={p.owner}
         label="Fund vault"
         busyLabel="Funding…"

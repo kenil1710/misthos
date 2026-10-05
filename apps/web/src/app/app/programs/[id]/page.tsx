@@ -1,5 +1,5 @@
 import { formatUsdc } from "@misthos/shared";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Address } from "viem";
@@ -13,10 +13,9 @@ import {
 } from "@/components/app/setup-checklist";
 import { VaultArt } from "@/components/brand/illustrations";
 import { Button } from "@/components/ui/button";
-import { Card, Notice, PageHeader, Stat } from "@/components/ui-kit";
+import { Card, PageHeader, Stat } from "@/components/ui-kit";
 import { CopyField } from "@/components/ui-kit/copy-field";
 import { Term } from "@/components/ui-kit/term";
-import { DeployVault, FundVault } from "@/components/vault/islands";
 import { currentRound } from "@/lib/rounds";
 import { appOrigin } from "@/lib/server/env";
 import {
@@ -34,7 +33,6 @@ import { programStatusLine } from "@/lib/status-line";
 import { JoinPagePreview, NeedsYou, RecentDecisions } from "@/components/app/program-home";
 import { CopyButton } from "@/components/ui-kit/copy-button";
 import { getOwnerSession, type OwnerSession } from "@/lib/server/session";
-import { agentAddress, factoryAddress, programIdBytes32, usdcAddress } from "@/lib/server/vault";
 import { PublishButton } from "./publish-button";
 import { ShareOnX } from "@/components/app/share-on-x";
 import { shareOnXUrl } from "@/lib/share";
@@ -110,7 +108,6 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
   const total = summary.submissions;
   const limits = program.limitsJson;
   const joinUrl = `${appOrigin()}/join/${program.slug}`;
-  const agent = agentAddress();
   const vault = program.vaultAddress as Address | null;
   const vaultState = summary.vault;
   const current = currentRound(rounds);
@@ -143,29 +140,11 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
         </>
       ),
       doneNote: "Vault deployed.",
-      action:
-        isOwner && agent ? (
-          <DeployVault
-            programId={program.id}
-            factory={factoryAddress()}
-            programIdBytes32={programIdBytes32(program.id)}
-            owner={session.addr as Address}
-            agent={agent}
-            limits={{
-              maxPerPayout: limits.maxPerPayout,
-              maxPerRound: limits.maxPerRound,
-              maxPerDay: limits.maxPerDay,
-              autoApproveThreshold: limits.autoApproveThreshold,
-              payeeCooldown: String(limits.payeeCooldownSeconds),
-            }}
-          />
-        ) : !agent ? (
-          <Notice tone="danger">
-            The agent wallet isn&apos;t configured on this server (CIRCLE_AGENT_WALLET_ADDRESS).
-          </Notice>
-        ) : (
-          <p className="text-muted-foreground text-sm">Only the owner can deploy the vault.</p>
-        ),
+      action: isOwner ? (
+        <SetupLink href={`${base}/setup`}>Deploy the vault</SetupLink>
+      ) : (
+        <p className="text-muted-foreground text-sm">Only the owner can deploy the vault.</p>
+      ),
     },
     {
       key: "fund",
@@ -175,14 +154,7 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
         "Deposit the USDC this program will pay out. You can withdraw unused funds at any time.",
       doneNote: vaultState ? `${formatUsdc(vaultState.balance)} in the vault.` : undefined,
       action:
-        isOwner && vault ? (
-          <FundVault
-            programId={program.id}
-            vault={vault}
-            usdc={usdcAddress()}
-            owner={session.addr as Address}
-          />
-        ) : null,
+        isOwner && vault ? <SetupLink href={`${base}/setup`}>Fund the vault</SetupLink> : null,
     },
     {
       key: "share",
@@ -405,5 +377,17 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
         </Card>
       </div>
     </div>
+  );
+}
+
+/** The deploy and fund steps open the guided setup flow (full screen, one step at a time). */
+function SetupLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Button asChild>
+      <Link href={href}>
+        {children}
+        <ArrowRight className="size-4" aria-hidden="true" />
+      </Link>
+    </Button>
   );
 }

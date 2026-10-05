@@ -171,7 +171,11 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
                 </dd>
               </dl>
             ) : (
-              <EmptyState action={{ label: "Deploy the vault", href: base }}>
+              <EmptyState
+                art="vault"
+                title="No vault yet"
+                action={{ label: "Deploy the vault", href: `${base}/setup` }}
+              >
                 The vault isn&apos;t deployed yet.
               </EmptyState>
             )}

@@ -31,6 +31,7 @@ export function TxAction({
   disabled = false,
   disabledReason,
   variant = "default",
+  size = "default",
 }: {
   owner: string;
   label: string;
@@ -42,6 +43,8 @@ export function TxAction({
   /** Shown under a disabled button so it's never a mystery why it can't be pressed. */
   disabledReason?: string;
   variant?: "default" | "outline" | "destructive";
+  /** "lg" for the one action of a guided step. */
+  size?: "default" | "lg";
 }) {
   const tx = useOwnerTx(owner);
   const problem = useWalletProblem(owner);
@@ -56,6 +59,8 @@ export function TxAction({
       <div className="flex flex-wrap items-center gap-3">
         <Button
           variant={variant}
+          size={size}
+          className={size === "lg" ? "h-11 px-5 text-[15px]" : undefined}
           disabled={disabled || tx.busy || problem === "reconnecting"}
           onClick={() => (needsFix ? setFixOpen(true) : confirm ? setOpen(true) : start())}
         >

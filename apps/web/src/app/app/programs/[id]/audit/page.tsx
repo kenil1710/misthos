@@ -113,7 +113,9 @@ export default async function AuditPage({
         </nav>
       </div>
       {rows.length === 0 ? (
-        <EmptyState>No events match these filters.</EmptyState>
+        <EmptyState art="stack" title="Nothing here" action={{ label: "Clear filters", href: "?" }}>
+          No events match these filters.
+        </EmptyState>
       ) : (
         <TableFrame>
           <Table>

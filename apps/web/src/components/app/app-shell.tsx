@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { AppSidebar, type ShellProgram } from "./app-sidebar";
+import { isFocusRoute } from "./focus-frame";
 import { NeedsBell, RoundPill, TopBar } from "./top-bar";
 
 /**
@@ -44,6 +45,8 @@ export function AppShell({
   const allNeeds = current
     ? current.needs
     : programs.flatMap((p) => p.needs.map((n) => ({ ...n, programName: p.name })));
+  // Guided flows take the whole screen; they draw their own header (FocusHeader).
+  if (isFocusRoute(path)) return <div className="flex min-h-dvh flex-col">{children}</div>;
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
       <div className="bg-sidebar hidden w-64 shrink-0 lg:block">

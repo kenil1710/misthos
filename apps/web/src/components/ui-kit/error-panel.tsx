@@ -1,19 +1,28 @@
 "use client";
 
+import { UnpluggedArt } from "@/components/brand/illustrations";
 import { Button } from "@/components/ui/button";
 
 /** Shown when a page fails to load. Says what happened and offers the one useful next step. */
 export function ErrorPanel({ reset, what = "this page" }: { reset: () => void; what?: string }) {
   return (
-    <div role="alert" className="rounded-lg border p-8">
-      <h1 className="text-lg font-medium">Couldn&apos;t load {what}</h1>
-      <p className="text-muted-foreground mt-1 max-w-lg text-sm">
-        Misthos couldn&apos;t reach its database or the Arc network just now. Your data is safe;
-        nothing was changed.
-      </p>
-      <Button className="mt-4" size="sm" onClick={reset}>
-        Try again
-      </Button>
+    <div
+      role="alert"
+      className="bg-card shadow-soft grid items-center gap-6 rounded-[1.5rem] p-6 sm:grid-cols-[auto_minmax(0,1fr)] sm:p-10"
+    >
+      <UnpluggedArt className="size-24 sm:size-32" />
+      <div>
+        <h1 className="display text-[2rem] leading-tight sm:text-[2.5rem]">
+          Couldn&apos;t load {what}
+        </h1>
+        <p className="text-soft mt-2 max-w-lg text-sm leading-relaxed">
+          Misthos couldn&apos;t reach its database or the Arc network just now. Your data is safe;
+          nothing was changed. It usually works again within a few seconds.
+        </p>
+        <Button className="mt-5" onClick={reset}>
+          Try again
+        </Button>
+      </div>
     </div>
   );
 }

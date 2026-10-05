@@ -39,7 +39,21 @@ function installRejectionGuard() {
 }
 
 installRejectionGuard();
-let hydrationStarted = false;
+/**
+ * Which island owns WagmiProvider (it restores and reconnects the wallet). Claimed during render, but only
+ * `providerCommitted` is final: React can throw a render away (two islands resolving together under one Suspense
+ * boundary), so an uncommitted claim expires after the current task and the retried render claims again.
+ */
+let providerCommitted = false;
+let pendingClaim = false;
+function claimProvider(): boolean {
+  if (providerCommitted || pendingClaim) return false;
+  pendingClaim = true;
+  setTimeout(() => {
+    pendingClaim = false;
+  }, 0);
+  return true;
+}
 
 /** wagmi with our own connect dialog. One config per tab, so several providers on a page share one connection. */
 export function Web3Provider({ children }: { children: ReactNode }) {
@@ -48,11 +62,14 @@ export function Web3Provider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   // Several islands on a page share one config. The first restores and reconnects the wallet (WagmiProvider);
   // later ones only provide the context, since wagmi's provider would otherwise reset or re-run the connection.
-  const [first] = useState(() => {
-    const isFirst = !hydrationStarted;
-    hydrationStarted = true;
-    return isFirst;
-  });
+  const [first] = useState(claimProvider);
+  useEffect(() => {
+    if (!first) return;
+    providerCommitted = true;
+    return () => {
+      providerCommitted = false;
+    };
+  }, [first]);
   useEffect(installRejectionGuard, []);
   const ui = useMemo(() => ({ openConnect: () => setOpen(true) }), []);
   const inner = (

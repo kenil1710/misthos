@@ -117,7 +117,7 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
 
       <Section title="Payouts">
         {payouts.length === 0 ? (
-          <EmptyState>
+          <EmptyState art="coins" title="No payouts">
             {round.status === "open"
               ? "This round is still open. Payouts are prepared when it closes."
               : "No payouts in this round."}

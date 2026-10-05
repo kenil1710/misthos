@@ -25,6 +25,15 @@ import {
 } from "@/lib/server/public-cached";
 import { explorerAddress, explorerTx } from "@/lib/server/vault";
 import { PreviewBanner } from "@/components/app/preview-banner";
+import { SealArt } from "@/components/brand/illustrations";
+
+const PAID = new Set(["approve", "partial"]);
+const ACTION_WORD: Record<string, string> = {
+  approve: "approved",
+  partial: "partly approved",
+  reject: "rejected",
+  escalate: "sent to review",
+};
 import { draftPreviewFor } from "@/lib/server/preview";
 
 export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Promise<Metadata> {
@@ -58,19 +67,23 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
           <PreviewBanner programId={program.id} what="audit page" />
         </div>
       ) : null}
-      <header className="grid gap-3">
+      <header className="grid gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">{program.name}</h1>
+          <p className="text-brand text-sm font-medium">Public audit</p>
           {program.isDemo ? (
             <span className="bg-warning-subtle text-warning rounded-md px-1.5 py-0.5 text-xs font-medium">
               Demo program: excluded from Misthos metrics
             </span>
           ) : null}
         </div>
-        <p className="text-muted-foreground max-w-2xl">{program.description}</p>
-        <div className="text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <h1 className="display text-[2.75rem] leading-[1.02] [overflow-wrap:anywhere] sm:text-[4rem]">
+          {program.name}
+        </h1>
+        <p className="text-soft max-w-[62ch] text-[17px] leading-relaxed">{program.description}</p>
+        {/* Stacked on phones: the address is monospace (loaded late), so a shared row could re-wrap as it loads. */}
+        <div className="text-muted-foreground flex flex-col items-start gap-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
           {program.vaultAddress ? (
-            <span className="inline-flex items-center gap-2">
+            <span className="bg-card shadow-soft inline-flex items-center gap-2 rounded-full px-3.5 py-1.5">
               Vault{" "}
               <HexValue
                 value={program.vaultAddress}
@@ -88,15 +101,21 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
       </header>
 
       {quiet ? (
-        <section className="bg-card rounded-xl border p-5 sm:p-6" aria-labelledby="quiet-h">
-          <h2 id="quiet-h" className="font-medium">
-            Nothing to audit yet
-          </h2>
-          <p className="text-soft mt-1 max-w-2xl text-sm leading-relaxed">
-            This program hasn&apos;t reviewed any work yet. As soon as the agent decides on a
-            submission, its signed decision record appears here, and every payout shows the
-            transaction on Arc and the decisions it paid for.
-          </p>
+        <section
+          className="bg-card shadow-soft grid items-center gap-6 rounded-[1.5rem] p-6 sm:grid-cols-[auto_minmax(0,1fr)] sm:p-8"
+          aria-labelledby="quiet-h"
+        >
+          <SealArt className="size-20 sm:size-24" />
+          <div>
+            <h2 id="quiet-h" className="display text-[1.75rem] leading-tight">
+              Nothing to audit yet
+            </h2>
+            <p className="text-soft mt-2 max-w-2xl text-sm leading-relaxed">
+              This program hasn&apos;t reviewed any work yet. As soon as the agent decides on a
+              submission, its signed decision record appears here, and every payout shows the
+              transaction on Arc and the decisions it paid for.
+            </p>
+          </div>
         </section>
       ) : null}
 
@@ -115,21 +134,40 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
         <Stat label="Rounds paid" value={stats.roundsPaid} />
       </section>
 
-      <Section
-        title="Verify a decision"
-        description="Every agent decision is a signed record. Check one yourself: the hash, the signature, and the payment on Arc."
-      >
-        <div id="verify" className="scroll-mt-6">
-          <VerifyTool />
+      <section className="grid gap-5" aria-labelledby="verify-h">
+        <div>
+          <h2 id="verify-h" className="display text-[2rem] leading-tight sm:text-[2.5rem]">
+            Verify a decision
+          </h2>
+          <p className="text-soft mt-2 max-w-[62ch] text-[15px] leading-relaxed">
+            Every agent decision is a signed record. Check one yourself: the hash, the signature,
+            and the payment on Arc.
+          </p>
         </div>
-      </Section>
+        <div id="verify" className="scroll-mt-6">
+          <VerifyTool
+            // Paid or approved decisions first: they verify all the way to the transaction on Arc.
+            picks={[...recent]
+              .sort((a, b) => Number(PAID.has(b.action)) - Number(PAID.has(a.action)))
+              .slice(0, 4)
+              .map((d) => ({
+                hash: d.hash,
+                label: `@${d.handle} · ${ACTION_WORD[d.action] ?? d.action}${
+                  BigInt(d.amount) > 0n ? ` · ${formatUsdc(BigInt(d.amount))}` : ""
+                }`,
+              }))}
+          />
+        </div>
+      </section>
 
       <Section
         title="Payouts"
         description="Each payout's decision hash commits to the decision records it pays for."
       >
         {payouts.length === 0 ? (
-          <EmptyState>No payouts yet. They appear here as soon as a round executes.</EmptyState>
+          <EmptyState art="coins" title="No payouts yet">
+            They appear here as soon as a round is paid, each with its transaction on Arc.
+          </EmptyState>
         ) : (
           <TableFrame>
             <Table>
@@ -196,7 +234,9 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
 
       <Section title="Rounds">
         {rounds.length === 0 ? (
-          <EmptyState>No rounds yet.</EmptyState>
+          <EmptyState art="stack" title="No rounds yet">
+            Rounds appear once the first one starts.
+          </EmptyState>
         ) : (
           <TableFrame>
             <Table>
@@ -241,31 +281,34 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
 
       <Section title="Recent decisions" description="What the agent decided and why, newest first.">
         {recent.length === 0 ? (
-          <EmptyState>No decisions yet.</EmptyState>
+          <EmptyState art="seal" title="No decisions yet">
+            Each decision the agent makes appears here with its signed record.
+          </EmptyState>
         ) : (
-          <ul className="divide-y rounded-lg border">
+          <ul className="grid gap-3 md:grid-cols-2">
             {recent.map((d) => (
-              <li key={d.hash} className="grid gap-1.5 p-4">
+              <li
+                key={d.hash}
+                className="bg-card shadow-soft grid content-start gap-2.5 rounded-[1.25rem] p-5"
+              >
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <ActionBadge action={d.action} />
-                  <span>@{d.handle}</span>
-                  <span className="text-muted-foreground">
-                    {SOURCE_LABEL[d.sourceType]}
-                  </span>
-                  {d.decidedBy === "human" ? (
-                    <span className="text-muted-foreground">decided by the program team</span>
-                  ) : null}
-                  <span className="text-muted-foreground ml-auto mono-num text-xs">
+                  <span className="font-medium">@{d.handle}</span>
+                  <span className="text-muted-foreground">{SOURCE_LABEL[d.sourceType]}</span>
+                  <span className="text-muted-foreground mono-num ml-auto text-xs">
                     {d.createdAt.toISOString().slice(0, 16).replace("T", " ")} UTC
                   </span>
                 </div>
-                <p className="text-sm">{d.summary}</p>
-                <div className="flex flex-wrap items-center gap-4 text-[13px]">
+                <p className="text-sm leading-relaxed">{d.summary}</p>
+                {d.decidedBy === "human" ? (
+                  <p className="text-muted-foreground text-xs">Decided by the program team</p>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-4 border-t pt-3 text-[13px]">
                   <span className="text-muted-foreground font-mono">{shortHex(d.hash, 8, 6)}</span>
                   <a
                     href={`#verify?d=${d.hash}`}
                     title="Check this decision record against the payment on Arc"
-                    className="underline underline-offset-4"
+                    className="text-brand font-medium underline-offset-4 hover:underline"
                   >
                     Verify
                   </a>

@@ -34,7 +34,7 @@ export async function createProgramAction(raw: unknown): Promise<CreateProgramSt
     };
   // The sidebar's program switcher lives in the /app layout: refresh it so the new draft shows up right away.
   revalidatePath("/app", "layout");
-  redirect(`/app/programs/${result.programId}`);
+  redirect(`/app/programs/${result.programId}/ready`);
 }
 
 export async function setProgramStatusAction(programId: string, status: "active" | "paused") {

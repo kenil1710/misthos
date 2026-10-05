@@ -93,7 +93,9 @@ export default async function RoundsPage({ params }: PageProps<"/app/programs/[i
         </section>
       ) : null}
       {rounds.length === 0 ? (
-        <EmptyState>The first round starts when the program does.</EmptyState>
+        <EmptyState art="stack" title="No rounds yet">
+          The first round starts when the program does.
+        </EmptyState>
       ) : (
         <ul className="bg-card shadow-soft divide-border/70 divide-y overflow-hidden rounded-[1.25rem]">
           {[...rounds].reverse().map((r) => (

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ReviewTable } from "@/components/review/review-table";
-import { Inbox } from "lucide-react";
+import { RubricArt } from "@/components/brand/illustrations";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/ui-kit";
 import { CopyField } from "@/components/ui-kit/copy-field";
@@ -95,9 +95,9 @@ export default async function SubmissionsPage({
         </nav>
       </div>
       {total === 0 ? (
-        <section className="bg-card/50 grid justify-items-center gap-3 rounded-[1.25rem] border border-dashed px-6 py-14 text-center">
-          <Inbox className="text-muted-foreground size-6" strokeWidth={1.5} aria-hidden="true" />
-          <h2 className="font-medium">No submissions yet</h2>
+        <section className="bg-card/50 grid justify-items-center gap-3 rounded-[1.25rem] border border-dashed px-6 py-12 text-center">
+          <RubricArt className="size-20" />
+          <h2 className="display text-[1.5rem] leading-tight">No submissions yet</h2>
           <p className="text-muted-foreground max-w-md text-sm leading-relaxed">
             Contributors join with your link, sign in with X and paste links to their work. Each
             submission shows up here within a minute, with the agent&apos;s decision and reasons.
@@ -119,7 +119,11 @@ export default async function SubmissionsPage({
       ) : view === "board" ? (
         <ReviewTable view="board" rows={rows} maxPerPayout={row.program.limitsJson.maxPerPayout} />
       ) : rows.length === 0 ? (
-        <EmptyState action={{ label: "Show all submissions", href: "?" }}>
+        <EmptyState
+          art="rubric"
+          title="All clear"
+          action={{ label: "Show all submissions", href: "?" }}
+        >
           Nothing is {filters.find(([k]) => k === status)?.[1].toLowerCase() ?? "here"} right now.
         </EmptyState>
       ) : (

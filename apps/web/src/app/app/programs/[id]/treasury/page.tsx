@@ -39,8 +39,12 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
           title="Treasury"
           description="The program's vault, its balance and every movement of funds."
         />
-        <EmptyState action={{ label: "Finish setup", href: base }}>
-          Deploy the vault from the program overview to see its treasury.
+        <EmptyState
+          art="vault"
+          title="No vault yet"
+          action={{ label: "Deploy the vault", href: `${base}/setup` }}
+        >
+          Deploy the vault to see its treasury: balance, deposits and payouts.
         </EmptyState>
       </div>
     );
@@ -216,7 +220,9 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
         <section className="grid gap-3">
           <h2 className="text-lg font-medium">Payouts</h2>
           {activity.outflows.length === 0 ? (
-            <EmptyState>No payouts yet. They appear here after the first round pays.</EmptyState>
+            <EmptyState art="coins" title="No payouts yet">
+              They appear here after the first round pays.
+            </EmptyState>
           ) : (
             <TableFrame>
               <Table>

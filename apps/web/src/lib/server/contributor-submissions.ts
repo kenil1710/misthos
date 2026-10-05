@@ -1,7 +1,7 @@
 import "server-only";
-import { decisions, getDb, submissions } from "@misthos/db";
+import { decisions, getDb, payouts, rounds, submissions } from "@misthos/db";
 import type { SourceType } from "@misthos/shared/sources";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 export interface SubmissionItem {
   id: string;
@@ -14,8 +14,17 @@ export interface SubmissionItem {
     summary: string;
     decisionHash: string;
     decidedBy: "agent" | "human";
-    flags: { code: string; severity: string }[];
+    action: string;
+    amount: string;
+    createdAt: string;
+    /** The model scored it (false when a check rejected it before judgment). */
+    scored: boolean;
+    /** Contributor-safe: codes only (labels and fixes come from FLAG_COPY); never the raw message or evidence. */
+    flags: { code: string; severity: string; message: string }[];
   } | null;
+  /** For the journey's last steps: the round it counts in and, once paid, the payout. */
+  round: { number: number; status: string; endsAt: string } | null;
+  payout: { status: string; txHash: string | null } | null;
 }
 
 /**
@@ -46,6 +55,10 @@ export async function contributorSubmissionItems(
           summary: decisions.summary,
           decisionHash: decisions.decisionHash,
           decidedBy: decisions.decidedBy,
+          action: decisions.action,
+          amount: decisions.amount,
+          createdAt: decisions.createdAt,
+          scored: sql<boolean>`${decisions.llmOutputJson} is not null`,
           flags: decisions.flagsJson,
         })
         .from(decisions)
@@ -54,8 +67,33 @@ export async function contributorSubmissionItems(
     : [];
   const latest = new Map<string, (typeof decs)[number]>();
   for (const d of decs) if (!latest.has(d.submissionId)) latest.set(d.submissionId, d);
+  const roundIds = [...new Set(rows.map((r) => r.roundId))];
+  const payoutIds = [...new Set(rows.map((r) => r.payoutId).filter((x): x is string => !!x))];
+  const [rs, ps] = await Promise.all([
+    roundIds.length
+      ? db
+          .select({
+            id: rounds.id,
+            number: rounds.number,
+            status: rounds.status,
+            endsAt: rounds.endsAt,
+          })
+          .from(rounds)
+          .where(inArray(rounds.id, roundIds))
+      : Promise.resolve([]),
+    payoutIds.length
+      ? db
+          .select({ id: payouts.id, status: payouts.status, txHash: payouts.txHash })
+          .from(payouts)
+          .where(inArray(payouts.id, payoutIds))
+      : Promise.resolve([]),
+  ]);
+  const roundById = new Map(rs.map((x) => [x.id, x]));
+  const payoutById = new Map(ps.map((x) => [x.id, x]));
   return rows.map((r) => {
     const d = latest.get(r.id);
+    const round = roundById.get(r.roundId);
+    const payout = r.payoutId ? payoutById.get(r.payoutId) : undefined;
     return {
       id: r.id,
       url: r.url,
@@ -68,12 +106,21 @@ export async function contributorSubmissionItems(
             summary: d.summary,
             decisionHash: d.decisionHash,
             decidedBy: d.decidedBy,
+            action: d.action,
+            amount: d.amount.toString(),
+            createdAt: d.createdAt.toISOString(),
+            scored: !!d.scored,
             flags: (d.flags as { code: string; severity: string }[]).map((f) => ({
               code: f.code,
               severity: f.severity,
+              message: "",
             })),
           }
         : null,
+      round: round
+        ? { number: round.number, status: round.status, endsAt: round.endsAt.toISOString() }
+        : null,
+      payout: payout ? { status: payout.status, txHash: payout.txHash } : null,
     };
   });
 }

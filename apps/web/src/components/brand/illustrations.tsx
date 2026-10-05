@@ -313,3 +313,60 @@ export function BoxArt(p: P) {
     </Svg>
   );
 }
+
+/** A broken link: two halves of a chain link, pulled apart. For 404s. */
+export function BrokenLinkArt(p: P) {
+  return (
+    <Svg {...p}>
+      <ellipse cx="60" cy="104" rx="42" ry="8" fill={light} opacity="0.7" />
+      <g transform="rotate(-24 60 60)">
+        <rect
+          x="10"
+          y="44"
+          width="44"
+          height="26"
+          rx="13"
+          fill="none"
+          stroke={deep}
+          strokeWidth="9"
+        />
+        <rect
+          x="66"
+          y="44"
+          width="44"
+          height="26"
+          rx="13"
+          fill="none"
+          stroke={mid}
+          strokeWidth="9"
+        />
+      </g>
+      <g stroke={mid} strokeWidth="3" {...line}>
+        <path d="M56 36 l-3 -9" />
+        <path d="M64 34 l3 -10" />
+        <path d="M58 86 l-2 9" />
+        <path d="M66 84 l4 8" />
+      </g>
+    </Svg>
+  );
+}
+
+/** An unplugged cable: a page that couldn't reach its data. For error states. */
+export function UnpluggedArt(p: P) {
+  return (
+    <Svg {...p}>
+      <ellipse cx="60" cy="104" rx="42" ry="8" fill={light} opacity="0.7" />
+      <path d="M8 74 q14 0 20 -10" stroke={mid} strokeWidth="5" fill="none" {...line} />
+      <rect x="26" y="46" width="22" height="22" rx="6" fill={deep} stroke={deep} strokeWidth="2" />
+      <path d="M48 52 h8 M48 62 h8" stroke={deep} strokeWidth="4" {...line} />
+      <rect x="72" y="46" width="22" height="22" rx="6" fill={light} stroke={mid} strokeWidth="3" />
+      <path d="M78 54 v6 M88 54 v6" stroke={mid} strokeWidth="3" {...line} />
+      <path d="M94 57 q14 0 18 14" stroke={mid} strokeWidth="5" fill="none" {...line} />
+      <g stroke={mid} strokeWidth="2.5" {...line}>
+        <path d="M63 40 l-1 -7" />
+        <path d="M66 42 l5 -5" />
+        <path d="M63 74 l-1 7" />
+      </g>
+    </Svg>
+  );
+}

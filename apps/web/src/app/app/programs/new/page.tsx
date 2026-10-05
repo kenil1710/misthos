@@ -1,20 +1,12 @@
-import { Suspense } from "react";
-import { PageHeader } from "@/components/ui-kit";
 import { WizardLoader } from "./wizard-loader";
+import { STEPS } from "./wizard-steps";
 
 export const metadata = { title: "New program" };
 
-export default function NewProgramPage() {
-  return (
-    <div>
-      <PageHeader
-        crumbs={[{ label: "All programs", href: "/app" }, { label: "New program" }]}
-        title="New program"
-        description="Set the rules once. The agent applies them to every submission, and the vault enforces the limits on-chain. Nothing is published or spent until you choose to."
-      />
-      <Suspense>
-        <WizardLoader />
-      </Suspense>
-    </div>
-  );
+/** Full-screen guided flow (no app rail; see FOCUS_ROUTES): the wizard draws its own header and progress. */
+export default async function NewProgramPage({ searchParams }: PageProps<"/app/programs/new">) {
+  const raw = Number((await searchParams).step);
+  // The wizard may still step back to the first invalid step once the draft is restored.
+  const step = Math.min(STEPS.length, Math.max(1, Number.isFinite(raw) ? raw : 1)) - 1;
+  return <WizardLoader step={step} />;
 }

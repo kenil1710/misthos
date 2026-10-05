@@ -276,3 +276,53 @@ div:has(> [data-theme-toggle]) {
   border-color: transparent;
   background: transparent;
 }
+
+/*
+ * Docs theme: the app's display serif for page titles and section headings, cards and callouts as soft surfaces
+ * (shadow, no hard border), the sidebar on the app's sidebar tone, and brand-coloured links.
+ */
+#nd-page h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2.5rem, 4vw, 3.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+#nd-page .prose :is(h2, h3) {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+#nd-page .prose h2 {
+  font-size: 2rem;
+  line-height: 1.15;
+}
+#nd-page .prose h3 {
+  font-size: 1.5rem;
+}
+#nd-page .prose a:not([data-card], [href^="#"]) {
+  color: var(--brand);
+  text-decoration-color: color-mix(in oklch, var(--brand) 40%, transparent);
+  text-underline-offset: 4px;
+}
+#nd-page :is([data-card]:not([href^="#"]), .prose [role="note"], .prose pre, .prose table) {
+  border-color: transparent;
+  background: var(--card);
+  box-shadow: var(--shadow-soft);
+  border-radius: 1.25rem;
+}
+#nd-page a[data-card]:not([href^="#"]):hover {
+  box-shadow: var(--shadow-lift);
+}
+#nd-sidebar {
+  background: var(--sidebar);
+  border-color: var(--sidebar-border);
+}
+#nd-sidebar a[data-active="true"] {
+  background: var(--brand-subtle);
+  color: var(--brand);
+  font-weight: 500;
+}
+#nd-toc a[data-active="true"] {
+  color: var(--brand);
+}

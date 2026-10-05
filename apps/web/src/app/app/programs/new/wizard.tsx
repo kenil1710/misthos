@@ -3,13 +3,17 @@
 import { formatUsdc } from "@misthos/shared/money";
 import { SOURCE_LABELS, SOURCE_TYPES, type SourceType } from "@misthos/shared/sources";
 import { BudgetInput, LimitsInput, ProgramBasics, Rubric } from "@misthos/shared";
-import { Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Eye, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import type { z } from "zod";
+import { FocusHeader, FocusMain } from "@/components/app/focus-frame";
+import { VaultArt } from "@/components/brand/illustrations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { CooldownWarning } from "@/components/vault/cooldown-warning";
 import { LIMIT_HELP } from "@/lib/limits-help";
@@ -23,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { fromNow, localAndUtc, toLocalInput } from "@/lib/when";
 import { createProgramAction } from "../actions";
+import { STEP_META, STEPS } from "./wizard-steps";
 
 // ─── Form state (strings, as typed) ─────────────────────────────────────────
 
@@ -251,8 +256,6 @@ function issues(schema: z.ZodType, value: unknown, prefix: string): Record<strin
   return out;
 }
 
-const STEPS = ["Basics", "Rubric", "Budget and schedule", "Review"] as const;
-
 /** Field ids → the error keys the schemas report, for validating a field when the owner leaves it. */
 const ID_KEYS: Record<string, string> = {
   name: "basics.name",
@@ -362,6 +365,7 @@ export function ProgramWizard() {
   const [savedAt, setSavedAt] = useState<string | null>(restored?.savedAt ?? null);
   const dirty = savedAt !== null || JSON.stringify(form) !== JSON.stringify(initialForm());
   const [pending, startTransition] = useTransition();
+  const [previewOpen, setPreviewOpen] = useState(false);
   const submitting = useRef(false);
 
   const [now] = useState(() => new Date());
@@ -532,712 +536,858 @@ export function ProgramWizard() {
   const len = Number(form.budget.roundLengthDays);
   const end = start && len > 0 ? new Date(start.getTime() + len * 86_400_000) : null;
 
+  const meta = STEP_META[step]!;
   return (
-    <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,640px)_minmax(0,1fr)]">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <ol className="flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Steps">
-            {STEPS.map((label, i) => (
-              <li
-                key={label}
-                aria-current={i === step ? "step" : undefined}
-                className={cn(
-                  "flex items-center gap-2",
-                  i === step ? "text-foreground font-medium" : "text-muted-foreground",
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex size-5 items-center justify-center rounded-full border text-[11px] tabular-nums",
-                    i === step && "border-foreground",
-                    i < step && "bg-foreground text-background border-foreground",
-                  )}
-                >
-                  {i + 1}
-                </span>
-                {i < step ? (
-                  <button
-                    type="button"
-                    className="hover:text-foreground rounded-sm"
-                    onClick={() => goTo(i)}
-                  >
-                    {label}
-                  </button>
-                ) : (
-                  label
-                )}
-              </li>
-            ))}
-          </ol>
-          {dirty ? (
-            <p className="text-muted-foreground text-xs" aria-live="polite">
-              Draft saved on this device ·{" "}
-              <button
-                type="button"
-                className="hover:text-foreground underline underline-offset-4"
-                onClick={discardDraft}
-              >
-                Discard draft
-              </button>
+    <>
+      <FocusHeader
+        progress={<WizardProgress step={step} onGo={goTo} />}
+        exit={
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/app">Save and exit</Link>
+          </Button>
+        }
+      />
+      <FocusMain>
+        <div className="grid items-start gap-12 pt-8 sm:pt-12 lg:grid-cols-[minmax(0,640px)_minmax(0,1fr)] xl:gap-20">
+          <div className="min-w-0">
+            <p className="text-brand text-sm font-medium">
+              Step {step + 1} of {STEPS.length}
+              <span className="text-muted-foreground font-normal"> · {STEPS[step]}</span>
             </p>
-          ) : null}
-        </div>
-
-        <div className="mt-8 grid gap-6" onBlur={onFieldBlur}>
-          {step === 0 ? (
-            <>
-              <Field id="name" label="Program name" error={e["basics.name"]}>
-                <Input
-                  id="name"
-                  placeholder="Arc Creators"
-                  value={form.basics.name}
-                  onChange={(ev) => {
-                    const name = ev.target.value;
-                    setForm((f) => ({
-                      ...f,
-                      basics: {
-                        ...f.basics,
-                        name,
-                        ...(f.slugEdited ? {} : { slug: toSlug(name) }),
-                      },
-                    }));
-                  }}
-                  aria-invalid={!!e["basics.name"]}
-                />
-              </Field>
-              <Field
-                id="slug"
-                label="Join link"
-                hint="Filled in from the name. Lowercase letters, numbers and dashes."
-                error={e["basics.slug"]}
-              >
-                <div
-                  className={cn(
-                    "border-input focus-within:border-ring focus-within:ring-ring/50 flex h-8 items-center overflow-hidden rounded-lg border focus-within:ring-3 dark:bg-input/30",
-                    e["basics.slug"] && "border-destructive",
-                  )}
+            <h1 className="display mt-2 text-[2.5rem] leading-[1.05] sm:text-[3.25rem]">
+              {meta.title}
+            </h1>
+            <p className="text-soft mt-3 max-w-[56ch] text-[15px] leading-relaxed">{meta.intro}</p>
+            {dirty ? (
+              <p className="text-muted-foreground mt-3 text-xs" aria-live="polite">
+                Draft saved on this device ·{" "}
+                <button
+                  type="button"
+                  className="hover:text-foreground underline underline-offset-4"
+                  onClick={discardDraft}
                 >
-                  <span className="text-muted-foreground bg-muted/50 flex h-full shrink-0 items-center border-r px-2.5 font-mono text-[13px]">
-                    {APP_HOST}/join/
-                  </span>
-                  <input
-                    id="slug"
-                    placeholder="arc-creators"
-                    value={form.basics.slug}
-                    onChange={(ev) =>
-                      setForm((f) => ({
-                        ...f,
-                        slugEdited: true,
-                        basics: { ...f.basics, slug: ev.target.value },
-                      }))
-                    }
-                    className="placeholder:text-muted-foreground h-full min-w-0 flex-1 bg-transparent px-2.5 font-mono text-sm outline-none"
-                    aria-invalid={!!e["basics.slug"]}
-                  />
-                </div>
-              </Field>
-              <Field
-                id="description"
-                label="Description"
-                hint="Shown on the join page. Say what you pay for and who it's for."
-                error={e["basics.description"]}
-              >
-                <Textarea
-                  id="description"
-                  rows={4}
-                  placeholder="Pays builders for original threads, guides and pull requests that help others ship on Arc."
-                  value={form.basics.description}
-                  onChange={(ev) => update("basics", { description: ev.target.value })}
-                  aria-invalid={!!e["basics.description"]}
-                />
-              </Field>
-              <Field
-                id="logo"
-                label="Logo URL (optional)"
-                hint="A square https image."
-                error={e["basics.logoUrl"]}
-              >
-                <Input
-                  id="logo"
-                  type="url"
-                  placeholder="https://example.com/logo.png"
-                  value={form.basics.logoUrl}
-                  onChange={(ev) => update("basics", { logoUrl: ev.target.value })}
-                  aria-invalid={!!e["basics.logoUrl"]}
-                />
-              </Field>
-            </>
-          ) : null}
+                  Discard draft
+                </button>
+              </p>
+            ) : null}
 
-          {step === 1 ? (
-            <>
-              <ScoringExplainer rate={eff.rate} />
-              {form.rubric.categories.map((c, i) => (
-                <fieldset key={i} className="bg-card grid gap-4 rounded-xl border p-5">
-                  <div className="flex items-center justify-between">
-                    <legend className="text-sm font-medium">Category {i + 1}</legend>
-                    {form.rubric.categories.length > 1 ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            rubric: {
-                              ...f.rubric,
-                              categories: f.rubric.categories.filter((_, j) => j !== i),
-                            },
-                          }))
-                        }
-                      >
-                        <Trash2 className="size-4" aria-hidden="true" />
-                        Remove
-                      </Button>
-                    ) : null}
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-[1fr_150px]">
-                    <Field
-                      id={`c${i}-name`}
-                      label="Name"
-                      error={e[`rubric.categories.${i}.name`] ?? e[`rubric.categories.${i}.key`]}
-                    >
-                      <Input
-                        id={`c${i}-name`}
-                        placeholder="Threads and posts"
-                        value={c.name}
-                        onChange={(ev) => updateCategory(i, { name: ev.target.value })}
-                      />
-                    </Field>
-                    <Field
-                      id={`c${i}-max`}
-                      label="Max points"
-                      error={e[`rubric.categories.${i}.maxPoints`]}
-                    >
-                      <UnitInput
-                        id={`c${i}-max`}
-                        unit="points"
-                        placeholder="10"
-                        value={c.maxPoints}
-                        onChange={(v) => updateCategory(i, { maxPoints: v })}
-                      />
-                    </Field>
-                  </div>
-                  <p className="bg-muted/50 rounded-md px-3 py-2 text-sm">
-                    A perfect {itemNoun(c.name)} (10/10) earns{" "}
-                    <span className="mono-num font-medium">
-                      {eff.perfect[i] !== null && eff.perfect[i] !== undefined
-                        ? formatUsdc(eff.perfect[i]!)
-                        : "—"}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {" "}
-                      ({c.maxPoints || "0"} points ×{" "}
-                      {eff.rate !== null ? formatUsdc(eff.rate) : "rate"} per point). A 7/10 average
-                      earns 70% of that.
-                    </span>
-                  </p>
-                  <Field
-                    id={`c${i}-desc`}
-                    label="What counts"
-                    error={e[`rubric.categories.${i}.description`]}
-                  >
-                    <Textarea
-                      id={`c${i}-desc`}
-                      rows={2}
-                      placeholder="Original posts or threads that teach something about building on Arc."
-                      value={c.description}
-                      onChange={(ev) => updateCategory(i, { description: ev.target.value })}
+            <div className="mt-8 grid gap-6" onBlur={onFieldBlur}>
+              {step === 0 ? (
+                <>
+                  <Field id="name" label="Program name" error={e["basics.name"]}>
+                    <Input
+                      id="name"
+                      placeholder="Arc Creators"
+                      value={form.basics.name}
+                      onChange={(ev) => {
+                        const name = ev.target.value;
+                        setForm((f) => ({
+                          ...f,
+                          basics: {
+                            ...f.basics,
+                            name,
+                            ...(f.slugEdited ? {} : { slug: toSlug(name) }),
+                          },
+                        }));
+                      }}
+                      aria-invalid={!!e["basics.name"]}
                     />
                   </Field>
-                  <div className="grid gap-1.5">
-                    <span className="text-sm font-medium">Accepted sources</span>
-                    <div className="flex flex-wrap gap-4">
-                      {SOURCE_TYPES.map((t) => (
-                        <label key={t} className="flex items-center gap-2 text-sm">
+                  <Field
+                    id="slug"
+                    label="Join link"
+                    hint="Filled in from the name. Lowercase letters, numbers and dashes."
+                    error={e["basics.slug"]}
+                  >
+                    <div
+                      className={cn(
+                        "border-input focus-within:border-ring focus-within:ring-ring/50 flex h-8 items-center overflow-hidden rounded-lg border focus-within:ring-3 dark:bg-input/30",
+                        e["basics.slug"] && "border-destructive",
+                      )}
+                    >
+                      <span className="text-muted-foreground bg-muted/50 flex h-full shrink-0 items-center border-r px-2.5 font-mono text-[13px]">
+                        {APP_HOST}/join/
+                      </span>
+                      <input
+                        id="slug"
+                        placeholder="arc-creators"
+                        value={form.basics.slug}
+                        onChange={(ev) =>
+                          setForm((f) => ({
+                            ...f,
+                            slugEdited: true,
+                            basics: { ...f.basics, slug: ev.target.value },
+                          }))
+                        }
+                        className="placeholder:text-muted-foreground h-full min-w-0 flex-1 bg-transparent px-2.5 font-mono text-sm outline-none"
+                        aria-invalid={!!e["basics.slug"]}
+                      />
+                    </div>
+                  </Field>
+                  <Field
+                    id="description"
+                    label="Description"
+                    hint="Shown on the join page. Say what you pay for and who it's for."
+                    error={e["basics.description"]}
+                  >
+                    <Textarea
+                      id="description"
+                      rows={4}
+                      placeholder="Pays builders for original threads, guides and pull requests that help others ship on Arc."
+                      value={form.basics.description}
+                      onChange={(ev) => update("basics", { description: ev.target.value })}
+                      aria-invalid={!!e["basics.description"]}
+                    />
+                  </Field>
+                  <Field
+                    id="logo"
+                    label="Logo URL (optional)"
+                    hint="A square https image."
+                    error={e["basics.logoUrl"]}
+                  >
+                    <Input
+                      id="logo"
+                      type="url"
+                      placeholder="https://example.com/logo.png"
+                      value={form.basics.logoUrl}
+                      onChange={(ev) => update("basics", { logoUrl: ev.target.value })}
+                      aria-invalid={!!e["basics.logoUrl"]}
+                    />
+                  </Field>
+                </>
+              ) : null}
+
+              {step === 1 ? (
+                <>
+                  <ScoringExplainer rate={eff.rate} />
+                  {form.rubric.categories.map((c, i) => (
+                    <fieldset
+                      key={i}
+                      className="bg-card shadow-soft grid gap-4 rounded-[1.25rem] p-5 sm:p-6"
+                    >
+                      <div className="flex items-center justify-between">
+                        <legend className="text-sm font-medium">Category {i + 1}</legend>
+                        {form.rubric.categories.length > 1 ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              setForm((f) => ({
+                                ...f,
+                                rubric: {
+                                  ...f.rubric,
+                                  categories: f.rubric.categories.filter((_, j) => j !== i),
+                                },
+                              }))
+                            }
+                          >
+                            <Trash2 className="size-4" aria-hidden="true" />
+                            Remove
+                          </Button>
+                        ) : null}
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-[1fr_150px]">
+                        <Field
+                          id={`c${i}-name`}
+                          label="Name"
+                          error={
+                            e[`rubric.categories.${i}.name`] ?? e[`rubric.categories.${i}.key`]
+                          }
+                        >
+                          <Input
+                            id={`c${i}-name`}
+                            placeholder="Threads and posts"
+                            value={c.name}
+                            onChange={(ev) => updateCategory(i, { name: ev.target.value })}
+                          />
+                        </Field>
+                        <Field
+                          id={`c${i}-max`}
+                          label="Max points"
+                          error={e[`rubric.categories.${i}.maxPoints`]}
+                        >
+                          <UnitInput
+                            id={`c${i}-max`}
+                            unit="points"
+                            placeholder="10"
+                            value={c.maxPoints}
+                            onChange={(v) => updateCategory(i, { maxPoints: v })}
+                          />
+                        </Field>
+                      </div>
+                      <p className="bg-muted/60 rounded-xl px-3.5 py-2.5 text-sm">
+                        A perfect {itemNoun(c.name)} (10/10) earns{" "}
+                        <span className="mono-num font-medium">
+                          {eff.perfect[i] !== null && eff.perfect[i] !== undefined
+                            ? formatUsdc(eff.perfect[i]!)
+                            : "—"}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {" "}
+                          ({c.maxPoints || "0"} points ×{" "}
+                          {eff.rate !== null ? formatUsdc(eff.rate) : "rate"} per point). A 7/10
+                          average earns 70% of that.
+                        </span>
+                      </p>
+                      <Field
+                        id={`c${i}-desc`}
+                        label="What counts"
+                        error={e[`rubric.categories.${i}.description`]}
+                      >
+                        <Textarea
+                          id={`c${i}-desc`}
+                          rows={2}
+                          placeholder="Original posts or threads that teach something about building on Arc."
+                          value={c.description}
+                          onChange={(ev) => updateCategory(i, { description: ev.target.value })}
+                        />
+                      </Field>
+                      <div className="grid gap-1.5">
+                        <span className="text-sm font-medium">Accepted sources</span>
+                        <div className="flex flex-wrap gap-4">
+                          {SOURCE_TYPES.map((t) => (
+                            <label key={t} className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                className="accent-brand size-4"
+                                checked={c.sourceTypes.includes(t)}
+                                onChange={(ev) =>
+                                  updateCategory(i, {
+                                    sourceTypes: ev.target.checked
+                                      ? [...c.sourceTypes, t]
+                                      : c.sourceTypes.filter((x) => x !== t),
+                                  })
+                                }
+                              />
+                              {SOURCE_LABELS[t]}
+                            </label>
+                          ))}
+                        </div>
+                        {e[`rubric.categories.${i}.sourceTypes`] ? (
+                          <p className="text-danger text-xs">Pick at least one source.</p>
+                        ) : null}
+                      </div>
+                      {c.sourceTypes.includes("github_pr") ? (
+                        <label className="flex items-center gap-2 text-sm">
                           <input
                             type="checkbox"
                             className="accent-brand size-4"
-                            checked={c.sourceTypes.includes(t)}
+                            checked={c.requireMerged}
                             onChange={(ev) =>
-                              updateCategory(i, {
-                                sourceTypes: ev.target.checked
-                                  ? [...c.sourceTypes, t]
-                                  : c.sourceTypes.filter((x) => x !== t),
-                              })
+                              updateCategory(i, { requireMerged: ev.target.checked })
                             }
                           />
-                          {SOURCE_LABELS[t]}
+                          Only pay merged pull requests
                         </label>
-                      ))}
-                    </div>
-                    {e[`rubric.categories.${i}.sourceTypes`] ? (
-                      <p className="text-danger text-xs">Pick at least one source.</p>
-                    ) : null}
-                  </div>
-                  {c.sourceTypes.includes("github_pr") ? (
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        className="accent-brand size-4"
-                        checked={c.requireMerged}
-                        onChange={(ev) => updateCategory(i, { requireMerged: ev.target.checked })}
-                      />
-                      Only pay merged pull requests
-                    </label>
-                  ) : null}
-                  <div className="grid gap-2">
-                    <span className="text-sm font-medium">Scoring criteria</span>
-                    <p className="text-muted-foreground -mt-1 text-xs">
-                      The agent scores each from 0 to 10 and explains why. The category&apos;s
-                      points are their average ÷ 10 × max points.
-                    </p>
-                    {c.criteria.map((k, j) => (
-                      <div key={j} className="grid gap-2 sm:grid-cols-[160px_1fr_auto]">
-                        <Input
-                          aria-label={`Criterion ${j + 1} name`}
-                          placeholder={["Depth", "Clarity", "Originality"][j] ?? "Criterion"}
-                          value={k.name}
-                          onChange={(ev) =>
-                            updateCategory(i, {
-                              criteria: c.criteria.map((x, m) =>
-                                m === j ? { ...x, name: ev.target.value } : x,
-                              ),
-                            })
-                          }
-                        />
-                        <Input
-                          aria-label={`Criterion ${j + 1} description`}
-                          placeholder="What a 10 looks like, e.g. explains how and why"
-                          value={k.description}
-                          onChange={(ev) =>
-                            updateCategory(i, {
-                              criteria: c.criteria.map((x, m) =>
-                                m === j ? { ...x, description: ev.target.value } : x,
-                              ),
-                            })
-                          }
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Remove criterion ${j + 1}`}
-                          disabled={c.criteria.length === 1}
-                          onClick={() =>
-                            updateCategory(i, { criteria: c.criteria.filter((_, m) => m !== j) })
-                          }
-                        >
-                          <Trash2 className="size-4" aria-hidden="true" />
-                        </Button>
+                      ) : null}
+                      <div className="grid gap-2">
+                        <span className="text-sm font-medium">Scoring criteria</span>
+                        <p className="text-muted-foreground -mt-1 text-xs">
+                          The agent scores each from 0 to 10 and explains why. The category&apos;s
+                          points are their average ÷ 10 × max points.
+                        </p>
+                        {c.criteria.map((k, j) => (
+                          <div key={j} className="grid gap-2 sm:grid-cols-[160px_1fr_auto]">
+                            <Input
+                              aria-label={`Criterion ${j + 1} name`}
+                              placeholder={["Depth", "Clarity", "Originality"][j] ?? "Criterion"}
+                              value={k.name}
+                              onChange={(ev) =>
+                                updateCategory(i, {
+                                  criteria: c.criteria.map((x, m) =>
+                                    m === j ? { ...x, name: ev.target.value } : x,
+                                  ),
+                                })
+                              }
+                            />
+                            <Input
+                              aria-label={`Criterion ${j + 1} description`}
+                              placeholder="What a 10 looks like, e.g. explains how and why"
+                              value={k.description}
+                              onChange={(ev) =>
+                                updateCategory(i, {
+                                  criteria: c.criteria.map((x, m) =>
+                                    m === j ? { ...x, description: ev.target.value } : x,
+                                  ),
+                                })
+                              }
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Remove criterion ${j + 1}`}
+                              disabled={c.criteria.length === 1}
+                              onClick={() =>
+                                updateCategory(i, {
+                                  criteria: c.criteria.filter((_, m) => m !== j),
+                                })
+                              }
+                            >
+                              <Trash2 className="size-4" aria-hidden="true" />
+                            </Button>
+                          </div>
+                        ))}
+                        {Object.keys(e).some((k) =>
+                          k.startsWith(`rubric.categories.${i}.criteria`),
+                        ) ? (
+                          <p className="text-danger text-xs">
+                            Each criterion needs a unique name and a description.
+                          </p>
+                        ) : null}
+                        {c.criteria.length < 8 ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="justify-self-start"
+                            onClick={() =>
+                              updateCategory(i, {
+                                criteria: [...c.criteria, { name: "", description: "" }],
+                              })
+                            }
+                          >
+                            <Plus className="size-4" aria-hidden="true" />
+                            Add criterion
+                          </Button>
+                        ) : null}
                       </div>
-                    ))}
-                    {Object.keys(e).some((k) => k.startsWith(`rubric.categories.${i}.criteria`)) ? (
-                      <p className="text-danger text-xs">
-                        Each criterion needs a unique name and a description.
-                      </p>
-                    ) : null}
-                    {c.criteria.length < 8 ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="justify-self-start"
-                        onClick={() =>
-                          updateCategory(i, {
-                            criteria: [...c.criteria, { name: "", description: "" }],
-                          })
-                        }
+                      <Field
+                        id={`c${i}-rules`}
+                        label="Rules (plain language, optional)"
+                        error={e[`rubric.categories.${i}.rules`]}
                       >
-                        <Plus className="size-4" aria-hidden="true" />
-                        Add criterion
-                      </Button>
-                    ) : null}
-                  </div>
+                        <Textarea
+                          id={`c${i}-rules`}
+                          rows={2}
+                          placeholder="Threads should be at least 3 posts. Memes and reposts are not paid."
+                          value={c.rules}
+                          onChange={(ev) => updateCategory(i, { rules: ev.target.value })}
+                        />
+                      </Field>
+                    </fieldset>
+                  ))}
+                  {form.rubric.categories.length < 10 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="justify-self-start"
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          rubric: {
+                            ...f.rubric,
+                            categories: [
+                              ...f.rubric.categories,
+                              {
+                                name: "",
+                                description: "",
+                                sourceTypes: ["article"],
+                                maxPoints: "10",
+                                criteria: [{ name: "", description: "" }],
+                                rules: "",
+                                requireMerged: true,
+                              },
+                            ],
+                          },
+                        }))
+                      }
+                    >
+                      <Plus className="size-4" aria-hidden="true" />
+                      Add category
+                    </Button>
+                  ) : null}
                   <Field
-                    id={`c${i}-rules`}
-                    label="Rules (plain language, optional)"
-                    error={e[`rubric.categories.${i}.rules`]}
+                    id="general"
+                    label="Rules for every submission (optional)"
+                    error={e["rubric.generalRules"]}
                   >
                     <Textarea
-                      id={`c${i}-rules`}
-                      rows={2}
-                      placeholder="Threads should be at least 3 posts. Memes and reposts are not paid."
-                      value={c.rules}
-                      onChange={(ev) => updateCategory(i, { rules: ev.target.value })}
+                      id="general"
+                      rows={3}
+                      placeholder="English only. Original work about building on Arc."
+                      value={form.rubric.generalRules}
+                      onChange={(ev) => update("rubric", { generalRules: ev.target.value })}
                     />
                   </Field>
-                </fieldset>
-              ))}
-              {form.rubric.categories.length < 10 ? (
+                </>
+              ) : null}
+
+              {step === 2 ? (
+                <>
+                  <section
+                    className="bg-card shadow-soft grid gap-4 rounded-[1.25rem] p-5 sm:p-6"
+                    aria-labelledby="schedule-h"
+                  >
+                    <h2 id="schedule-h" className="text-base font-medium">
+                      Schedule
+                    </h2>
+                    <div className="grid gap-1.5">
+                      <span className="text-sm font-medium" id="start-label">
+                        First round starts
+                      </span>
+                      <div
+                        role="radiogroup"
+                        aria-labelledby="start-label"
+                        className="flex flex-wrap gap-2"
+                      >
+                        {(
+                          [
+                            ["now", "Now"],
+                            ["later", "Schedule for later"],
+                          ] as const
+                        ).map(([mode, label]) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            role="radio"
+                            aria-checked={form.budget.startMode === mode}
+                            onClick={() =>
+                              update("budget", {
+                                startMode: mode,
+                                ...(mode === "later" && !form.budget.firstRoundStartsAt
+                                  ? {
+                                      firstRoundStartsAt: toLocalInput(
+                                        new Date(Date.now() + 86_400_000),
+                                      ),
+                                    }
+                                  : {}),
+                              })
+                            }
+                            className={cn(
+                              "h-8 rounded-lg border px-3 text-sm transition-colors",
+                              form.budget.startMode === mode
+                                ? "border-brand bg-brand-subtle text-brand font-medium"
+                                : "hover:bg-muted",
+                            )}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {form.budget.startMode === "later" ? (
+                      <Field
+                        id="start"
+                        label="Start date and time (your local time)"
+                        error={e["budget.firstRoundStartsAt"]}
+                        hint={
+                          start ? `${localAndUtc(start)} · starts ${fromNow(start)}` : undefined
+                        }
+                      >
+                        <Input
+                          id="start"
+                          type="datetime-local"
+                          value={form.budget.firstRoundStartsAt}
+                          onChange={(ev) =>
+                            update("budget", { firstRoundStartsAt: ev.target.value })
+                          }
+                        />
+                      </Field>
+                    ) : (
+                      <p className="text-muted-foreground text-sm">
+                        Round 1 opens as soon as you create the program. Contributors can submit
+                        once the join page is published.
+                      </p>
+                    )}
+                    <Field
+                      id="len"
+                      label="Round length"
+                      error={e["budget.roundLengthDays"]}
+                      hint={
+                        start && end
+                          ? `Round 1: ${localAndUtc(start).split(" · ")[0]} to ${localAndUtc(end).split(" · ")[0]}. Approved work is paid when each round closes.`
+                          : "Approved work is paid when each round closes."
+                      }
+                    >
+                      <div className="max-w-48">
+                        <UnitInput
+                          id="len"
+                          unit="days"
+                          placeholder="7"
+                          value={form.budget.roundLengthDays}
+                          onChange={(v) => update("budget", { roundLengthDays: v })}
+                        />
+                      </div>
+                    </Field>
+                  </section>
+
+                  <section
+                    className="bg-card shadow-soft grid gap-4 rounded-[1.25rem] p-5 sm:p-6"
+                    aria-labelledby="pay-h"
+                  >
+                    <h2 id="pay-h" className="text-base font-medium">
+                      Pay
+                    </h2>
+                    <Field
+                      id="rate"
+                      label="Rate per point"
+                      error={e["budget.ratePerPoint"]}
+                      hint={
+                        <>
+                          {form.rubric.categories.map((c, i) => (
+                            <span key={i} className="block">
+                              A perfect {itemNoun(c.name)} (10/10) earns{" "}
+                              <span className="mono-num text-foreground">
+                                {eff.perfect[i] !== null && eff.perfect[i] !== undefined
+                                  ? formatUsdc(eff.perfect[i]!)
+                                  : "—"}
+                              </span>
+                              .
+                            </span>
+                          ))}
+                        </>
+                      }
+                    >
+                      <div className="max-w-48">
+                        <UnitInput
+                          id="rate"
+                          unit="USDC"
+                          placeholder="0.50"
+                          value={form.budget.ratePerPoint}
+                          onChange={(v) => update("budget", { ratePerPoint: v })}
+                          invalid={!!e["budget.ratePerPoint"]}
+                        />
+                      </div>
+                    </Field>
+                    <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+                      <Field
+                        id="autoitem"
+                        label="Largest item paid without your review"
+                        hint={LIMIT_HELP.maxAutoApproveItem}
+                        warning={warn("maxAutoApproveItem")}
+                        error={e["budget.maxAutoApproveItem"]}
+                      >
+                        <UnitInput
+                          id="autoitem"
+                          unit="USDC"
+                          value={eff.maxAutoApproveItem}
+                          onChange={(v) => editLimit({ maxAutoApproveItem: v })}
+                        />
+                      </Field>
+                      <Field
+                        id="conf"
+                        label="Minimum agent confidence"
+                        hint={LIMIT_HELP.autoApproveConfidence}
+                        error={e["budget.autoApproveConfidence"]}
+                      >
+                        <UnitInput
+                          id="conf"
+                          unit="0.5–1"
+                          placeholder="0.8"
+                          value={form.budget.autoApproveConfidence}
+                          onChange={(v) => update("budget", { autoApproveConfidence: v })}
+                        />
+                      </Field>
+                      <Field
+                        id="age"
+                        label="Minimum X account age"
+                        hint="Younger accounts are sent to your review."
+                        error={e["budget.minAccountAgeDays"]}
+                      >
+                        <UnitInput
+                          id="age"
+                          unit="days"
+                          placeholder="30"
+                          value={form.budget.minAccountAgeDays}
+                          onChange={(v) => update("budget", { minAccountAgeDays: v })}
+                        />
+                      </Field>
+                    </div>
+                  </section>
+
+                  <section
+                    className="bg-card shadow-soft grid gap-4 rounded-[1.25rem] p-5 sm:p-6"
+                    aria-labelledby="limits-h"
+                  >
+                    <div>
+                      <h2 id="limits-h" className="text-base font-medium">
+                        Vault limits
+                      </h2>
+                      <p className="text-muted-foreground mt-1 text-sm">
+                        Enforced by the vault contract; the agent can&apos;t exceed them.{" "}
+                        {form.limitsEdited
+                          ? "You've edited these."
+                          : "Suggested from your rubric, and they follow it until you edit one."}
+                      </p>
+                    </div>
+                    <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+                      {(
+                        [
+                          ["perpayout", "maxPerPayout", "Max per contributor per round"],
+                          ["perround", "maxPerRound", "Max per round"],
+                          ["perday", "maxPerDay", "Max per rolling 24 hours"],
+                          ["threshold", "autoApproveThreshold", "Your approval needed above"],
+                        ] as const
+                      ).map(([id, key, label]) => (
+                        <Field
+                          key={id}
+                          id={id}
+                          label={label}
+                          hint={LIMIT_HELP[key]}
+                          warning={warn(key)}
+                          error={e[`limits.${key}`]}
+                        >
+                          <UnitInput
+                            id={id}
+                            unit="USDC"
+                            value={eff.limits[key]}
+                            onChange={(v) => editLimit({ [key]: v })}
+                            invalid={!!e[`limits.${key}`]}
+                          />
+                        </Field>
+                      ))}
+                      <Field
+                        id="cooldown"
+                        label="New wallet cooldown"
+                        hint={LIMIT_HELP.payeeCooldownHours}
+                        error={e["limits.payeeCooldownHours"]}
+                      >
+                        <UnitInput
+                          id="cooldown"
+                          unit="hours"
+                          placeholder="24"
+                          value={form.limits.payeeCooldownHours}
+                          onChange={(v) =>
+                            setForm((f) => ({
+                              ...f,
+                              limits: { ...f.limits, payeeCooldownHours: v },
+                            }))
+                          }
+                        />
+                      </Field>
+                    </div>
+                    <CooldownWarning hours={form.limits.payeeCooldownHours} />
+                  </section>
+                </>
+              ) : null}
+
+              {step === 3 ? (
+                <div className="grid gap-4">
+                  <ReviewBlock title="Program" onEdit={() => goTo(0)}>
+                    <p className="font-medium">{form.basics.name}</p>
+                    <p className="text-muted-foreground mt-0.5 font-mono text-xs">
+                      {APP_HOST}/join/{form.basics.slug}
+                    </p>
+                  </ReviewBlock>
+                  <ReviewBlock title="Pays for" onEdit={() => goTo(1)}>
+                    <ul className="grid gap-1.5">
+                      {form.rubric.categories.map((c, i) => (
+                        <li key={i} className="flex items-baseline justify-between gap-4">
+                          <span className="min-w-0 truncate">{c.name || `Category ${i + 1}`}</span>
+                          <span className="text-muted-foreground shrink-0 text-xs">
+                            a perfect one earns{" "}
+                            <span className="mono-num text-foreground text-sm">
+                              {eff.perfect[i] ? formatUsdc(eff.perfect[i]!) : "—"}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </ReviewBlock>
+                  <ReviewBlock title="Round 1" onEdit={() => goTo(2)}>
+                    <p>
+                      {form.budget.startMode === "now"
+                        ? "Starts when you create the program"
+                        : start
+                          ? localAndUtc(start)
+                          : "—"}
+                    </p>
+                    <p className="text-muted-foreground mt-0.5">
+                      Every {form.budget.roundLengthDays} days after that
+                    </p>
+                  </ReviewBlock>
+                  <ReviewBlock title="Without your review" onEdit={() => goTo(2)}>
+                    <p>
+                      Items up to {eff.maxAutoApproveItem} USDC with confidence ≥{" "}
+                      {form.budget.autoApproveConfidence}
+                    </p>
+                  </ReviewBlock>
+                  <ReviewBlock title="Vault limits" onEdit={() => goTo(2)}>
+                    <ul className="grid gap-0.5">
+                      <li>{eff.limits.maxPerPayout} USDC per contributor per round</li>
+                      <li>
+                        {eff.limits.maxPerRound} USDC per round · {eff.limits.maxPerDay} USDC per 24
+                        hours
+                      </li>
+                      <li>Your approval for rounds above {eff.limits.autoApproveThreshold} USDC</li>
+                      <li>
+                        {form.limits.payeeCooldownHours} h before a new payout wallet can be paid
+                      </li>
+                    </ul>
+                  </ReviewBlock>
+                  <p className="text-muted-foreground text-sm leading-relaxed">
+                    Nothing is published or spent yet. The program is saved as a draft; next, a
+                    short guided setup deploys and funds its vault, then you publish the join page.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            {formError ? (
+              <p role="alert" className="text-danger mt-6 text-sm">
+                {formError}
+              </p>
+            ) : null}
+
+            <div
+              data-sticky-actions
+              className="bg-background/90 supports-[backdrop-filter]:bg-background/75 sticky bottom-0 z-20 -mx-4 mt-10 flex items-center justify-between gap-2 border-t px-4 py-4 supports-[backdrop-filter]:backdrop-blur-md sm:mx-0 sm:px-0"
+            >
+              {step > 0 ? (
                 <Button
                   type="button"
-                  variant="outline"
-                  className="justify-self-start"
-                  onClick={() =>
-                    setForm((f) => ({
-                      ...f,
-                      rubric: {
-                        ...f.rubric,
-                        categories: [
-                          ...f.rubric.categories,
-                          {
-                            name: "",
-                            description: "",
-                            sourceTypes: ["article"],
-                            maxPoints: "10",
-                            criteria: [{ name: "", description: "" }],
-                            rules: "",
-                            requireMerged: true,
-                          },
-                        ],
-                      },
-                    }))
-                  }
+                  variant="ghost"
+                  disabled={pending}
+                  onClick={() => goTo(step - 1)}
                 >
-                  <Plus className="size-4" aria-hidden="true" />
-                  Add category
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  Back
                 </Button>
-              ) : null}
-              <Field
-                id="general"
-                label="Rules for every submission (optional)"
-                error={e["rubric.generalRules"]}
-              >
-                <Textarea
-                  id="general"
-                  rows={3}
-                  placeholder="English only. Original work about building on Arc."
-                  value={form.rubric.generalRules}
-                  onChange={(ev) => update("rubric", { generalRules: ev.target.value })}
-                />
-              </Field>
-            </>
-          ) : null}
-
-          {step === 2 ? (
-            <>
-              <section className="grid gap-4" aria-labelledby="schedule-h">
-                <h2 id="schedule-h" className="text-base font-medium">
-                  Schedule
-                </h2>
-                <div className="grid gap-1.5">
-                  <span className="text-sm font-medium" id="start-label">
-                    First round starts
-                  </span>
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="start-label"
-                    className="flex flex-wrap gap-2"
+              ) : (
+                <span />
+              )}
+              <div className="flex items-center gap-2">
+                <Sheet open={previewOpen} onOpenChange={setPreviewOpen}>
+                  <SheetTrigger asChild>
+                    <Button type="button" variant="outline" className="lg:hidden">
+                      <Eye className="size-4" aria-hidden="true" />
+                      Preview
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent
+                    side="bottom"
+                    className="max-h-[85dvh] overflow-y-auto rounded-t-2xl p-5"
                   >
-                    {(
-                      [
-                        ["now", "Now"],
-                        ["later", "Schedule for later"],
-                      ] as const
-                    ).map(([mode, label]) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        role="radio"
-                        aria-checked={form.budget.startMode === mode}
-                        onClick={() =>
-                          update("budget", {
-                            startMode: mode,
-                            ...(mode === "later" && !form.budget.firstRoundStartsAt
-                              ? {
-                                  firstRoundStartsAt: toLocalInput(
-                                    new Date(Date.now() + 86_400_000),
-                                  ),
-                                }
-                              : {}),
-                          })
-                        }
-                        className={cn(
-                          "h-8 rounded-lg border px-3 text-sm transition-colors",
-                          form.budget.startMode === mode
-                            ? "border-foreground bg-foreground text-background"
-                            : "hover:bg-muted",
-                        )}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {form.budget.startMode === "later" ? (
-                  <Field
-                    id="start"
-                    label="Start date and time (your local time)"
-                    error={e["budget.firstRoundStartsAt"]}
-                    hint={start ? `${localAndUtc(start)} · starts ${fromNow(start)}` : undefined}
-                  >
-                    <Input
-                      id="start"
-                      type="datetime-local"
-                      value={form.budget.firstRoundStartsAt}
-                      onChange={(ev) => update("budget", { firstRoundStartsAt: ev.target.value })}
+                    <SheetTitle className="sr-only">Join page preview</SheetTitle>
+                    <PreviewContent
+                      form={form}
+                      perfect={eff.perfect}
+                      step={step}
+                      limits={eff.limits}
                     />
-                  </Field>
+                  </SheetContent>
+                </Sheet>
+                {step < STEPS.length - 1 ? (
+                  <Button type="button" onClick={next}>
+                    Continue
+                    <ArrowRight className="size-4" aria-hidden="true" />
+                  </Button>
                 ) : (
-                  <p className="text-muted-foreground text-sm">
-                    Round 1 opens as soon as you create the program. Contributors can submit once
-                    the join page is published.
-                  </p>
+                  <Button type="button" onClick={submit} disabled={pending}>
+                    {pending ? "Creating…" : "Create program"}
+                  </Button>
                 )}
-                <Field
-                  id="len"
-                  label="Round length"
-                  error={e["budget.roundLengthDays"]}
-                  hint={
-                    start && end
-                      ? `Round 1: ${localAndUtc(start).split(" · ")[0]} to ${localAndUtc(end).split(" · ")[0]}. Approved work is paid when each round closes.`
-                      : "Approved work is paid when each round closes."
-                  }
-                >
-                  <div className="max-w-48">
-                    <UnitInput
-                      id="len"
-                      unit="days"
-                      placeholder="7"
-                      value={form.budget.roundLengthDays}
-                      onChange={(v) => update("budget", { roundLengthDays: v })}
-                    />
-                  </div>
-                </Field>
-              </section>
+              </div>
+            </div>
+          </div>
 
-              <section className="grid gap-4" aria-labelledby="pay-h">
-                <h2 id="pay-h" className="text-base font-medium">
-                  Pay
-                </h2>
-                <Field
-                  id="rate"
-                  label="Rate per point"
-                  error={e["budget.ratePerPoint"]}
-                  hint={
-                    <>
-                      {form.rubric.categories.map((c, i) => (
-                        <span key={i} className="block">
-                          A perfect {itemNoun(c.name)} (10/10) earns{" "}
-                          <span className="mono-num text-foreground">
-                            {eff.perfect[i] !== null && eff.perfect[i] !== undefined
-                              ? formatUsdc(eff.perfect[i]!)
-                              : "—"}
-                          </span>
-                          .
-                        </span>
-                      ))}
-                    </>
-                  }
-                >
-                  <div className="max-w-48">
-                    <UnitInput
-                      id="rate"
-                      unit="USDC"
-                      placeholder="0.50"
-                      value={form.budget.ratePerPoint}
-                      onChange={(v) => update("budget", { ratePerPoint: v })}
-                      invalid={!!e["budget.ratePerPoint"]}
-                    />
-                  </div>
-                </Field>
-                <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-                  <Field
-                    id="autoitem"
-                    label="Largest item paid without your review"
-                    hint={LIMIT_HELP.maxAutoApproveItem}
-                    warning={warn("maxAutoApproveItem")}
-                    error={e["budget.maxAutoApproveItem"]}
-                  >
-                    <UnitInput
-                      id="autoitem"
-                      unit="USDC"
-                      value={eff.maxAutoApproveItem}
-                      onChange={(v) => editLimit({ maxAutoApproveItem: v })}
-                    />
-                  </Field>
-                  <Field
-                    id="conf"
-                    label="Minimum agent confidence"
-                    hint={LIMIT_HELP.autoApproveConfidence}
-                    error={e["budget.autoApproveConfidence"]}
-                  >
-                    <UnitInput
-                      id="conf"
-                      unit="0.5–1"
-                      placeholder="0.8"
-                      value={form.budget.autoApproveConfidence}
-                      onChange={(v) => update("budget", { autoApproveConfidence: v })}
-                    />
-                  </Field>
-                  <Field
-                    id="age"
-                    label="Minimum X account age"
-                    hint="Younger accounts are sent to your review."
-                    error={e["budget.minAccountAgeDays"]}
-                  >
-                    <UnitInput
-                      id="age"
-                      unit="days"
-                      placeholder="30"
-                      value={form.budget.minAccountAgeDays}
-                      onChange={(v) => update("budget", { minAccountAgeDays: v })}
-                    />
-                  </Field>
-                </div>
-              </section>
-
-              <section className="grid gap-4" aria-labelledby="limits-h">
-                <div>
-                  <h2 id="limits-h" className="text-base font-medium">
-                    Vault limits
-                  </h2>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    Enforced by the vault contract; the agent can&apos;t exceed them.{" "}
-                    {form.limitsEdited
-                      ? "You've edited these."
-                      : "Suggested from your rubric, and they follow it until you edit one."}
-                  </p>
-                </div>
-                <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
-                  {(
-                    [
-                      ["perpayout", "maxPerPayout", "Max per contributor per round"],
-                      ["perround", "maxPerRound", "Max per round"],
-                      ["perday", "maxPerDay", "Max per rolling 24 hours"],
-                      ["threshold", "autoApproveThreshold", "Your approval needed above"],
-                    ] as const
-                  ).map(([id, key, label]) => (
-                    <Field
-                      key={id}
-                      id={id}
-                      label={label}
-                      hint={LIMIT_HELP[key]}
-                      warning={warn(key)}
-                      error={e[`limits.${key}`]}
-                    >
-                      <UnitInput
-                        id={id}
-                        unit="USDC"
-                        value={eff.limits[key]}
-                        onChange={(v) => editLimit({ [key]: v })}
-                        invalid={!!e[`limits.${key}`]}
-                      />
-                    </Field>
-                  ))}
-                  <Field
-                    id="cooldown"
-                    label="New wallet cooldown"
-                    hint={LIMIT_HELP.payeeCooldownHours}
-                    error={e["limits.payeeCooldownHours"]}
-                  >
-                    <UnitInput
-                      id="cooldown"
-                      unit="hours"
-                      placeholder="24"
-                      value={form.limits.payeeCooldownHours}
-                      onChange={(v) =>
-                        setForm((f) => ({ ...f, limits: { ...f.limits, payeeCooldownHours: v } }))
-                      }
-                    />
-                  </Field>
-                </div>
-                <CooldownWarning hours={form.limits.payeeCooldownHours} />
-              </section>
-            </>
-          ) : null}
-
-          {step === 3 ? (
-            <dl className="bg-card grid gap-x-8 gap-y-4 rounded-xl border p-5 text-sm sm:grid-cols-[180px_1fr]">
-              <dt className="text-muted-foreground">Program</dt>
-              <dd>
-                {form.basics.name}
-                <span className="text-muted-foreground block font-mono text-xs">
-                  {APP_HOST}/join/{form.basics.slug}
-                </span>
-              </dd>
-              <dt className="text-muted-foreground">Pays for</dt>
-              <dd className="grid gap-1">
-                {form.rubric.categories.map((c, i) => (
-                  <span key={i}>
-                    {c.name || `Category ${i + 1}`}: a perfect one earns{" "}
-                    <span className="mono-num">
-                      {eff.perfect[i] ? formatUsdc(eff.perfect[i]!) : "—"}
-                    </span>
-                  </span>
-                ))}
-              </dd>
-              <dt className="text-muted-foreground">Round 1</dt>
-              <dd>
-                {form.budget.startMode === "now"
-                  ? "Starts when you create the program"
-                  : start
-                    ? localAndUtc(start)
-                    : "—"}
-                <span className="text-muted-foreground block">
-                  Every {form.budget.roundLengthDays} days after that
-                </span>
-              </dd>
-              <dt className="text-muted-foreground">Without your review</dt>
-              <dd>
-                Items up to {eff.maxAutoApproveItem} USDC with confidence ≥{" "}
-                {form.budget.autoApproveConfidence}
-              </dd>
-              <dt className="text-muted-foreground">Vault limits</dt>
-              <dd className="grid gap-0.5">
-                <span>{eff.limits.maxPerPayout} USDC per contributor per round</span>
-                <span>
-                  {eff.limits.maxPerRound} USDC per round · {eff.limits.maxPerDay} USDC per 24 hours
-                </span>
-                <span>Your approval for rounds above {eff.limits.autoApproveThreshold} USDC</span>
-                <span>
-                  {form.limits.payeeCooldownHours} h before a new payout wallet can be paid
-                </span>
-              </dd>
-              <dt className="text-muted-foreground">Next</dt>
-              <dd className="text-muted-foreground">
-                The program is saved as a draft. Its overview walks you through deploying and
-                funding the vault and publishing the join page.
-              </dd>
-            </dl>
-          ) : null}
+          <aside className="hidden lg:block" aria-label="Preview">
+            <div className="sticky top-24 pb-8">
+              <PreviewContent form={form} perfect={eff.perfect} step={step} limits={eff.limits} />
+            </div>
+          </aside>
         </div>
+      </FocusMain>
+    </>
+  );
+}
 
-        {formError ? (
-          <p role="alert" className="text-danger mt-6 text-sm">
-            {formError}
-          </p>
-        ) : null}
-
-        <div className="mt-8 flex items-center justify-between border-t pt-6">
-          {step > 0 ? (
-            <Button type="button" variant="ghost" disabled={pending} onClick={() => goTo(step - 1)}>
-              Back
-            </Button>
-          ) : (
-            <span />
-          )}
-          {step < STEPS.length - 1 ? (
-            <Button type="button" onClick={next}>
-              Continue
-            </Button>
-          ) : (
-            <Button type="button" onClick={submit} disabled={pending}>
-              {pending ? "Creating…" : "Create program"}
-            </Button>
-          )}
-        </div>
+/** One section of the review step, with a jump back to the step that sets it. */
+function ReviewBlock({
+  title,
+  onEdit,
+  children,
+}: {
+  title: string;
+  onEdit: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="bg-card shadow-soft grid gap-2 rounded-[1.25rem] p-5 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          {title}
+        </h2>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="text-muted-foreground hover:text-foreground rounded-sm text-xs underline-offset-4 hover:underline"
+          aria-label={`Edit ${title.toLowerCase()}`}
+        >
+          Edit
+        </button>
       </div>
+      <div className="leading-relaxed">{children}</div>
+    </section>
+  );
+}
 
-      <PreviewPanel form={form} perfect={eff.perfect} />
-    </div>
+/** "Step 2 of 4" on phones; the four steps (done ones clickable) from 768px. */
+function WizardProgress({ step, onGo }: { step: number; onGo: (s: number) => void }) {
+  return (
+    <>
+      <div className="flex w-full max-w-40 flex-col gap-1.5 md:hidden">
+        <span className="text-muted-foreground text-center text-xs">
+          Step {step + 1} of {STEPS.length}
+        </span>
+        <span className="bg-muted h-1 overflow-hidden rounded-full" aria-hidden="true">
+          <span
+            className="bg-brand block h-full rounded-full transition-[width] duration-500"
+            style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+          />
+        </span>
+      </div>
+      <ol className="hidden items-center gap-2 text-sm md:flex" aria-label="Steps">
+        {STEPS.map((label, i) => (
+          <li
+            key={label}
+            aria-current={i === step ? "step" : undefined}
+            className="flex items-center gap-2"
+          >
+            {i > 0 ? (
+              <span
+                aria-hidden="true"
+                className={cn("h-px w-6 lg:w-10", i <= step ? "bg-brand" : "bg-border")}
+              />
+            ) : null}
+            <span
+              aria-hidden="true"
+              className={cn(
+                "flex size-6 items-center justify-center rounded-full text-[11px] font-medium tabular-nums transition-colors",
+                i < step && "bg-brand text-primary-foreground",
+                i === step && "ring-brand text-brand bg-card ring-2",
+                i > step && "bg-muted text-muted-foreground",
+              )}
+            >
+              {i < step ? <Check className="size-3.5" strokeWidth={2.5} /> : i + 1}
+            </span>
+            {i < step ? (
+              <button
+                type="button"
+                className="text-soft hover:text-foreground rounded-sm"
+                onClick={() => onGo(i)}
+              >
+                {label}
+              </button>
+            ) : (
+              <span
+                className={cn(i === step ? "text-foreground font-medium" : "text-muted-foreground")}
+              >
+                {label}
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }
 
 function ScoringExplainer({ rate }: { rate: bigint | null }) {
   return (
-    <div className="bg-muted/40 rounded-xl border p-4 text-sm">
+    <div className="bg-brand-subtle/60 rounded-[1.25rem] p-5 text-sm">
       <p className="font-medium">How a score becomes USDC</p>
       <ol className="text-soft mt-2 grid list-decimal gap-1 pl-5">
         <li>The agent scores each criterion from 0 to 10.</li>
@@ -1252,25 +1402,58 @@ function ScoringExplainer({ rate }: { rate: bigint | null }) {
   );
 }
 
-/** What contributors will see, updating as the owner types; hidden below 1024px. */
-function PreviewPanel({ form, perfect }: { form: Form; perfect: (bigint | null)[] }) {
+/**
+ * What contributors will see, updating as the owner types: the join page in a browser frame, then what matters for
+ * the current step (payout math, the vault's limits, what happens after creating it). Sticky beside the form from
+ * 1024px; in a bottom sheet behind "Preview" below that.
+ */
+function PreviewContent({
+  form,
+  perfect,
+  step,
+  limits,
+}: {
+  form: Form;
+  perfect: (bigint | null)[];
+  step: number;
+  limits: Limits;
+}) {
+  const amount = (i: number) =>
+    perfect[i] !== null && perfect[i] !== undefined ? formatUsdc(perfect[i]!) : "—";
   return (
-    <aside className="hidden lg:block" aria-label="Preview">
-      <div className="sticky top-8 grid gap-4">
-        <p className="text-muted-foreground text-xs">Join page preview</p>
-        <div className="bg-card rounded-xl border p-5">
+    <div className="grid gap-4">
+      <p className="text-muted-foreground flex items-center gap-2 text-xs">
+        <span className="relative flex size-2" aria-hidden="true">
+          <span className="bg-brand/40 absolute inset-0 animate-ping rounded-full [animation-duration:2.4s]" />
+          <span className="bg-brand relative size-2 rounded-full" />
+        </span>
+        Live preview of your join page
+      </p>
+      <div className="bg-card shadow-lift overflow-hidden rounded-[1.25rem]">
+        <div className="bg-muted/60 flex items-center gap-3 border-b px-4 py-2.5">
+          <span className="flex gap-1.5" aria-hidden="true">
+            <span className="bg-border size-2.5 rounded-full" />
+            <span className="bg-border size-2.5 rounded-full" />
+            <span className="bg-border size-2.5 rounded-full" />
+          </span>
+          <span className="bg-background text-muted-foreground min-w-0 flex-1 truncate rounded-md px-2.5 py-1 font-mono text-[11px]">
+            {APP_HOST}/join/{form.basics.slug || "your-program"}
+          </span>
+        </div>
+        <div className="p-5 sm:p-6">
           <p className="text-muted-foreground text-xs">Contributor program</p>
-          <p className="mt-1 text-lg font-medium tracking-tight">
+          <p className="display mt-1 text-[1.75rem] leading-tight [overflow-wrap:anywhere]">
             {form.basics.name || "Your program"}
           </p>
           <p className="text-soft mt-2 line-clamp-4 text-sm leading-relaxed">
             {form.basics.description || "Your description appears here."}
           </p>
-          <ul className="mt-4 grid gap-2">
+          <p className="text-muted-foreground mt-5 text-xs font-medium">Pays for</p>
+          <ul className="mt-2 grid gap-2">
             {form.rubric.categories.map((c, i) => (
               <li
                 key={i}
-                className="flex items-baseline justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
+                className="bg-background/60 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-sm"
               >
                 <span className="min-w-0">
                   <span className="block truncate font-medium">
@@ -1280,23 +1463,68 @@ function PreviewPanel({ form, perfect }: { form: Form; perfect: (bigint | null)[
                     {c.sourceTypes.map((t) => SOURCE_LABELS[t]).join(", ") || "No sources yet"}
                   </span>
                 </span>
-                <span className="mono-num shrink-0 text-xs">
-                  up to{" "}
-                  {perfect[i] !== null && perfect[i] !== undefined ? formatUsdc(perfect[i]!) : "—"}
+                <span className="shrink-0 text-right">
+                  <span className="text-muted-foreground block text-[10px]">up to</span>
+                  <span className="mono-num text-sm font-medium">{amount(i)}</span>
                 </span>
               </li>
             ))}
           </ul>
+          <span className="bg-primary text-primary-foreground mt-5 flex h-9 items-center justify-center rounded-lg text-sm font-medium">
+            Sign in with X to join
+          </span>
         </div>
-        <div className="bg-card rounded-xl border p-5 text-sm">
+      </div>
+
+      {step === 2 ? (
+        <div className="bg-card shadow-soft relative overflow-hidden rounded-[1.25rem] p-5 text-sm">
+          <VaultArt className="pointer-events-none absolute top-4 right-4 size-16" />
+          <p className="font-medium">Your vault enforces</p>
+          <dl className="mt-3 grid gap-1.5 pr-0 sm:pr-20">
+            {(
+              [
+                ["Per contributor per round", limits.maxPerPayout],
+                ["Per round", limits.maxPerRound],
+                ["Per 24 hours", limits.maxPerDay],
+                ["Your approval above", limits.autoApproveThreshold],
+              ] as const
+            ).map(([label, v]) => (
+              <div key={label} className="flex justify-between gap-3">
+                <dt className="text-soft">{label}</dt>
+                <dd className="mono-num">{v ? `${v} USDC` : "—"}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
+            Whatever the agent decides, the contract won&apos;t pay past these.
+          </p>
+        </div>
+      ) : step === 3 ? (
+        <div className="bg-card shadow-soft rounded-[1.25rem] p-5 text-sm">
+          <p className="font-medium">After you create it</p>
+          <ol className="text-soft mt-3 grid gap-2">
+            {[
+              "Deploy the program's vault (one transaction)",
+              "Fund it with test USDC",
+              "Publish the join page and share the link",
+            ].map((t, i) => (
+              <li key={t} className="flex gap-2.5">
+                <span className="bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] tabular-nums">
+                  {i + 1}
+                </span>
+                {t}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : (
+        <div className="bg-card shadow-soft rounded-[1.25rem] p-5 text-sm">
           <p className="font-medium">What a perfect submission earns</p>
           <ul className="mt-3 grid gap-1.5">
             {form.rubric.categories.map((c, i) => (
               <li key={i} className="flex justify-between gap-3">
                 <span className="text-soft truncate">{c.name || `Category ${i + 1}`}</span>
-                <span className="mono-num">
-                  {perfect[i] !== null && perfect[i] !== undefined ? formatUsdc(perfect[i]!) : "—"}
-                </span>
+                <span className="mono-num">{amount(i)}</span>
               </li>
             ))}
           </ul>
@@ -1304,7 +1532,7 @@ function PreviewPanel({ form, perfect }: { form: Form; perfect: (bigint | null)[
             Max points × rate per point. Most work scores below 10/10 and earns proportionally less.
           </p>
         </div>
-      </div>
-    </aside>
+      )}
+    </div>
   );
 }

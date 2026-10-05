@@ -23,6 +23,7 @@ export function DeployVault(p: {
   owner: Address;
   agent: Address;
   limits: VaultLimitsArgs;
+  size?: "default" | "lg";
 }) {
   const { writeContractAsync } = useWriteContract();
   const limits = {
@@ -35,6 +36,7 @@ export function DeployVault(p: {
   const hours = Number(limits.payeeCooldown) / 3600;
   return (
     <TxAction
+      size={p.size}
       owner={p.owner}
       label="Deploy vault"
       busyLabel="Deploying…"

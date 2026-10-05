@@ -10,7 +10,10 @@ export default function RootError({ reset }: { error: Error; reset: () => void }
   return (
     <>
       <SiteHeader />
-      <main id="main" className="mx-auto grid w-full max-w-3xl flex-1 gap-4 px-4 py-16 sm:px-6">
+      <main
+        id="main"
+        className="mx-auto grid w-full max-w-3xl flex-1 content-start gap-4 px-4 py-16 sm:px-6"
+      >
         <ErrorPanel reset={reset} />
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="ghost" size="sm">
