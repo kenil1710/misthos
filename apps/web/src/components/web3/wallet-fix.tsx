@@ -17,7 +17,7 @@ import { useWalletProblem } from "@/components/vault/owner-wallet";
 import { classifyWalletError } from "@/lib/wallet-errors";
 import { useSiweSignIn } from "./owner-sign-in";
 import { useWalletAccount } from "./use-wallet-account";
-import { chooseAccount } from "./wallet-banner";
+import { chooseAccount } from "./choose-account";
 import { useWalletUi } from "./web3-provider";
 
 const chain = getChainConfig().chain;

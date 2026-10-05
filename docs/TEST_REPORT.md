@@ -27,22 +27,22 @@ names the command that reproduces it. Raw outputs live in `docs/test-results/` a
 migration, and drives it with an injected EIP-1193 test wallet (two accounts, switchable network, rejectable
 requests, and a log of every signature request).
 
-| Spec           | Test                                                                                                                                                                                                                         | Result |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| home           | Owner with several programs: cards, "Needs you", programs they joined, landing header shows who's signed in                                                                                                                  | Pass   |
-| home           | Contributor home: joined programs with round, waiting, earned; tailored next steps (no "gitHub"); disclosure toggles                                                                                                         | Pass   |
-| home           | Drafts: the owner sees a preview of join and audit pages, everyone else a 404 with useful links                                                                                                                              | Pass   |
-| home           | A published program with no payouts has a working audit page ("Nothing to audit yet")                                                                                                                                        | Pass   |
-| home           | Non-members get a 404 for someone else's program; an expired contributor session is explained and the link is kept                                                                                                           | Pass   |
-| home           | Submitting is instant (optimistic); a double click creates exactly one submission; invalid links are caught before sending                                                                                                   | Pass   |
-| home           | Focus rings: none after mouse clicks on the logo, nav or switcher; keyboard Tab still shows one                                                                                                                              | Pass   |
-| owner-and-join | Owner signs in (SIWE), wizard with inline validation, publishes; contributor joins with a signed wallet proof, switches wallet; owner sees it under "Needs you"; DB, audit log and nonces checked                            | Pass   |
-| owner-ux       | Wizard keeps its draft through Back, browser back and reload; Round 1 starts now; single program → `/app` opens it; reload reconnects the wallet; scheduled round can't be closed and can be started (audited); audit labels | Pass   |
-| wallet         | Owner switches account → notice, no signature; switches back → gone; wrong network → one-click switch; reload reconnects silently; disconnect → one Connect button                                                           | Pass   |
-| wallet         | Declined connection and declined signature explain themselves and can be retried                                                                                                                                             | Pass   |
-| wallet         | WalletConnect "Proposal expired" (unhandled rejection) → "Connection request expired. Try again." with a retry; no page error, no console error                                                                              | Pass   |
-| wallet         | Contributor's extension on another account → "This isn't your payout wallet"; "Use this wallet instead" opens the change flow; no signature until the explicit click                                                         | Pass   |
-| wallet         | Depositing more USDC than the wallet holds (read from Arc testnet) is refused inline before any prompt                                                                                                                       | Pass   |
+| Spec           | Test                                                                                                                                                                                                                                                                                                                     | Result |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| home           | Owner with several programs: cards, "Needs you", programs they joined, landing header shows who's signed in                                                                                                                                                                                                              | Pass   |
+| home           | Contributor home: joined programs with round, waiting, earned; tailored next steps (no "gitHub"); disclosure toggles                                                                                                                                                                                                     | Pass   |
+| home           | Drafts: the owner sees a preview of join and audit pages, everyone else a 404 with useful links                                                                                                                                                                                                                          | Pass   |
+| home           | A published program with no payouts has a working audit page ("Nothing to audit yet")                                                                                                                                                                                                                                    | Pass   |
+| home           | Non-members get a 404 for someone else's program; an expired contributor session is explained and the link is kept                                                                                                                                                                                                       | Pass   |
+| home           | Submitting is instant (optimistic); a double click creates exactly one submission; invalid links are caught before sending                                                                                                                                                                                               | Pass   |
+| home           | Focus rings: none after mouse clicks on the logo, nav or switcher; keyboard Tab still shows one                                                                                                                                                                                                                          | Pass   |
+| owner-and-join | Owner signs in (SIWE), wizard with inline validation, publishes; contributor joins with a signed wallet proof, switches wallet; owner sees it under "Needs you"; DB, audit log and nonces checked                                                                                                                        | Pass   |
+| owner-ux       | Wizard keeps its draft through Back, browser back and reload; Round 1 starts now; single program → `/app` opens it; reload reconnects the wallet; scheduled round can't be closed and can be started (audited); audit labels                                                                                             | Pass   |
+| wallet         | Owner switches account → notice, no signature; switches back → gone; wrong network → one-click switch; reload reconnects silently; disconnect → one Connect button                                                                                                                                                       | Pass   |
+| wallet         | Declined connection and declined signature explain themselves and can be retried                                                                                                                                                                                                                                         | Pass   |
+| wallet         | WalletConnect "Proposal expired" (unhandled rejection) → "Connection request expired. Try again." with a retry; no page error, no console error                                                                                                                                                                          | Pass   |
+| wallet         | Contributor's extension on another account → a quiet line in the Account card (no banner); "Use this wallet instead" opens the change flow; "Change payout wallet" while still on the payout account → compact "Pick the new wallet" dialog that closes when the account switches; no signature until the explicit click | Pass   |
+| wallet         | Depositing more USDC than the wallet holds (read from Arc testnet) is refused inline before any prompt                                                                                                                                                                                                                   | Pass   |
 
 ### 1b. Live QA on Arc testnet and Neon
 
@@ -118,16 +118,16 @@ Coverage of the requested scenarios:
 
 ## 2. Wallet scenarios (injected test provider)
 
-| Scenario                                                                                            | Where                                    | Result |
-| --------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------ |
-| Switch account → calm notice, **no automatic signature** (signature requests counted)               | e2e wallet (owner and contributor)       | Pass   |
-| Switch back → notice clears                                                                         | e2e wallet                               | Pass   |
-| Wrong network → one-click switch (adds Arc Testnet)                                                 | e2e wallet; live O-01                    | Pass   |
-| Disconnect in the extension → one Connect button, actions point to it                               | e2e wallet                               | Pass   |
-| Rejected signature / rejected connection → message + retry                                          | e2e wallet; live O-01, E-02              | Pass   |
-| WalletConnect proposal expired / modal closed / user rejected → calm message, never a runtime error | e2e wallet; `test/wallet-errors.test.ts` | Pass   |
-| Insufficient USDC → refused inline                                                                  | e2e wallet; live E-01                    | Pass   |
-| Page reload → silent reconnect                                                                      | e2e wallet, owner-ux                     | Pass   |
+| Scenario                                                                                                                 | Where                                    | Result |
+| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- | ------ |
+| Switch account → quiet hint (owner chip dot / contributor note), **no automatic signature** (signature requests counted) | e2e wallet (owner and contributor)       | Pass   |
+| Switch back → notice clears                                                                                              | e2e wallet                               | Pass   |
+| Wrong network → one-click switch (adds Arc Testnet)                                                                      | e2e wallet; live O-01                    | Pass   |
+| Disconnect in the extension → one Connect button, actions point to it                                                    | e2e wallet                               | Pass   |
+| Rejected signature / rejected connection → message + retry                                                               | e2e wallet; live O-01, E-02              | Pass   |
+| WalletConnect proposal expired / modal closed / user rejected → calm message, never a runtime error                      | e2e wallet; `test/wallet-errors.test.ts` | Pass   |
+| Insufficient USDC → refused inline                                                                                       | e2e wallet; live E-01                    | Pass   |
+| Page reload → silent reconnect                                                                                           | e2e wallet, owner-ux                     | Pass   |
 
 ## 3. Link crawl
 
@@ -296,10 +296,12 @@ These need a real person, account or extension. Everything else above ran unatte
 1. **X:** open your join page in a private window → Sign in with X → approve → you're back with step 1 ticked.
 2. **GitHub:** on your contributor page → Account → Connect GitHub → approve → "GitHub connected." and "@yourlogin
    verified". Submit one of your own merged PRs; it should pass ownership.
-3. **MetaMask (or Rabby):** in the app, switch accounts in the extension → a calm notice appears, **no signature
-   prompt**. Click "Choose account in wallet" → the extension's account picker opens. Switch back → the notice goes.
-4. **Network:** switch the extension to Ethereum → notice → "Switch to Arc Testnet" → the extension asks once (adds the
-   network if missing).
+3. **MetaMask (or Rabby):** in the owner app, switch accounts in the extension → the wallet chip shows an amber dot
+   ("Other account in wallet"), no banner and **no signature prompt**. Click the chip (or any vault action) → compact
+   dialog → "Choose account in wallet" opens the extension's account picker. Switch back → the dot goes. On a
+   contributor page the same switch only adds a line under the payout wallet.
+4. **Network:** switch the extension to Ethereum → chip shows "Wrong network" → click it → "Switch to Arc Testnet" →
+   the extension asks once (adds the network if missing).
 5. **WalletConnect:** Connect → WalletConnect → scan with a phone wallet → approve. Then try again and let the QR sit
    for 5 minutes (or close it) → "Connection request expired. Try again." with a retry, and no error overlay.
 6. **Coinbase Wallet:** if installed, it appears in the picker; if not, "Not installed · Get it".

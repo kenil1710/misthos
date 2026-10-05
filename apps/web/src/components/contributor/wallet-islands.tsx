@@ -4,6 +4,7 @@ import { Wallet } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { USE_CONNECTED_WALLET_EVENT } from "@/lib/wallet-events";
 import { hadWalletBefore } from "@/lib/wallets";
 
 /**
@@ -19,10 +20,9 @@ const ChangeWalletImpl = dynamic(() => impl().then((m) => m.ChangeWalletImpl), {
   ssr: false,
   loading: () => <ConnectButton label="Change payout wallet" busy small />,
 });
-const PayoutBannerImpl = dynamic(() => impl().then((m) => m.PayoutBannerImpl), { ssr: false });
-
-/** Must match the WalletLink event name; duplicated here so this file stays free of wallet code. */
-const USE_CONNECTED_WALLET_EVENT = "misthos:use-connected-wallet";
+const PayoutWalletNoteImpl = dynamic(() => impl().then((m) => m.PayoutWalletNoteImpl), {
+  ssr: false,
+});
 
 function ConnectButton({
   label,
@@ -105,9 +105,9 @@ export function ChangeWallet(props: {
   );
 }
 
-/** "You switched to another wallet" notice, for returning visitors whose wallet extension is connected. */
-export function PayoutWalletBanner({ expected }: { expected: string | null }) {
+/** The Account card's "connected wallet differs" line, for returning visitors whose wallet extension reconnects. */
+export function PayoutWalletNote({ expected }: { expected: string | null }) {
   const returning = useReturningWallet();
   if (!returning || !expected) return null;
-  return <PayoutBannerImpl expected={expected} />;
+  return <PayoutWalletNoteImpl expected={expected} />;
 }

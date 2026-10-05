@@ -7,6 +7,15 @@ import { toast } from "sonner";
 import { useDisconnect, useSignMessage } from "wagmi";
 import { useWalletAccount } from "@/components/web3/use-wallet-account";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { chooseAccount } from "@/components/web3/choose-account";
 import { WalletButton } from "@/components/web3/wallet-button";
 import { useWalletUi } from "@/components/web3/web3-provider";
 import { classifyWalletError } from "@/lib/wallet-errors";
@@ -41,7 +50,7 @@ export function WalletLink({
   /** Open the wallet picker once if no wallet reconnects (the person just clicked "Connect"). */
   autoOpen?: boolean;
 }) {
-  const { address, isConnected, status } = useWalletAccount();
+  const { address, isConnected, status, connector } = useWalletAccount();
   const { openConnect } = useWalletUi();
   const opened = useRef(false);
   useEffect(() => {
@@ -57,6 +66,10 @@ export function WalletLink({
   const [error, setError] = useState<{ text: string; signIn?: boolean } | null>(null);
   const same =
     mode === "change" && !!currentWallet && address?.toLowerCase() === currentWallet.toLowerCase();
+  // The one interruption in this flow: they asked to change wallets, but the wallet is still on the payout account.
+  // Dismissed per account, and closes by itself once they switch.
+  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
+  const pickAnother = same && !!address && dismissedFor !== address;
 
   async function link() {
     if (!address) return;
@@ -128,6 +141,45 @@ export function WalletLink({
 
   return (
     <div className="grid gap-4">
+      <Dialog open={pickAnother} onOpenChange={(o) => !o && address && setDismissedFor(address)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pick the new wallet</DialogTitle>
+            <DialogDescription>
+              Your wallet is on{" "}
+              <span className="text-foreground font-mono text-[13px]">
+                {address ? shortHex(address) : ""}
+              </span>
+              , which is already your payout wallet. Choose the account you want to switch to.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-wrap gap-2 sm:justify-start">
+            <Button size="sm" onClick={() => chooseAccount(connector)}>
+              Choose account in wallet
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                disconnect();
+                openConnect();
+              }}
+            >
+              Use another wallet app
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                if (address) setDismissedFor(address);
+                onDone?.();
+              }}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {isConnected && address ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Wallet</span>

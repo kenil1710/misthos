@@ -5,8 +5,9 @@
  * through ./wallet-islands only when it's needed (a click, or a returning visitor with a saved connection).
  */
 import { Button } from "@/components/ui/button";
-import { WalletBanner } from "@/components/web3/wallet-banner";
+import { useWalletAccount } from "@/components/web3/use-wallet-account";
 import { Web3Provider } from "@/components/web3/web3-provider";
+import { USE_CONNECTED_WALLET_EVENT } from "@/lib/wallet-events";
 import { WalletLink } from "./wallet-link";
 
 export function JoinWalletImpl({
@@ -56,10 +57,32 @@ export function ChangeWalletImpl({
   );
 }
 
-export function PayoutBannerImpl({ expected }: { expected: string }) {
+/**
+ * A quiet line under the payout wallet when the wallet extension is on another account. Payouts always go to the
+ * linked payout wallet, so this is information, not a problem: no banner, no prompt.
+ */
+function PayoutWalletNote({ expected }: { expected: string }) {
+  const { address, status } = useWalletAccount();
+  if (status !== "connected" || !address || address.toLowerCase() === expected.toLowerCase())
+    return null;
+  return (
+    <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+      Connected wallet differs from your payout wallet.{" "}
+      <button
+        type="button"
+        className="hover:text-foreground underline underline-offset-4"
+        onClick={() => window.dispatchEvent(new Event(USE_CONNECTED_WALLET_EVENT))}
+      >
+        Use this wallet instead
+      </button>
+    </p>
+  );
+}
+
+export function PayoutWalletNoteImpl({ expected }: { expected: string }) {
   return (
     <Web3Provider>
-      <WalletBanner expected={expected} kind="payout" />
+      <PayoutWalletNote expected={expected} />
     </Web3Provider>
   );
 }

@@ -8,6 +8,9 @@ original and inside the round, scores it against the program's rubric, and expla
 from a vault contract whose limits the agent cannot exceed, and every decision is a signed record anyone can verify
 against the chain.
 
+**Live on Arc testnet: https://misthos-iota.vercel.app** · [Docs](https://misthos-iota.vercel.app/docs) ·
+[A real program's audit page](https://misthos-iota.vercel.app/p/kency-arc-creators)
+
 Built for the Tameion Agents Hackathon (Canteen × Circle × Arc). Status and decisions: [PROGRESS.md](./PROGRESS.md).
 
 ![Public audit page with a verified decision](docs/screenshots/public-verify-light.png)
@@ -38,9 +41,11 @@ No account, no keys. You need [Foundry](https://getfoundry.sh) (`cast`) for step
    pnpm install && pnpm --filter @misthos/contracts test && pnpm --filter @misthos/agent test
    ```
 
-The hosted app goes live in the deployment phase; its URL will be added here. Once it's up (or locally):
+Then try the live app at **https://misthos-iota.vercel.app** (Arc testnet):
 
-1. **Public audit page** `/p/<slug>`: totals, every payout with its transaction, and the agent's reasons.
+1. **Public audit page** [`/p/kency-arc-creators`](https://misthos-iota.vercel.app/p/kency-arc-creators): totals, every
+   payout with its transaction, and the agent's reasons. Its first round paid a 4-post X thread 0.36 USDC
+   ([tx](https://explorer.testnet.arc.io/tx/0x2ccd33fcb77ed5bb41af10bfa4e9f59b780f774a2c242bebdf39b29546da321a)).
 2. **Verify a decision**: click _Verify_ next to any decision. The page re-hashes the record, checks the agent's
    signature (ERC-1271 for the Circle smart-contract wallet) and matches the `PayoutExecuted` event on Arc.
 3. **Run a program** `/app`: connect a wallet, create a program, deploy and fund its vault, share the join link.
@@ -106,6 +111,15 @@ Live rounds on that vault: an auto-executed round
 a round above the approval threshold that waited for the owner
 ([approve](https://explorer.testnet.arc.io/tx/0x760d0e8e1a936cc5f308d7402cf658c211cded0e75e0dca601010b2383add98e),
 [execute](https://explorer.testnet.arc.io/tx/0x5b56ab5de70be70b56030d5dd3a6cbbc2a75c936c33be02c5f250b35f3ba29ce)).
+
+## Deployment
+
+| Part      | Where                                                              | Notes                                                                                                             |
+| --------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Web app   | Vercel, [misthos-iota.vercel.app](https://misthos-iota.vercel.app) | `apps/web`, built from `main`; no signing keys; edge rate limit on `/api/auth`, `/api/public`, `/api/contributor` |
+| Worker    | Railway, always on                                                 | `apps/worker/Dockerfile` + `railway.json` (restart always); the only process with the Circle entity secret        |
+| Database  | Neon Postgres                                                      | migrations in `packages/db/migrations` (`pnpm --filter @misthos/db db:migrate`)                                   |
+| Contracts | Arc testnet                                                        | addresses above; mainnet only with the owner's explicit approval                                                  |
 
 ## Screenshots
 

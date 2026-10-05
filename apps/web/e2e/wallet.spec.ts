@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import pg from "pg";
 import { generatePrivateKey } from "viem/accounts";
 import { E2E } from "../playwright.config";
@@ -14,9 +14,18 @@ import {
 import { injectWallet } from "./wallet";
 
 /**
- * Wallet edge cases with an injected test wallet (two accounts, switchable network, rejectable requests). The rule
- * under test: a wallet prompt only ever follows a click. Switching accounts or networks shows a calm notice.
+ * Wallet edge cases with an injected test wallet (two accounts, switchable network, rejectable requests). The rules
+ * under test: a wallet prompt only ever follows a click, and an account or network switch is a quiet hint (a chip dot
+ * for owners, a line in the Account card for contributors), never a banner.
  */
+
+/** E2E_SHOTS=1 saves the states these tests reach into docs/screenshots (light theme, 1440 px). */
+async function shot(page: Page, name: string, target?: Locator) {
+  if (!process.env.E2E_SHOTS) return;
+  await page.waitForTimeout(300);
+  const path = `../../docs/screenshots/${name}-light.png`;
+  await (target ? target.screenshot({ path }) : page.screenshot({ path }));
+}
 
 const SHOWCASE_VAULT = "0x09138198c0056189727dfe809E67934c1B7fD973";
 let db: pg.Client;
@@ -137,7 +146,7 @@ test("WalletConnect's expired proposal (an unhandled rejection) becomes a calm m
   expect(consoleErrors.filter((t) => /Proposal expired/.test(t))).toEqual([]);
 });
 
-test("contributor: another wallet in the extension shows a notice; using it still needs a click to sign", async ({
+test("contributor: another wallet in the extension is a quiet note, never a banner; signing still needs a click", async ({
   browser,
 }) => {
   const owner = await db.query<{ id: string }>(
@@ -154,27 +163,46 @@ test("contributor: another wallet in the extension shows a notice; using it stil
   await seedMember(db, { programId, userId, x, wallet: wallet.addresses[0]! });
   const { page, errors } = await newPage(ctx);
 
-  // Connect once (as a returning visitor would have), then switch accounts in the extension and come back.
+  // Connect the payout wallet (as a returning visitor would have). Asking to change wallets while the extension is
+  // still on the payout account is the one case that interrupts: a compact dialog to pick another account.
   await page.goto(`/c/${slug}`);
   await page.getByRole("button", { name: "Change payout wallet" }).click();
   await connectWallet(page);
-  await page.getByRole("button", { name: "Cancel" }).click();
+  const pick = page.getByRole("dialog", { name: "Pick the new wallet" });
+  await expect(pick).toBeVisible();
+  await shot(page, "contributor-wallet-pick-dialog", pick);
+  await pick.getByRole("button", { name: "Cancel" }).click();
+  await expect(pick).toBeHidden();
+
+  // Another account in the extension: no banner anywhere, just a line under the payout wallet.
   await wallet.switchAccount(page, 1);
   await page.reload();
-
-  const notice = page.getByRole("status").filter({ hasText: "This isn't your payout wallet" });
-  await expect(notice).toBeVisible({ timeout: 15_000 });
+  const note = page.getByText("Connected wallet differs from your payout wallet");
+  await expect(note).toBeVisible({ timeout: 15_000 });
+  await shot(
+    page,
+    "contributor-wallet-note",
+    page.locator("section", { hasText: "Payout wallet" }).last(),
+  );
+  await expect(page.getByRole("status").filter({ hasText: /payout wallet/i })).toHaveCount(0);
   expect(wallet.signRequests).toHaveLength(0);
 
-  // "Use this wallet instead" opens the change flow; the signature waits for the explicit button.
-  await notice.getByRole("button", { name: "Use this wallet instead" }).click();
+  // "Use this wallet instead" opens the change flow with the connected account; the signature waits for a click.
+  await page.getByRole("button", { name: "Use this wallet instead" }).click();
   await expect(page.getByRole("button", { name: "Sign to switch wallet" })).toBeVisible();
+  await expect(pick).toBeHidden();
   await page.waitForTimeout(500);
   expect(wallet.signRequests).toHaveLength(0);
 
-  // Switching back clears the notice.
+  // Back on the payout account: the note goes, and the change flow asks to pick another account again.
   await wallet.switchAccount(page, 0);
-  await expect(notice).toBeHidden();
+  await expect(note).toBeHidden();
+  await expect(pick).toBeVisible();
+  // Switching in the wallet closes it by itself.
+  await wallet.switchAccount(page, 1);
+  await expect(pick).toBeHidden();
+  await expect(page.getByRole("button", { name: "Sign to switch wallet" })).toBeVisible();
+  expect(wallet.signRequests).toHaveLength(0);
   expect(errors).toEqual([]);
 });
 

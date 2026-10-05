@@ -1,6 +1,7 @@
 # Misthos — Progress
 
-**Current phase:** Release audit done (security + code quality); stopped before Phase 7 (deployment).
+**Current phase:** Phase 7 done: live on Arc testnet at https://misthos-iota.vercel.app (web on Vercel, worker on
+Railway, Neon). Repository public. No mainnet without the owner's explicit OK.
 **Last updated:** 2026-10-05
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
@@ -21,6 +22,40 @@
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (Phase 7: deployment on Arc testnet, 2026-10-05)
+
+- **Web (Vercel):** project `misthos`, root `apps/web`, Node 22, built from GitHub `main` (pushes deploy
+  automatically) at https://misthos-iota.vercel.app (`misthos.vercel.app` was taken). Env: only what the web app
+  reads (app URL, chain, WalletConnect id, agent SCA address, `DATABASE_URL`, a production-only `SESSION_SECRET`, X
+  and GitHub OAuth client credentials); no signing keys, entity secret or deployer key. Firewall rule "API rate
+  limit (M-4)": 100 req/min/IP on `/api/auth/*`, `/api/public/*`, `/api/contributor/*` (429), published.
+- **Worker (Railway):** project `misthos`, service `worker`, from GitHub `main` via `apps/worker/Dockerfile` +
+  `railway.json` (restart ALWAYS, never sleeps, 1 replica; redeploys on changes to the worker's packages). Env:
+  Neon, X bearer, GitHub token, Anthropic, Circle API key + entity secret + wallet id/address,
+  `AGENT_BACKEND=circle` (no EOA key in production). Logs carry level names. The local worker and dev server were
+  stopped first so only one worker serves the database.
+- **Database:** same Neon database; all 7 migrations applied.
+- **OAuth / wallets:** X callback `https://misthos-iota.vercel.app/api/auth/x/callback` and GitHub callback
+  `/api/auth/github/callback` added by the owner (localhost kept); Reown allowlist has the production domain.
+- **Smoke test (all pass):** landing, docs, join and audit pages; Verify on the live site (5/5 checks incl. the
+  on-chain payout match); owner SIWE sign-in → owner app and wizard (nonce replay refused, cross-origin refused);
+  owner's real X sign-in and Connect GitHub (kenil1710); a real submission processed by the Railway worker in ~3 s
+  (the "1/" post of the owner's thread: OUT_OF_WINDOW for Round 2 + soft NEAR_DUPLICATE, rejected, signature
+  verified on Arc).
+- **First production payout:** Round 1 of Kency Arc Creators closed on the owner's instruction (audit actor
+  `system`); the Railway worker proposed and executed it: 0.36 USDC to the contributor's payout wallet
+  ([0x2ccd33fc…](https://explorer.testnet.arc.io/tx/0x2ccd33fcb77ed5bb41af10bfa4e9f59b780f774a2c242bebdf39b29546da321a)),
+  `decisionHash` = hash of the signed decision. Round 2 opened automatically (2026-10-05 09:29 → 10-12 09:29 UTC);
+  the owner closes it manually on Oct 8–9.
+- **Wallet UX:** the full-width amber wallet banner is gone everywhere. Contributors: a one-line note under the
+  payout wallet ("Connected wallet differs from your payout wallet · Use this wallet instead"), and a compact "Pick
+  the new wallet" dialog only when changing the payout wallet while the extension is still on it. Owners: amber dot
+  on the wallet chip; the compact fix dialog only when an action needs the owner wallet (deploy, fund, withdraw,
+  approve round, limits, pause). e2e (21/21) and screenshots (`contributor-wallet-note`, `-pick-dialog`) updated.
+- **README:** live URL, the real payout, a deployment table.
+- **Repository public** after a final scan: gitleaks over all commits clean; none of the 11 secret values in `.env`
+  appear anywhere in history; only `.env.example` was ever committed.
 
 ## Done (Release audit before Phase 7, 2026-10-05)
 
@@ -477,12 +512,12 @@ re-execution reverted with `RoundNotExecutable`.
       Phase 7). Please try "Connect GitHub" on your contributor page with your real account.
 - [x] Circle entity secret + agent SCA (done 2026-10-02). **Back up `~/misthos-circle-recovery/` somewhere safe.**
 
-## Next (Phase 7 — Deployment)
+## Next
 
-Owner to do first: the 5-minute real "Sign in with X" check at the end of `docs/QA_REPORT.md`.
-
-Vercel (web) + Railway (worker) + Neon; production env vars; X callback URL; replace "added in deployment" in the
-README with the live URL. Waiting for the owner's browser test before marking any of their programs as demo.
+- Owner: close Round 2 of Kency Arc Creators on Oct 8–9 after friends submit (Close round now in the app).
+- Before 2026-12-01: migrate `railway.json` to Railway Infrastructure as Code.
+- Open audit items (docs/SECURITY_AUDIT.md): two-step ownership in the next vault implementation, session
+  revocation, OAuth token revoke on failed profile fetch.
 
 ## Stubs
 
@@ -493,8 +528,11 @@ None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fa
 - (resolved 2026-10-05) Root `.env` lost values on 2026-10-03; all restored (Circle entity secret reset, new recovery
   file in `~/misthos-circle-recovery/`). `ARC_RPC_URL` and `VAULT_FACTORY_ADDRESS` are intentionally empty (defaults
   from `packages/shared`).
-- Rate limiting is per instance (in memory). Before launch, add Vercel Firewall rate-limit rules for `/api/auth/*`,
-  `/api/public/*`, `/api/contributor/*` (SECURITY_AUDIT M-4).
+- (resolved 2026-10-05) Edge rate limiting: Vercel Firewall rule live (SECURITY_AUDIT M-4); the in-app limiter stays
+  as a second layer.
+- Railway's Config as Code (`railway.json`) is deprecated; it keeps working until 2026-12-01. Migrate with
+  `railway config migrate` before then.
+- Live X sign-in uses the owner's X app; Round 2 of Kency Arc Creators closes manually on Oct 8–9 (owner).
 - Next vault implementation: two-step ownership transfer (SECURITY_AUDIT L-3). The deployed one is unchanged.
 - `apps/web/AGENTS.md` / `CLAUDE.md` are regenerated by `next dev`; keep them committed.
 - Stock Foundry can't execute Arc USDC transfers on a fork: `0x3600…` calls the native precompile

@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SignOutButton } from "@/components/app/sign-out-button";
 import { SiteHeader } from "@/components/app/site-header";
-import { ChangeWallet, PayoutWalletBanner } from "@/components/contributor/wallet-islands";
+import { ChangeWallet, PayoutWalletNote } from "@/components/contributor/wallet-islands";
 import { GithubConnect } from "@/components/contributor/github-connect";
 import { Disclosure } from "@/components/ui-kit/disclosure";
 import { contributorNextSteps } from "@/lib/contributor-steps";
@@ -141,8 +141,6 @@ export default async function ContributorHome({ params, searchParams }: PageProp
         {program.status === "paused" ? (
           <Notice>This program has paused new sign-ups. You can keep submitting.</Notice>
         ) : null}
-
-        <PayoutWalletBanner expected={me.walletAddress} />
 
         <section
           aria-label="Your earnings"
@@ -351,11 +349,14 @@ export default async function ContributorHome({ params, searchParams }: PageProp
                 <dt className="text-muted-foreground">Wallet</dt>
                 <dd>
                   {me.walletAddress ? (
-                    <HexValue
-                      value={me.walletAddress}
-                      label="payout wallet"
-                      href={`${explorer}/address/${me.walletAddress}`}
-                    />
+                    <>
+                      <HexValue
+                        value={me.walletAddress}
+                        label="payout wallet"
+                        href={`${explorer}/address/${me.walletAddress}`}
+                      />
+                      <PayoutWalletNote expected={me.walletAddress} />
+                    </>
                   ) : (
                     "Not linked"
                   )}

@@ -41,7 +41,7 @@ export function OwnerWallet({ owner, compact = false }: { owner: string; compact
   // Shown once per page (the header); actions below just say where to connect.
   if (problem === "disconnected")
     return compact ? null : <WalletButton size="sm" label={`Connect ${shortHex(owner)}`} />;
-  // Account and network mismatches are explained once, in the banner at the top of the page.
+  // Account and network mismatches show as a dot on the wallet chip; the fix dialog opens when an action needs it.
   if (problem === "wrong_account" || problem === "wrong_network") return null;
   if (compact) return null;
   return (
