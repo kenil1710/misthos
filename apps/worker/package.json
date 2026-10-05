@@ -26,13 +26,13 @@
     "drizzle-orm": "^0.45.3",
     "pg-boss": "^12.35.1",
     "pino": "^10",
+    "tsx": "^4",
     "viem": "^2.56.9",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
     "@types/node": "^22",
-    "tsx": "^4",
     "typescript": "^5",
     "vitest": "^4"
   }

@@ -90,7 +90,11 @@ export function buildDeps(opts: Pick<StartOptions, "wrapFetchers"> & { poolMax?:
 
 /** Build the real dependencies and start consuming the queues. */
 export async function startWorker(opts: StartOptions = {}) {
-  const log = pino({ name: opts.name ?? "misthos-worker" });
+  // Level names ("info", "error") instead of numbers, so hosted log viewers (Railway) show and filter them.
+  const log = pino({
+    name: opts.name ?? "misthos-worker",
+    formatters: { level: (label) => ({ level: label }) },
+  });
   const { env, chain, deps, pool, signer } = buildDeps(opts);
 
   const boss = new PgBoss({

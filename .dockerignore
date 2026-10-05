@@ -1,0 +1,16 @@
+# Never ship secrets or local state into an image.
+.env
+.env.*
+!.env.example
+private
+.vercel
+.git
+**/node_modules
+**/.next
+**/.next-*
+**/.turbo
+**/dist
+**/coverage
+docs
+apps/web
+packages/contracts
