@@ -10,9 +10,9 @@ import {
   type DbLike,
 } from "@misthos/db";
 import { formatUsdc, hashCanonical, hashText, type OverrideDecisionJob } from "@misthos/shared";
-import { and, desc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Hex } from "viem";
-import { NEAR_DUPLICATE_HARD, runChecks, type PriorMatch } from "./checks";
+import { NEAR_DUPLICATE_HARD, runChecks, TRUSTED_TIME, type PriorMatch } from "./checks";
 import { decide, RULE_VERSION, type EngineDecision } from "./engine";
 import { explain } from "./explain";
 import { JudgeError, type Judge, type Judgment } from "./judge";
@@ -251,6 +251,7 @@ export async function processSubmission(
     where d.submission_id = ${submissions.id}
       and not exists (select 1 from decisions d2 where d2.submission_id = d.submission_id and d2.created_at > d.created_at)
       and not (d.flags_json @> '[{"code":"OWNERSHIP_MISMATCH"}]'::jsonb)
+      and not (d.flags_json @> '[{"code":"OWNERSHIP_UNVERIFIED"}]'::jsonb)
   )`;
   const earlier = or(
     lt(submissions.createdAt, sub.createdAt),
@@ -273,8 +274,8 @@ export async function processSubmission(
           ne(submissions.contributorId, contributor.id),
           ne(submissions.id, sub.id),
           earlier,
-          // Only a prior whose current decision passed ownership counts (F-03): someone who submitted another
-          // person's post first, and was rejected for it, doesn't make the real author a duplicate.
+          // Only a prior whose ownership was positively verified counts (F-03, N-3): someone who submitted another
+          // person's work first doesn't make the real author a duplicate.
           passedOwnership,
         ),
       )
@@ -292,12 +293,15 @@ export async function processSubmission(
       simhash: string | null;
       sim: number;
       content_at: string | null;
+      source_type: Resource["sourceType"];
     };
     const rows = rowsOf<SimilarRow>(
       await db.execute(sql`
       select s.id, s.contributor_id, c.x_handle, s.url, s.created_at, fr.simhash::text as simhash,
              similarity(fr.content_text, ${resource.text}) as sim,
-             fr.payload_json->>'timestamp' as content_at
+             -- An article's date comes from its own page: never used to decide which piece is the original (N-4).
+             case when s.source_type = 'article' then null else fr.payload_json->>'timestamp' end as content_at,
+             s.source_type
       from submissions s
       join fetched_resources fr on fr.source_type = s.source_type and fr.resource_id = s.resource_id
       join contributors c on c.id = s.contributor_id
@@ -322,6 +326,7 @@ export async function processSubmission(
       similarity: Number(r.sim),
       contentAt:
         r.content_at && !Number.isNaN(Date.parse(r.content_at)) ? new Date(r.content_at) : null,
+      sourceType: r.source_type,
       hamming:
         simhash !== null && r.simhash !== null
           ? hamming(simhash, fromSigned64(BigInt(r.simhash)))
@@ -520,18 +525,24 @@ export async function processSubmission(
     now: now(),
   });
   // This submission is the original of a near-identical post someone else submitted earlier but published later
-  // (F-03): that later copy is the duplicate. Re-decide it as one (signed, superseding), if it isn't being paid yet.
-  if (resource?.timestamp && !Number.isNaN(Date.parse(resource.timestamp))) {
+  // (F-03): that later copy is probably the duplicate. The agent never rejects or supersedes an earlier decision on
+  // its own: the copy is held for a person to review. Only platform dates count, so articles never trigger this.
+  if (
+    resource?.timestamp &&
+    TRUSTED_TIME.has(resource.sourceType) &&
+    !Number.isNaN(Date.parse(resource.timestamp))
+  ) {
     const mine = Date.parse(resource.timestamp);
     for (const m of similar) {
       const sim = Math.max(m.similarity, m.hamming !== null ? 1 - m.hamming / 64 : 0);
       if (
         m.contributorId !== contributor.id &&
+        TRUSTED_TIME.has(m.sourceType ?? "x_post") &&
         sim >= NEAR_DUPLICATE_HARD &&
         m.contentAt &&
         m.contentAt.getTime() > mine
       )
-        await rejectAsCopy(deps, m.submissionId, {
+        await holdCopyForReview(deps, m.submissionId, {
           url: sub.url,
           xHandle: contributor.xHandle,
           publishedAt: new Date(mine),
@@ -817,19 +828,18 @@ export async function rejectAtPayout(
 }
 
 /**
- * A later copy of someone's earlier-published work (F-03). Records a signed agent decision that supersedes the
- * copy's own and rejects it, unless the item is already in a payout or paid (then the owner is told instead).
+ * A later copy of someone's earlier-published work (F-03). The agent never rejects or supersedes a decision already
+ * made: an approved copy is held for a person to review (it isn't paid meanwhile), and the owner is told. If it's
+ * already in a payout or paid, the owner is told instead. Nothing is signed here; the reviewer's decision is.
  */
-export async function rejectAsCopy(
+export async function holdCopyForReview(
   deps: PipelineDeps,
   copySubmissionId: string,
   original: { url: string; xHandle: string; publishedAt: Date; similarity: number },
-): Promise<Hex | null> {
+): Promise<"held" | "noted" | null> {
   const db = deps.db;
-  const now = deps.now ?? (() => new Date());
-  const ctx = await loadContext(db, copySubmissionId);
-  if (!ctx) return null;
-  const { submission: sub, program, contributor, round } = ctx;
+  const [sub] = await db.select().from(submissions).where(eq(submissions.id, copySubmissionId));
+  if (!sub) return null;
   const [prev] = await db
     .select()
     .from(decisions)
@@ -838,90 +848,56 @@ export async function rejectAsCopy(
     .limit(1);
   if (!prev || prev.action === "reject") return null;
   const pct = Math.round(original.similarity * 100);
+  const data = {
+    original: original.url,
+    originalBy: original.xHandle,
+    originalPublishedAt: original.publishedAt.toISOString(),
+    similarity: pct,
+    status: sub.status,
+  };
+  const note = (action: string) =>
+    db.insert(auditEvents).values({
+      programId: sub.programId,
+      actor: "agent",
+      action,
+      entity: "submission",
+      entityId: sub.id,
+      dataJson: data,
+    });
   if (
     sub.payoutId ||
     sub.status === "paid" ||
     sub.status === "pending" ||
     sub.status === "processing"
   ) {
-    await db.insert(auditEvents).values({
-      programId: program.id,
-      actor: "agent",
-      action: "copy.detected_too_late",
-      entity: "submission",
-      entityId: sub.id,
-      dataJson: {
-        original: original.url,
-        originalBy: original.xHandle,
-        similarity: pct,
-        status: sub.status,
-      },
-    });
-    return null;
+    await note("copy.detected_too_late");
+    return "noted";
   }
-  const flag: Flag = {
-    code: "NEAR_DUPLICATE",
-    severity: "hard",
-    message: `${pct}% identical to a post by @${original.xHandle} that was published earlier (${original.publishedAt.toISOString().slice(0, 16).replace("T", " ")} UTC).`,
-    evidence: {
-      matchedUrl: original.url,
-      matchedHandle: original.xHandle,
-      originalPublishedAt: original.publishedAt.toISOString(),
-      trigramSimilarity: Math.round(original.similarity * 1000) / 1000,
-    },
-  };
-  const prevRecord = JSON.parse(prev.decisionJson) as DecisionRecord;
-  const reason =
-    "A near-identical post by someone else was published earlier; this one is the copy.";
-  const signed = await signRecord(
-    {
-      ...prevRecord,
-      contributor: { ...prevRecord.contributor, wallet: contributor.walletAddress },
-      round: {
-        id: round.id,
-        number: round.number,
-        startsAt: round.startsAt.toISOString(),
-        endsAt: round.endsAt.toISOString(),
-      },
-      flags: [...prevRecord.flags.filter((f) => f.code !== "NEAR_DUPLICATE"), flag],
-      ruleVersion: RULE_VERSION,
-      rule: "R1_REJECT_FLAG",
-      decision: {
-        action: "reject",
-        categoryKey: prev.categoryKey,
-        points: prev.points,
-        amount: "0",
-        auto: true,
-      },
-      decidedBy: { type: "agent", supersedes: prev.decisionHash as Hex, reason },
-      summary: `Rejected. ${flag.message} Recycled content isn't paid under this program's rules.`,
-      decidedAt: now().toISOString(),
-    },
-    deps.signer,
-  );
-  try {
-    await persist(db, {
-      submissionId: sub.id,
-      programId: program.id,
-      status: "rejected",
-      amount: 0n,
-      signed,
-      llmOutput: prev.llmOutputJson,
-      model: prev.model,
-      promptVersion: prev.promptVersion,
-      decidedBy: "agent",
-      decidedByUserId: null,
-      overrideReason: null,
-      auditAction: "decision.copy_detected",
-      supersedes: { decisionId: prev.id, decisionHash: prev.decisionHash, actor: "agent", reason },
-      requireNoPayout: true,
-      now: now(),
-    });
-  } catch (e) {
-    if (e instanceof InPayoutError) return null;
-    throw e;
+  if (sub.status === "approved" || sub.status === "partial") {
+    // Hold it: no longer payable until a person decides. Conditional, so a planned payout is never disturbed.
+    const held = await db
+      .update(submissions)
+      .set({
+        status: "escalated",
+        lastError: `Held for review: ${pct}% identical to a post by @${original.xHandle} that was published earlier (${original.url}).`,
+      })
+      .where(
+        and(
+          eq(submissions.id, sub.id),
+          inArray(submissions.status, ["approved", "partial"]),
+          isNull(submissions.payoutId),
+        ),
+      )
+      .returning({ id: submissions.id });
+    if (!held.length) {
+      await note("copy.detected_too_late");
+      return "noted";
+    }
+    await note("copy.held_for_review");
+    return "held";
   }
-  return signed.decisionHash;
+  await note("copy.flagged_for_review");
+  return "noted";
 }
 
 export function fetcherFor(fetchers: Fetchers, sourceType: Resource["sourceType"]) {

@@ -10,7 +10,8 @@ import {
   submissions,
   type DbLike,
 } from "@misthos/db";
-import { and, asc, desc, eq, inArray, isNull, lte, gt, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, asc, desc, eq, inArray, isNull, lte, gt, or, sql } from "drizzle-orm";
 import type { Address, Hex } from "viem";
 import { ChainError, idempotencyUuid, type AgentExecutor } from "../chain/executor";
 import { fetcherFor, rejectAtPayout, type PipelineDeps } from "../pipeline";
@@ -22,12 +23,15 @@ import { ChainRoundStatus, vaultCalls, type VaultReader } from "./vault";
 export interface RoundDeps extends PipelineDeps {
   reader: VaultReader;
   executor: AgentExecutor;
+  /** How long a run's lease on a round lasts without renewal (default 5 min; renewed before every transaction). */
+  roundLeaseMs?: number;
 }
 
 export type RoundOutcome =
   | { status: "skipped"; reason: string }
   | { status: "nothing_to_pay" }
   | { status: "awaiting_approval"; total: bigint }
+  | { status: "awaiting_funds"; total: bigint; balance: bigint }
   | { status: "executed"; total: bigint; txHash: Hex }
   | { status: "failed"; error: string };
 
@@ -155,8 +159,27 @@ async function payableItems(db: DbLike, programId: string, roundNumber: number) 
     .orderBy(asc(submissions.createdAt));
 }
 
+/** A payout re-check this recent is reused: a re-plan or retry doesn't fetch the same content again (N-2). */
+const RECHECK_FRESH_MS = 6 * 3600_000;
+
 /** Fresh fetch before paying: content must still exist and still belong to the contributor. */
 async function recheck(
+  deps: RoundDeps,
+  item: { s: typeof submissions.$inferSelect; c: typeof contributors.$inferSelect },
+): Promise<Flag | "ok" | "unavailable"> {
+  const now = (deps.now ?? (() => new Date()))();
+  if (item.s.recheckedAt && now.getTime() - item.s.recheckedAt.getTime() < RECHECK_FRESH_MS)
+    return "ok";
+  const outcome = await recheckFetch(deps, item);
+  if (outcome === "ok")
+    await deps.db
+      .update(submissions)
+      .set({ recheckedAt: now })
+      .where(eq(submissions.id, item.s.id));
+  return outcome;
+}
+
+async function recheckFetch(
   deps: RoundDeps,
   item: { s: typeof submissions.$inferSelect; c: typeof contributors.$inferSelect },
 ): Promise<Flag | "ok" | "unavailable"> {
@@ -214,8 +237,10 @@ async function recheck(
 }
 
 /**
- * Give a round's items back to the queue, but only what the vault confirms was never paid. Callers reach this only
- * after the chain says the round can't execute any more (never proposed, or cancelled).
+ * Give back the items of one on-chain round id, but only what the vault confirms was never paid. Callers reach this
+ * only after the chain says that id can't execute any more (never proposed, or cancelled). Payouts planned under any
+ * other id (a re-plan by another run) are never touched, and the round is marked failed only if it is still on this
+ * id (N-1).
  */
 async function releaseRound(
   deps: RoundDeps,
@@ -223,16 +248,25 @@ async function releaseRound(
   roundId: string,
   programId: string,
   error: string,
+  roundBytes: Hex | null,
 ): Promise<RoundOutcome> {
   const db = deps.db;
-  const planned = await db
-    .select({
-      id: payouts.id,
-      payoutId: payouts.payoutIdBytes32,
-      contributorId: payouts.contributorId,
-    })
-    .from(payouts)
-    .where(and(eq(payouts.roundId, roundId), inArray(payouts.status, ["pending", "proposed"])));
+  const planned = roundBytes
+    ? await db
+        .select({
+          id: payouts.id,
+          payoutId: payouts.payoutIdBytes32,
+          contributorId: payouts.contributorId,
+        })
+        .from(payouts)
+        .where(
+          and(
+            eq(payouts.roundId, roundId),
+            eq(payouts.roundIdBytes32, roundBytes),
+            inArray(payouts.status, ["pending", "proposed"]),
+          ),
+        )
+    : [];
   const unpaid: string[] = [];
   for (const p of planned)
     if (!(await deps.reader.paid(vault, p.payoutId as Hex))) unpaid.push(p.id);
@@ -247,9 +281,15 @@ async function releaseRound(
     await tx
       .update(rounds)
       .set({ status: "failed", lastError: error })
-      .where(eq(rounds.id, roundId));
+      .where(
+        and(
+          eq(rounds.id, roundId),
+          roundBytes ? eq(rounds.roundIdBytes32, roundBytes) : isNull(rounds.roundIdBytes32),
+        ),
+      );
     await audit(tx, programId, "round.failed", roundId, {
       error,
+      roundId: roundBytes,
       released: unpaid.length,
       keptPaid: planned.length - unpaid.length,
     });
@@ -270,24 +310,35 @@ async function resyncPayees(deps: RoundDeps, contributorIds: string[]) {
  */
 async function settleFailure(
   deps: RoundDeps,
-  ctx: { vault: Address; roundId: string; programId: string },
+  ctx: RunCtx,
   error: string,
+  roundBytes: Hex | null,
 ): Promise<RoundOutcome> {
+  // Act on the on-chain id this run was working on, never on whatever the database says now (N-1). If another run
+  // has since moved the round to a new id, that run owns it: this one only makes sure its own id is settled.
   const [cur] = await deps.db.select().from(rounds).where(eq(rounds.id, ctx.roundId));
-  const roundBytes = cur?.roundIdBytes32 as Hex | null | undefined;
-  if (!cur || !roundBytes) return releaseRound(deps, ctx.vault, ctx.roundId, ctx.programId, error);
-  const chain = await deps.reader.round(ctx.vault, roundBytes);
-  if (chain.status === ChainRoundStatus.Executed) return recordExecuted(deps, ctx, null);
-  if (chain.status === ChainRoundStatus.Proposed || chain.status === ChainRoundStatus.Approved) {
-    await cancelOnChain(deps, ctx.vault, roundBytes, cur.number);
+  if (roundBytes && cur?.roundIdBytes32 && cur.roundIdBytes32 !== roundBytes) {
+    const chain = await deps.reader.round(ctx.vault, roundBytes);
+    if (chain.status === ChainRoundStatus.Proposed || chain.status === ChainRoundStatus.Approved)
+      await cancelOnChain(deps, ctx, roundBytes);
+    return { status: "skipped", reason: "superseded" };
   }
-  return releaseRound(deps, ctx.vault, ctx.roundId, ctx.programId, error);
+  if (!roundBytes) return releaseRound(deps, ctx.vault, ctx.roundId, ctx.programId, error, null);
+  const chain = await deps.reader.round(ctx.vault, roundBytes);
+  if (chain.status === ChainRoundStatus.Executed)
+    return recordExecuted(deps, ctx, roundBytes, null);
+  if (chain.status === ChainRoundStatus.Proposed || chain.status === ChainRoundStatus.Approved) {
+    await cancelOnChain(deps, ctx, roundBytes);
+  }
+  return releaseRound(deps, ctx.vault, ctx.roundId, ctx.programId, error, roundBytes);
 }
 
 /** cancelRound, then confirm on-chain. Throws (retryable) unless the vault says Cancelled. */
-async function cancelOnChain(deps: RoundDeps, vault: Address, roundBytes: Hex, number: number) {
+async function cancelOnChain(deps: RoundDeps, ctx: RunCtx, roundBytes: Hex) {
+  const { vault, number } = ctx;
   const before = await deps.reader.round(vault, roundBytes);
   if (before.status === ChainRoundStatus.Proposed || before.status === ChainRoundStatus.Approved) {
+    await ctx.renew();
     try {
       await deps.executor.send({
         to: vault,
@@ -311,19 +362,21 @@ async function cancelOnChain(deps: RoundDeps, vault: Address, roundBytes: Hex, n
 /** Record an executed round from chain state: every payout must be marked paid by the vault. Idempotent. */
 async function recordExecuted(
   deps: RoundDeps,
-  ctx: { vault: Address; roundId: string; programId: string },
+  ctx: RunCtx,
+  roundBytes: Hex,
   txHash: Hex | null,
 ): Promise<RoundOutcome> {
   const db = deps.db;
   const now = deps.now ?? (() => new Date());
   const [cur] = await db.select().from(rounds).where(eq(rounds.id, ctx.roundId));
-  const roundBytes = cur!.roundIdBytes32 as Hex;
+  // Only the payouts of the on-chain id that executed (N-1).
   const rows = await db
     .select()
     .from(payouts)
     .where(
       and(
         eq(payouts.roundId, ctx.roundId),
+        eq(payouts.roundIdBytes32, roundBytes),
         inArray(payouts.status, ["pending", "proposed", "executed"]),
       ),
     );
@@ -338,7 +391,7 @@ async function recordExecuted(
       await t
         .update(rounds)
         .set({ status: "executed", txHashExecute: tx, executedAt: now(), lastError: null })
-        .where(eq(rounds.id, ctx.roundId));
+        .where(and(eq(rounds.id, ctx.roundId), eq(rounds.roundIdBytes32, roundBytes)));
       await t
         .update(payouts)
         .set({ status: "executed", txHash: tx })
@@ -395,6 +448,7 @@ async function preflight(
   vault: Address,
   rows: (typeof payouts.$inferSelect)[],
 ): Promise<{ contributorId: string; reason: string }[]> {
+  // (The vault's balance is checked first, in runRound: an under-funded vault would fail every transfer simulation.)
   const now = await deps.reader.chainTime();
   const blocked: { contributorId: string; reason: string }[] = [];
   for (const p of rows) {
@@ -432,8 +486,55 @@ async function autoPaidLast24h(db: DbLike, programId: string, now: Date) {
   return BigInt(r?.total ?? "0");
 }
 
-/** How many times one round may be cancelled and re-planned around payees that can't be paid. */
+/** How many times one run may cancel and re-plan a round around payees that can't be paid. */
 const MAX_REPLANS = 3;
+/** Across all runs: after this many re-plans the round is cancelled and its items carry over to the next round. */
+const MAX_TOTAL_REPLANS = 10;
+const DEFAULT_LEASE_MS = 5 * 60_000;
+
+interface RunCtx {
+  vault: Address;
+  roundId: string;
+  programId: string;
+  number: number;
+  /** Extend this run's lease; throws if another run has taken the round (then nothing more may be sent). */
+  renew: () => Promise<void>;
+}
+
+/** Thrown when a run no longer holds its round's lease. Retryable: the run that holds it carries on. */
+export class LeaseLostError extends Error {
+  constructor(roundId: string) {
+    super(
+      `Another worker run took over round ${roundId}; this run stopped before sending anything.`,
+    );
+    this.name = "LeaseLostError";
+  }
+}
+
+/**
+ * Take the round's lease for this run (N-1): only one run may process a round at a time, across processes too
+ * (e.g. the old and new container during a deploy). Database time, so worker clocks don't matter.
+ */
+async function takeLease(db: DbLike, roundId: string, owner: string, ms: number) {
+  const got = await db
+    .update(rounds)
+    .set({ lockOwner: owner, lockUntil: sql`now() + make_interval(secs => ${ms / 1000})` })
+    .where(
+      and(
+        eq(rounds.id, roundId),
+        or(isNull(rounds.lockUntil), sql`${rounds.lockUntil} < now()`, eq(rounds.lockOwner, owner)),
+      ),
+    )
+    .returning({ id: rounds.id });
+  return got.length > 0;
+}
+
+async function dropLease(db: DbLike, roundId: string, owner: string) {
+  await db
+    .update(rounds)
+    .set({ lockOwner: null, lockUntil: null })
+    .where(and(eq(rounds.id, roundId), eq(rounds.lockOwner, owner)));
+}
 
 /**
  * Drive one round forward as far as it can go: close → re-check → register payees → plan → propose → execute
@@ -446,7 +547,6 @@ export async function runRound(
   opts: { force?: boolean } = {},
 ): Promise<RoundOutcome> {
   const db = deps.db;
-  const now = deps.now ?? (() => new Date());
   const [row] = await db
     .select({ r: rounds, p: programs })
     .from(rounds)
@@ -458,6 +558,32 @@ export async function runRound(
   if (!program.vaultAddress) return { status: "skipped", reason: "no_vault" };
   const vault = program.vaultAddress as Address;
   const programBytes = (program.programIdBytes32 ?? programIdBytes32(program.id)) as Hex;
+  const leaseMs = deps.roundLeaseMs ?? DEFAULT_LEASE_MS;
+  const owner = `${process.pid}:${randomUUID()}`;
+  if (!(await takeLease(db, round.id, owner, leaseMs)))
+    return { status: "skipped", reason: "locked" };
+  try {
+    return await runLocked(deps, { round, program, vault, programBytes, owner, leaseMs }, opts);
+  } finally {
+    await dropLease(db, round.id, owner).catch(() => undefined);
+  }
+}
+
+async function runLocked(
+  deps: RoundDeps,
+  run: {
+    round: typeof rounds.$inferSelect;
+    program: typeof programs.$inferSelect;
+    vault: Address;
+    programBytes: Hex;
+    owner: string;
+    leaseMs: number;
+  },
+  opts: { force?: boolean },
+): Promise<RoundOutcome> {
+  const db = deps.db;
+  const now = deps.now ?? (() => new Date());
+  const { round, program, vault, programBytes } = run;
 
   // ── 1. Close ─────────────────────────────────────────────────────────
   if (round.status === "open") {
@@ -485,16 +611,29 @@ export async function runRound(
   if (!fresh || fresh.status === "executed" || fresh.status === "failed")
     return { status: "skipped", reason: fresh?.status ?? "missing" };
 
-  const ctx = { vault, roundId: round.id, programId: program.id };
+  const ctx: RunCtx = {
+    vault,
+    roundId: round.id,
+    programId: program.id,
+    number: round.number,
+    renew: async () => {
+      if (!(await takeLease(db, round.id, run.owner, run.leaseMs)))
+        throw new LeaseLostError(round.id);
+    },
+  };
   /** Contributors dropped from this round by the payee pre-flight, with why (they carry over). */
   const exclude = new Map<string, string>();
+  /** The on-chain id this run is working on: what a failure is settled against. */
+  let working: Hex | null = null;
   try {
     for (let attempt = 0; ; attempt++) {
+      await ctx.renew();
       const [cur] = await db.select().from(rounds).where(eq(rounds.id, round.id));
       if (!cur || cur.status === "executed" || cur.status === "failed")
         return { status: "skipped", reason: cur?.status ?? "missing" };
       // A re-plan gives the round a fresh on-chain id (a cancelled id can't be reused).
       const roundBytes = (cur.roundIdBytes32 ?? roundIdBytes32(round.id)) as Hex;
+      working = cur.roundIdBytes32 ? roundBytes : null;
 
       // ── 2–4. Plan (once per on-chain id; a re-plan clears the decision root) ──
       if (cur.status === "closed" && (!cur.roundIdBytes32 || !cur.decisionRoot)) {
@@ -504,6 +643,7 @@ export async function runRound(
         const valid: typeof candidates = [];
         const deferredRecheck: string[] = [];
         for (const it of candidates) {
+          await ctx.renew();
           const rc = await recheck(deps, it);
           if (rc === "ok") valid.push(it);
           else if (rc === "unavailable") deferredRecheck.push(it.s.id);
@@ -513,6 +653,7 @@ export async function runRound(
         // Payees: make sure each contributor's current wallet is registered before planning.
         const payees = new Map<string, PayeeState>();
         for (const cid of [...new Set(valid.map((v) => v.c.id))]) {
+          await ctx.renew();
           await syncPayee(deps, cid);
           payees.set(cid, await deps.reader.payee(vault, contributorIdBytes32(cid)));
         }
@@ -564,6 +705,7 @@ export async function runRound(
                 roundId: cur.id,
                 contributorId: p.contributorId,
                 payoutIdBytes32: p.payoutId,
+                roundIdBytes32: roundBytes,
                 toAddress: p.to.toLowerCase(),
                 amount: p.amount,
                 decisionHash: p.decisionHash,
@@ -585,6 +727,7 @@ export async function runRound(
               lastError: null,
             })
             .where(eq(rounds.id, cur.id));
+          working = roundBytes;
           await audit(tx, program.id, "round.planned", cur.id, {
             payouts: plan.payouts.length,
             total: plan.total.toString(),
@@ -611,7 +754,13 @@ export async function runRound(
       const rows = await db
         .select()
         .from(payouts)
-        .where(and(eq(payouts.roundId, round.id), inArray(payouts.status, ["pending", "proposed"])))
+        .where(
+          and(
+            eq(payouts.roundId, round.id),
+            eq(payouts.roundIdBytes32, roundBytes),
+            inArray(payouts.status, ["pending", "proposed"]),
+          ),
+        )
         .orderBy(asc(payouts.createdAt), asc(payouts.payoutIdBytes32));
       if (!rows.length) return { status: "nothing_to_pay" };
       const total = rows.reduce((s, p) => s + p.amount, 0n);
@@ -622,6 +771,7 @@ export async function runRound(
         const contributorBytes = new Map(
           rows.map((p) => [p.contributorId, contributorIdBytes32(p.contributorId)]),
         );
+        await ctx.renew();
         const { txHash } = await deps.executor.send({
           to: vault,
           data: vaultCalls.proposeRound(
@@ -639,10 +789,13 @@ export async function runRound(
           label: `proposeRound #${planned!.number}`,
         });
         await db.transaction(async (tx) => {
-          await tx
+          // Only if the round is still on this id (N-1): never overwrite a round another run re-planned.
+          const moved = await tx
             .update(rounds)
             .set({ status: "proposed", txHashPropose: txHash })
-            .where(eq(rounds.id, round.id));
+            .where(and(eq(rounds.id, round.id), eq(rounds.roundIdBytes32, roundBytes)))
+            .returning({ id: rounds.id });
+          if (!moved.length) throw new LeaseLostError(round.id);
           await tx
             .update(payouts)
             .set({ status: "proposed" })
@@ -660,20 +813,62 @@ export async function runRound(
         });
         chain = await deps.reader.round(vault, roundBytes);
       } else if (planned!.status === "closed") {
-        await db.update(rounds).set({ status: "proposed" }).where(eq(rounds.id, round.id));
+        await db
+          .update(rounds)
+          .set({ status: "proposed" })
+          .where(and(eq(rounds.id, round.id), eq(rounds.roundIdBytes32, roundBytes)));
       }
       // The chain decides from here (F-01): already executed → record it; cancelled → release.
-      if (chain.status === ChainRoundStatus.Executed) return recordExecuted(deps, ctx, null);
+      if (chain.status === ChainRoundStatus.Executed)
+        return recordExecuted(deps, ctx, roundBytes, null);
       if (chain.status === ChainRoundStatus.Cancelled)
-        return releaseRound(deps, vault, round.id, program.id, "The round was cancelled on-chain.");
+        return releaseRound(
+          deps,
+          vault,
+          round.id,
+          program.id,
+          "The round was cancelled on-chain.",
+          roundBytes,
+        );
+
+      // ── 5a. Funds (N-6): an under-funded vault waits for a deposit; the owner's approval is kept ──
+      const balance = await deps.reader.vaultFunds(vault);
+      if (balance < total) {
+        const message = `Vault needs funds: it holds ${formatUnits6(balance)} USDC and this round pays ${formatUnits6(total)} USDC. Deposit at least ${formatUnits6(total - balance)} USDC; the round pays as soon as the vault is funded.`;
+        if (cur.lastError !== message) {
+          await db
+            .update(rounds)
+            .set({ lastError: message })
+            .where(and(eq(rounds.id, round.id), eq(rounds.roundIdBytes32, roundBytes)));
+          await audit(db, program.id, "round.awaiting_funds", round.id, {
+            roundId: roundBytes,
+            balance: balance.toString(),
+            total: total.toString(),
+          });
+        }
+        return { status: "awaiting_funds", total, balance };
+      }
 
       // ── 5b. Payee pre-flight (F-02): drop payouts that would revert the round, re-plan the rest ──
       const blocked = await preflight(deps, vault, rows);
       if (blocked.length) {
+        if (cur.replanCount >= MAX_TOTAL_REPLANS)
+          throw new ChainError(
+            `Payees still couldn't be paid after ${MAX_TOTAL_REPLANS} re-plans; the round is cancelled and its items carry over.`,
+            false,
+          );
         if (attempt >= MAX_REPLANS)
           throw new ChainError(`Payees still can't be paid after ${MAX_REPLANS} re-plans`, true);
-        await cancelOnChain(deps, vault, roundBytes, cur.number);
+        await cancelOnChain(deps, ctx, roundBytes);
+        // Release only this id's payouts, and only those the vault confirms unpaid (N-1).
+        for (const p of rows)
+          if (await deps.reader.paid(vault, p.payoutIdBytes32 as Hex))
+            throw new ChainError(
+              `payout ${p.payoutIdBytes32} is marked paid on a cancelled round`,
+              true,
+            );
         for (const b of blocked) exclude.set(b.contributorId, b.reason);
+        const next = cur.replanCount + 1;
         await db.transaction(async (tx) => {
           const ids = rows.map((p) => p.id);
           await tx
@@ -685,17 +880,19 @@ export async function runRound(
             .update(rounds)
             .set({
               status: "closed",
-              roundIdBytes32: roundIdBytes32(`${round.id}:retry${attempt + 1}`),
+              // A fresh id from the persistent counter: never a cancelled one, in this run or a later one (N-2).
+              roundIdBytes32: roundIdBytes32(`${round.id}:retry${next}`),
+              replanCount: next,
               decisionRoot: null,
               totalAmount: 0n,
               txHashPropose: null,
               txHashApprove: null,
               lastError: null,
             })
-            .where(eq(rounds.id, round.id));
+            .where(and(eq(rounds.id, round.id), eq(rounds.roundIdBytes32, roundBytes)));
           await audit(tx, program.id, "round.replanned", round.id, {
             cancelledRoundId: roundBytes,
-            attempt: attempt + 1,
+            attempt: next,
             carriedOver: blocked,
           });
         });
@@ -729,23 +926,29 @@ export async function runRound(
         return { status: "awaiting_approval", total };
       }
       if (approved && planned!.status !== "approved")
-        await db.update(rounds).set({ status: "approved" }).where(eq(rounds.id, round.id));
+        await db
+          .update(rounds)
+          .set({ status: "approved" })
+          .where(and(eq(rounds.id, round.id), eq(rounds.roundIdBytes32, roundBytes)));
 
       // Retries reuse the idempotency key, so Circle returns the original transaction instead of sending another.
+      await ctx.renew();
       const { txHash } = await deps.executor.send({
         to: vault,
         data: vaultCalls.executeRound(roundBytes),
         idempotencyKey: idempotencyUuid(`execute:${vault}:${roundBytes}`),
         label: `executeRound #${planned!.number}`,
       });
-      return recordExecuted(deps, ctx, txHash);
+      return recordExecuted(deps, ctx, roundBytes, txHash);
     }
   } catch (e) {
-    if (e instanceof ChainError && !e.retryable) return settleFailure(deps, ctx, e.message);
-    await db
-      .update(rounds)
-      .set({ lastError: (e as Error).message })
-      .where(eq(rounds.id, round.id));
+    if (e instanceof ChainError && !e.retryable)
+      return settleFailure(deps, ctx, e.message, working);
+    if (!(e instanceof LeaseLostError))
+      await db
+        .update(rounds)
+        .set({ lastError: (e as Error).message })
+        .where(eq(rounds.id, round.id));
     throw e;
   }
 }
@@ -767,3 +970,9 @@ export async function dueRounds(db: DbLike, now: Date) {
     .orderBy(asc(rounds.endsAt))
     .limit(20);
 }
+
+const formatUnits6 = (v: bigint) => {
+  const whole = v / 1_000_000n;
+  const frac = (v % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
+  return frac ? `${whole}.${frac.length < 2 ? frac.padEnd(2, "0") : frac}` : `${whole}.00`;
+};

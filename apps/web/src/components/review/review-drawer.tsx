@@ -280,7 +280,9 @@ function DrawerBody({
                 payout: detail.payout,
               })}
             />
-            {!latest && detail.submission.lastError ? (
+            {detail.submission.lastError?.startsWith("Held for review") ? (
+              <p className="text-warning mt-3">{detail.submission.lastError}</p>
+            ) : !latest && detail.submission.lastError ? (
               <p className="text-warning mt-3">Retrying: {detail.submission.lastError}</p>
             ) : null}
           </section>

@@ -57,8 +57,12 @@ export class FakeVault implements VaultReader, AgentExecutor {
   async chainTime() {
     return this.time;
   }
-  async canReceive(_v: Address, to: Address) {
-    return !this.blocked.has(to.toLowerCase());
+  /** Like the real reader: simulates token.transfer from the vault, so it also fails when the vault is short. */
+  async canReceive(_v: Address, to: Address, amount: bigint) {
+    return !this.blocked.has(to.toLowerCase()) && amount <= this.vaultBalance;
+  }
+  async vaultFunds() {
+    return this.vaultBalance;
   }
   async executedTx(_v: Address, id: Hex) {
     return this.executedTxs.get(id) ?? null;

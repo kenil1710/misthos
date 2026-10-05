@@ -1,5 +1,5 @@
 import { getDb } from "@misthos/db";
-import { QUEUES } from "@misthos/shared";
+import { QUEUES, roundJobKey } from "@misthos/shared";
 import { audit } from "@/lib/server/audit";
 import { jsonError, sameOrigin } from "@/lib/server/http";
 import { requireRoundOwner } from "@/lib/server/owner";
@@ -22,7 +22,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/rounds/[i
   const ok = await enqueue(
     QUEUES.runRound,
     { roundId: round.id, force: true },
-    `round:${round.id}`,
+    roundJobKey(round.id),
   );
   if (ok === "failed") return jsonError("Couldn't queue the round. Try again in a moment.", 503);
   await audit(getDb(), {

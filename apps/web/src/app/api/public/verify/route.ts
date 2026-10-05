@@ -1,11 +1,10 @@
 import { getDb } from "@misthos/db";
-import { misthosVaultAbi } from "@misthos/shared/abi";
-import type { Address } from "viem";
 import { z } from "zod";
 import { publicClient } from "@/lib/server/chain";
 import { jsonError, readJson } from "@/lib/server/http";
 import { allow, clientKey } from "@/lib/server/rate-limit";
 import { explorerTx } from "@/lib/server/vault";
+import { verifyChain } from "@/lib/server/verify-chain";
 import { verifyDecision } from "@/lib/verify";
 
 const Body = z.object({ record: z.string().min(2).max(50_000) });
@@ -23,11 +22,7 @@ export async function POST(req: Request) {
       client,
       getReceipt: (hash) => client.getTransactionReceipt({ hash }).catch(() => null),
       explorerTx,
-      vaultAgent: (vault) =>
-        client
-          .readContract({ address: vault, abi: misthosVaultAbi, functionName: "agent" })
-          .then((a) => a as Address)
-          .catch(() => null),
+      chain: verifyChain(client),
     },
     body.data.record,
   );

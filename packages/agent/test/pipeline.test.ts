@@ -239,7 +239,7 @@ describe("processSubmission", () => {
       decidedBy: "agent",
       model: "claude-haiku-4-5-20251001",
       promptVersion: "judge-v3",
-      ruleVersion: "rules-v4",
+      ruleVersion: "rules-v5",
     });
     expect(dec.summary).toMatch(
       /^Approved · 16\.00 USDC\. Posted inside the round by the linked account\. .* Scored 8\/10 on depth, 7\/10 on clarity and 9\/10 on originality\.$/,
@@ -296,6 +296,29 @@ describe("processSubmission", () => {
     expect(dec.summary).toMatch(
       /^Rejected\. \d+% identical to a submission by @alice_builds on 2026-10-07\. Recycled content isn't paid/,
     );
+  });
+
+  it("an approved copy is held for a person when the earlier original arrives; the agent never rejects or supersedes it", async () => {
+    const d = deps();
+    // The copy is submitted first and approved (nothing to compare with yet).
+    const copy = await submit("bob_copies", "https://x.com/bob_copies/status/1840000000000000002");
+    expect(await processSubmission(d, copy)).toMatchObject({ action: "approve" });
+    // Then the real author submits the original, published earlier on X.
+    const original = await submit(
+      "alice_builds",
+      "https://x.com/alice_builds/status/1840000000000000001",
+    );
+    expect(await processSubmission(d, original)).toMatchObject({ action: "approve" });
+    // The copy keeps its one signed decision (no automatic rejection), but it's held for review and can't be paid.
+    expect(await db.select().from(decisions).where(eq(decisions.submissionId, copy))).toHaveLength(
+      1,
+    );
+    const held = (await db.select().from(submissions).where(eq(submissions.id, copy)))[0]!;
+    expect(held).toMatchObject({ status: "escalated" });
+    expect(held.lastError).toMatch(/^Held for review: \d+% identical to a post by @alice_builds/);
+    expect(
+      (await db.select().from(auditEvents)).filter((a) => a.action === "copy.held_for_review"),
+    ).toHaveLength(1);
   });
 
   it("rejects someone else's post (OWNERSHIP_MISMATCH)", async () => {

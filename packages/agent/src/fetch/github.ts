@@ -69,11 +69,12 @@ async function get(
   } catch {
     throw new FetchError("GitHub unreachable", true);
   }
-  // 403 with exhausted rate limit is retryable; other 403s (e.g. blocked) are not.
+  // 403 with an exhausted rate limit, or a secondary rate limit (retry-after), is retryable; other 403s aren't.
   if (
     res.status === 429 ||
     res.status >= 500 ||
-    (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0")
+    (res.status === 403 &&
+      (res.headers.get("x-ratelimit-remaining") === "0" || res.headers.has("retry-after")))
   ) {
     throw new FetchError(`GitHub ${res.status}`, true, res.status);
   }
@@ -201,25 +202,32 @@ export async function fetchGithubCommit(
   // set by whoever made the commit. So: the commit must be reachable from the default branch, and its date is when it
   // landed there (the merge time of the pull request that brought it in). A direct push has no provable landing time:
   // no date, so it goes to a person (DATE_UNVERIFIED); a commit not on the default branch is rejected (NOT_MERGED).
+  // An unexpected answer here is never read as "not merged" (N-9): it's retried, then escalated to a person.
   const repoRes = await get(`/repos/${owner}/${repo}`, opts);
-  const defaultBranch = repoRes.ok
-    ? (RepoInfo.safeParse(await repoRes.json()).data?.default_branch ?? null)
-    : null;
-  let onDefaultBranch = false;
-  if (defaultBranch) {
-    const cmp = await get(
-      `/repos/${owner}/${repo}/compare/${encodeURIComponent(defaultBranch)}...${sha}`,
-      opts,
-    );
-    const status = cmp.ok ? CompareInfo.safeParse(await cmp.json()).data?.status : undefined;
-    // "behind"/"identical": the default branch already contains this commit.
-    onDefaultBranch = status === "behind" || status === "identical";
-  }
+  if (!repoRes.ok) throw new FetchError(`GitHub ${repoRes.status} reading the repository`, true);
+  const defaultBranch = RepoInfo.safeParse(await repoRes.json()).data?.default_branch;
+  if (!defaultBranch) throw new FetchError("Unexpected GitHub repository response", true);
+  const cmp = await get(
+    `/repos/${owner}/${repo}/compare/${encodeURIComponent(defaultBranch)}...${sha}`,
+    opts,
+  );
+  // 404: the commit and the default branch share no history, so it isn't on it.
+  if (!cmp.ok && cmp.status !== 404)
+    throw new FetchError(`GitHub ${cmp.status} comparing with ${defaultBranch}`, true);
+  const status = cmp.ok ? CompareInfo.safeParse(await cmp.json()).data?.status : undefined;
+  if (cmp.ok && !status) throw new FetchError("Unexpected GitHub compare response", true);
+  // "behind"/"identical": the default branch already contains this commit.
+  const onDefaultBranch = status === "behind" || status === "identical";
   let landedAt: string | null = null;
   if (onDefaultBranch) {
     const prs = await get(`/repos/${owner}/${repo}/commits/${sha}/pulls`, opts);
     const list = prs.ok ? (PullsForCommit.safeParse(await prs.json()).data ?? []) : [];
-    landedAt = list.find((p) => p.merged_at && p.base?.ref === defaultBranch)?.merged_at ?? null;
+    // The earliest merge into the default branch: a later sync or back-merge PR can't re-date old work.
+    landedAt =
+      list
+        .filter((p) => p.merged_at && p.base?.ref === defaultBranch)
+        .map((p) => p.merged_at!)
+        .sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
   }
   usage.push(
     { provider: "github", endpoint: "GET /repos/:o/:r", units: 1, estCostUsd: 0 },

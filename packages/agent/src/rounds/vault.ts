@@ -43,6 +43,8 @@ export interface VaultReader {
    * trouble, returns false only for a real revert.
    */
   canReceive(vault: Address, to: Address, amount: bigint): Promise<boolean>;
+  /** USDC the vault holds right now (what a round can pay out). */
+  vaultFunds(vault: Address): Promise<bigint>;
   /** The transaction that executed a round, from its RoundExecuted event (null if not found in recent blocks). */
   executedTx(vault: Address, roundId: Hex): Promise<Hex | null>;
 }
@@ -78,6 +80,7 @@ export function viemVaultReader(client: PublicClient): VaultReader {
       return { ...l, payeeCooldown: BigInt(l.payeeCooldown) };
     },
     spentInWindow: async (vault) => (await read(vault, "spentInWindow")) as bigint,
+    vaultFunds: async (vault) => (await read(vault, "balance")) as bigint,
     paid: async (vault, payoutId) => (await read(vault, "paid", [payoutId])) as boolean,
     chainTime: async () => (await client.getBlock()).timestamp,
     async canReceive(vault, to, amount) {

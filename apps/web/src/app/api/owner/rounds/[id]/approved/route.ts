@@ -1,6 +1,6 @@
 import { getDb, rounds } from "@misthos/db";
-import { QUEUES } from "@misthos/shared";
-import { eq } from "drizzle-orm";
+import { QUEUES, roundJobKey } from "@misthos/shared";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Address, Hex } from "viem";
 import { audit } from "@/lib/server/audit";
 import { jsonError, readJson, sameOrigin } from "@/lib/server/http";
@@ -34,11 +34,20 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/rounds/[i
   if (found.log.args.roundId !== round.roundIdBytes32)
     return jsonError("That approval is for a different round.", 400);
   const db = getDb();
-  await db.transaction(async (tx) => {
-    await tx
+  const recorded = await db.transaction(async (tx) => {
+    // Only if the round is still on the on-chain id that was approved (N-12): the worker may have re-planned it.
+    const updated = await tx
       .update(rounds)
       .set({ status: "approved", txHashApprove: body.data.txHash })
-      .where(eq(rounds.id, round.id));
+      .where(
+        and(
+          eq(rounds.id, round.id),
+          inArray(rounds.status, ["proposed", "approved"]),
+          eq(rounds.roundIdBytes32, found.log.args.roundId),
+        ),
+      )
+      .returning({ id: rounds.id });
+    if (!updated.length) return false;
     await audit(tx, {
       programId: program.id,
       actor: `user:${session.sub}`,
@@ -47,8 +56,11 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/rounds/[i
       entityId: round.id,
       data: { txHash: body.data.txHash },
     });
+    return true;
   });
-  await enqueue(QUEUES.runRound, { roundId: round.id, force: false }, `round:${round.id}:execute`);
+  if (!recorded)
+    return jsonError("This round changed while you were approving it. Reload the page.", 409);
+  await enqueue(QUEUES.runRound, { roundId: round.id, force: false }, roundJobKey(round.id));
   vaultChanged(program.vaultAddress);
   return Response.json({ ok: true });
 }

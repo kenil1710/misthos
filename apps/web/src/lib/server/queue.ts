@@ -68,6 +68,8 @@ export async function wakeWorker(): Promise<boolean> {
       headers: { authorization: `Bearer ${WORKER_WAKE_SECRET}` },
       signal: AbortSignal.timeout(3000),
       cache: "no-store",
+      // Never follow a redirect with the secret attached.
+      redirect: "error",
     });
     return res.ok;
   } catch (e) {

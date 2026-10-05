@@ -4,7 +4,12 @@ import { z } from "zod";
 export const QUEUES = {
   processSubmission: "submission-process",
   overrideDecision: "decision-override",
-  runRound: "round-run",
+  /**
+   * One job per round (N-7): a "stately" queue, so a second send for a round that already has a queued job is
+   * dropped. Every sender uses the key `roundJobKey(id)`. ("round-run", the old standard-policy queue, is still
+   * drained by the worker so nothing sent during a deploy is lost.)
+   */
+  runRound: "round-run-once",
   syncPayee: "payee-sync",
 } as const;
 
@@ -41,3 +46,9 @@ export const PRODUCER_OPTIONS = {
   migrate: false,
   createSchema: false,
 } as const;
+
+/** The old round queue (standard policy, no dedupe); the worker drains it until it's empty. */
+export const LEGACY_RUN_ROUND_QUEUE = "round-run";
+
+/** The single dedupe key for a round's job, whoever sends it (scheduler, recovery, owner close or approval). */
+export const roundJobKey = (roundId: string) => `round:${roundId}`;

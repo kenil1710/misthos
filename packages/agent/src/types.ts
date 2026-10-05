@@ -77,8 +77,8 @@ export interface Resource {
     /** Handles or profile links found anywhere on the page, lowercased (shown to reviewers; not proof). */
     xMentions: string[];
     /**
-     * Handles named as the author: author metadata and the byline only (never comments or the body). The ownership
-     * check uses these. Missing on articles cached before this existed, which then go to review.
+     * Handles named as the author by structured metadata only (twitter:creator, author meta tags, link rel=author,
+     * JSON-LD author links); never visible text, bylines or display names. Missing on older cached articles.
      */
     authorHandles?: string[];
     /** Text hidden from readers (comments, display:none, alt text) — scanned for injection, never judged. */

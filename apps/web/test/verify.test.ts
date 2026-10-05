@@ -86,11 +86,23 @@ const deps = (r: TransactionReceipt | null | undefined = undefined): VerifyDeps 
   client: offline,
   getReceipt: async () => (r === undefined ? receipt() : r),
   explorerTx: (h) => `https://explorer/tx/${h}`,
-  vaultAgent: async () => vaultAgent,
+  chain: {
+    // The agent's history: `agentFrom` blocks onward it's `laterAgent` (a rotation), before that the test agent.
+    agentAt: async (_vault, block) =>
+      agentUnreadable ? null : block >= agentFrom ? laterAgent : agent.address,
+    isFactoryVault: async (vault) => factoryVaults.has(vault.toLowerCase()),
+    blockAt: async () => 100n,
+  },
 });
-let vaultAgent: Address | null = agent.address;
+let agentUnreadable = false;
+let agentFrom = 10_000n;
+let laterAgent: Address = agent.address;
+const factoryVaults = new Set([VAULT.toLowerCase()]);
 
 beforeEach(async () => {
+  agentUnreadable = false;
+  agentFrom = 10_000n;
+  laterAgent = agent.address;
   ctx = await testDb();
   db = ctx.db as unknown as DbLike;
   const [owner] = await db
@@ -254,10 +266,6 @@ describe("verifyDecision", () => {
       () => receipt({ decisionHash: keccak256(toBytes("other")) }),
     ],
     ["a different amount on-chain", () => receipt({ amount: 2_000_000n })],
-    [
-      "an event from another contract",
-      () => receipt({ vault: "0x00000000000000000000000000000000000000f2" }),
-    ],
     ["no receipt", () => null],
   ])("fails the chain step for %s", async (_label, make) => {
     const v = await verifyDecision(deps(make()), recordJson);
@@ -286,19 +294,53 @@ describe("verifyDecision", () => {
   });
 
   it("F-09: fails when the signer isn't the vault's agent on-chain, even if the signature itself is valid", async () => {
-    vaultAgent = "0x00000000000000000000000000000000000000e7";
+    agentFrom = 0n;
+    laterAgent = "0x00000000000000000000000000000000000000e7";
     const v = await verifyDecision(deps(), recordJson);
     expect(v.verified).toBe(false);
     expect(v.steps.find((s) => s.id === "signature")).toMatchObject({
       state: "fail",
       detail: expect.stringContaining(
-        "the program vault's agent on Arc is 0x00000000000000000000000000000000000000e7",
+        "the vault's agent was 0x00000000000000000000000000000000000000e7",
       ),
     });
-    vaultAgent = null; // can't read the vault: never claims a verified signer
+    agentFrom = 10_000n;
+    agentUnreadable = true; // can't read the vault: never claims a verified signer
     expect((await verifyDecision(deps(), recordJson)).verified).toBe(false);
-    vaultAgent = agent.address;
+    agentUnreadable = false;
     expect((await verifyDecision(deps(), recordJson)).verified).toBe(true);
+  });
+
+  it("N-8: the vault comes from the on-chain payout event and must be a factory vault, not whatever the database says", async () => {
+    // A payout event from a contract the factory didn't create proves nothing, even with a matching agent().
+    const fake = "0x00000000000000000000000000000000000000f2" as Address;
+    const v = await verifyDecision(deps(receipt({ vault: fake })), recordJson);
+    expect(v.verified).toBe(false);
+    expect(v.steps.find((s) => s.id === "signature")).toMatchObject({
+      state: "fail",
+      detail: expect.stringContaining("wasn't created by the Misthos vault factory"),
+    });
+    // Pointing the program at another vault in the database changes nothing for a paid record: the event decides.
+    await db.update(programs).set({ vaultAddress: fake });
+    const paid = await verifyDecision(deps(), recordJson);
+    expect(paid.verified).toBe(true);
+    expect(paid.steps.find((s) => s.id === "chain")!.detail).toContain(VAULT);
+    // An unpaid record is pinned through the database's vault, so a swapped vault fails the factory check.
+    const rejected = await verifyDecision(deps(null), rejectedJson);
+    expect(rejected.verified).toBe(false);
+    expect(rejected.steps.find((s) => s.id === "signature")!.detail).toContain(
+      "wasn't created by the Misthos vault factory",
+    );
+  });
+
+  it("N-8: older records keep verifying after the owner rotates the agent (read at the payout's block)", async () => {
+    agentFrom = 500n; // a new agent from block 500; the payout was in block 123
+    laterAgent = "0x00000000000000000000000000000000000000e7";
+    const v = await verifyDecision(deps(), recordJson);
+    expect(v.verified).toBe(true);
+    expect(v.steps.find((s) => s.id === "signature")!.detail).toContain("at block 123");
+    agentFrom = 10_000n;
+    laterAgent = agent.address;
   });
 
   it("explains invalid input", async () => {

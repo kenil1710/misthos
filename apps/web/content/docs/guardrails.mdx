@@ -48,6 +48,10 @@ If one payee can't be paid (their wallet changed after planning, or the token re
 cancels the round on-chain and re-plans it without them, so everyone else is paid; the dropped item carries over.
 A contributor's wallet change waits while one of their payouts is in a round.
 
+Only one worker run may process a round at a time (a lease in the database, renewed before every transaction), so
+two workers, for example the old and new one during a deploy, can't act on the same round. If the vault holds less
+than the round pays, the round shows **Vault needs funds**, keeps your approval, and pays as soon as you deposit.
+
 ## Tested
 
 The contracts have unit tests for every function and revert path, fuzz tests of every cap (1,024 runs each), and

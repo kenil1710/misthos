@@ -1,6 +1,9 @@
 /**
- * Live crash test on Arc testnet (F-01): the worker is killed (SIGKILL) the instant executeRound returns, before it
- * records anything. A fresh worker process then picks the round up and must record it as paid without paying again.
+ * Live crash and concurrency test on Arc testnet (F-01, N-1):
+ *  1. Crash: the worker is killed (SIGKILL) the instant executeRound returns, before it records anything. Fresh worker
+ *     processes then pick the round up (once the dead run's lease expires) and must record it without paying again.
+ *  2. Concurrent: two worker processes start the next round at the same moment. Exactly one may run it; each item is
+ *     paid once.
  *
  * Real USDC on a throwaway vault deployed for this run (the deployer EOA plays the owner), the real Circle agent
  * wallet and the real round job. The database is a throwaway PGlite served over TCP from this (parent) process, so
@@ -46,7 +49,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createPublicClient,
   createWalletClient,
@@ -74,6 +77,11 @@ const SELF = fileURLToPath(import.meta.url);
 
 const pub = createPublicClient({ chain: arcTestnet, transport: http() }) as PublicClient;
 
+const TEXTS = [
+  "Why a crashed worker must never pay twice: Arc settles contributor payouts in USDC with deterministic finality.",
+  "Running two payout workers at once is safe when each round has a lease: only one of them may touch the vault.",
+  "Gas in USDC keeps payroll accounting simple: six decimals, no volatile native token, predictable fees per payout.",
+];
 // Content and scores are scripted (this test is about money movement); decisions are still real signed records.
 const resourceFor = (id: string): Resource => ({
   sourceType: "x_post",
@@ -82,7 +90,7 @@ const resourceFor = (id: string): Resource => ({
   timestamp: new Date(Date.now() - 1_000).toISOString(),
   timestampKind: "posted",
   title: null,
-  text: `Post ${id}: how Arc settles contributor payouts in USDC, and why a crashed worker must never pay twice.`,
+  text: TEXTS[Number(id.split("-")[1] ?? 0) % TEXTS.length]!,
   author: {
     id: id.split("-")[0]!,
     handle: "live",
@@ -158,19 +166,22 @@ function workerDeps(killAfterExecute: boolean) {
     chainId: arcTestnet.id,
     reader: viemVaultReader(pub),
     executor,
+    // Short, so the recovery step doesn't wait long for the killed worker's lease to expire.
+    roundLeaseMs: 60_000,
   };
   return { deps, pool };
 }
 
 /** Child process: one worker run of the round. */
-async function child(mode: "crash" | "recover", roundId: string) {
+async function child(mode: Mode, roundId: string) {
   const { deps, pool } = workerDeps(mode === "crash");
-  const res = await runRound(deps, roundId, { force: mode === "crash" });
+  const res = await runRound(deps, roundId, { force: mode !== "recover" });
   console.log(`  [worker ${process.pid}] round job returned: ${res.status}`);
   await pool.end();
 }
 
-function runChild(mode: "crash" | "recover", roundId: string) {
+type Mode = "crash" | "recover" | "race";
+function runChild(mode: Mode, roundId: string) {
   return new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
     const p = spawn(process.execPath, [...process.execArgv, SELF, mode, roundId], {
       stdio: "inherit",
@@ -298,6 +309,34 @@ async function parent() {
       .set({ vaultAddress: vault.toLowerCase(), programIdBytes32: vProgram as Hex })
       .where(eq(programs.id, program!.id));
     console.log(`  reusing throwaway vault ${EXPLORER}/address/${vault}`);
+    // Both scenarios pay 2 × 0.02 USDC.
+    const need = (4n * U) / 50n;
+    const has = (await pub.readContract({
+      address: USDC,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [vault],
+    })) as bigint;
+    if (has < need) {
+      await send(
+        `approve ${formatUsdc(need - has)}`,
+        owner.writeContract({
+          address: USDC,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [vault, need - has],
+        }),
+      );
+      await send(
+        `top up ${formatUsdc(need - has)}`,
+        owner.writeContract({
+          address: vault,
+          abi: misthosVaultAbi,
+          functionName: "deposit",
+          args: [need - has],
+        }),
+      );
+    }
   } else {
     const programBytes = programIdBytes32(program!.id);
     const created = await send(
@@ -346,7 +385,7 @@ async function parent() {
     fromBlock = created.blockNumber;
   }
 
-  const people: { name: string; wallet: Address }[] = [];
+  const people: { name: string; wallet: Address; contributorId: string; xid: string }[] = [];
   for (const [name, xid] of [
     ["alice", "9100000001"],
     ["bob", "9100000002"],
@@ -364,23 +403,28 @@ async function parent() {
         walletVerifiedAt: new Date(),
       })
       .returning();
-    const [s] = await db
-      .insert(submissions)
-      .values({
-        programId: program!.id,
-        roundId: round!.id,
-        contributorId: c!.id,
-        url: `https://x.com/i/web/status/${xid}-1`,
-        sourceType: "x_post",
-        resourceId: `${xid}-1`,
-      })
-      .returning();
-    const res = await processSubmission(deps, s!.id);
-    console.log(
-      `  ${name}: wallet ${wallet} · ${res.status === "decided" ? res.action : res.status}`,
-    );
-    people.push({ name, wallet });
+    people.push({ name, wallet, contributorId: c!.id, xid });
   }
+  const submitAll = async (n: number, roundId: string) => {
+    for (const p of people) {
+      const [s] = await db
+        .insert(submissions)
+        .values({
+          programId: program!.id,
+          roundId,
+          contributorId: p.contributorId,
+          url: `https://x.com/i/web/status/${p.xid}-${n}`,
+          sourceType: "x_post",
+          resourceId: `${p.xid}-${n}`,
+        })
+        .returning();
+      const res = await processSubmission(deps, s!.id);
+      console.log(
+        `  ${p.name} #${n}: wallet ${p.wallet} · ${res.status === "decided" ? res.action : res.status}`,
+      );
+    }
+  };
+  await submitAll(1, round!.id);
 
   const balances = async () =>
     Promise.all(
@@ -408,56 +452,90 @@ async function parent() {
     `  on-chain after the crash: ${paidAfterCrash.map((b, i) => `${people[i]!.name} ${formatUsdc(b)}`).join(", ")}`,
   );
 
-  console.log("\n3. Worker B (fresh process) picks the round up");
-  const b = await runChild("recover", round!.id);
-  console.log(`  worker B exited: code ${b.code}`);
-  console.log("\n4. Worker C runs it once more (any later retry)");
-  const c = await runChild("recover", round!.id);
-  console.log(`  worker C exited: code ${c.code}`);
+  console.log("\n3. Fresh workers pick the round up (each waits out the dead run's 60 s lease)");
+  for (let i = 0; i < 8; i++) {
+    const r = await runChild("recover", round!.id);
+    const [now] = await db.select().from(rounds).where(eq(rounds.id, round!.id));
+    console.log(`  worker exited: code ${r.code} · round ${now!.status}`);
+    if (now!.status === "executed") break;
+    await new Promise((res) => setTimeout(res, 15_000));
+  }
+  console.log("  one more run (any later retry):");
+  await runChild("recover", round!.id);
 
+  const roundLogs = async (roundIds: Hex[], from: bigint) => {
+    const ex = await pub.getContractEvents({
+      address: vault,
+      abi: misthosVaultAbi,
+      eventName: "RoundExecuted",
+      fromBlock: from,
+    });
+    return ex.filter((l) => roundIds.includes(l.args.roundId as Hex)).length;
+  };
   const [final] = await db.select().from(rounds).where(eq(rounds.id, round!.id));
   const ps = await db.select().from(payouts).where(eq(payouts.roundId, round!.id));
-  const subs = await db.select().from(submissions).where(eq(submissions.programId, program!.id));
   const audits = await db.select().from(auditEvents).where(eq(auditEvents.programId, program!.id));
-  const executedLogs = await pub.getContractEvents({
-    address: vault,
-    abi: misthosVaultAbi,
-    eventName: "RoundExecuted",
-    fromBlock,
-  });
-  const payoutLogs = await pub.getContractEvents({
-    address: vault,
-    abi: misthosVaultAbi,
-    eventName: "PayoutExecuted",
-    fromBlock,
-  });
-  const finalBalances = await balances();
-  const total = finalBalances.reduce((s, x) => s + x, 0n);
-  const result = {
+  const afterCrashPhase = await balances();
+  const crash = {
     roundStatus: final!.status,
     executeTxRecorded: final!.txHashExecute,
     payouts: ps.map((p) => p.status),
-    submissions: subs.map((s) => s.status),
-    onChainRoundExecutedEvents: executedLogs.length,
-    onChainPayoutEvents: payoutLogs.length,
-    contributorBalances: finalBalances.map((x, i) => `${people[i]!.name} ${formatUsdc(x)}`),
-    totalPaid: formatUsdc(total),
-    vaultLeft: formatUsdc(await vaultBalance()),
+    onChainRoundExecutedEvents: await roundLogs([final!.roundIdBytes32 as Hex], fromBlock),
+    contributorBalances: afterCrashPhase.map((x, i) => `${people[i]!.name} ${formatUsdc(x)}`),
     recoveredFromChain: audits.some((x) =>
       JSON.stringify(x.dataJson).includes("recoveredFromChain"),
     ),
   };
-  console.log("\n5. Result");
-  console.log(JSON.stringify(result, null, 2));
-  const ok =
+  console.log(JSON.stringify(crash, null, 2));
+  const crashOk =
     a.signal === "SIGKILL" &&
     final!.status === "executed" &&
     !!final!.txHashExecute &&
-    executedLogs.length === 1 &&
-    payoutLogs.length === people.length &&
-    finalBalances.every((x) => x === U / 50n) &&
+    crash.onChainRoundExecutedEvents === 1 &&
+    afterCrashPhase.every((x) => x === U / 50n);
+  console.log(crashOk ? "  PASS: paid exactly once after the crash" : "  FAIL (crash)");
+
+  console.log("\n4. Two workers start the next round at the same moment");
+  const [round2] = await db
+    .select()
+    .from(rounds)
+    .where(and(eq(rounds.programId, program!.id), eq(rounds.number, 2)));
+  await submitAll(2, round2!.id);
+  const fromBlock2 = await pub.getBlockNumber();
+  const [w1, w2] = await Promise.all([runChild("race", round2!.id), runChild("race", round2!.id)]);
+  console.log(`  workers exited: ${w1.code}, ${w2.code}`);
+  // If the loser saw "locked", the winner finished it; one recovery pass covers a winner that stopped early.
+  await runChild("recover", round2!.id);
+  const [r2] = await db.select().from(rounds).where(eq(rounds.id, round2!.id));
+  const r2Payouts = await db.select().from(payouts).where(eq(payouts.roundId, round2!.id));
+  const raceBalances = await balances();
+  const race = {
+    roundStatus: r2!.status,
+    livePayouts: r2Payouts.filter((p) => p.status !== "failed").map((p) => p.status),
+    proposeEvents: (
+      await pub.getContractEvents({
+        address: vault,
+        abi: misthosVaultAbi,
+        eventName: "RoundProposed",
+        fromBlock: fromBlock2,
+      })
+    ).length,
+    executeEvents: await roundLogs([r2!.roundIdBytes32 as Hex], fromBlock2),
+    contributorBalances: raceBalances.map((x, i) => `${people[i]!.name} ${formatUsdc(x)}`),
+    vaultLeft: formatUsdc(await vaultBalance()),
+  };
+  console.log(JSON.stringify(race, null, 2));
+  const subs = await db.select().from(submissions).where(eq(submissions.programId, program!.id));
+  const raceOk =
+    r2!.status === "executed" &&
+    race.proposeEvents === 1 &&
+    race.executeEvents === 1 &&
+    raceBalances.every((x) => x === (2n * U) / 50n) &&
     subs.every((s) => s.status === "paid");
-  console.log(ok ? "\nPASS: paid exactly once after the crash" : "\nFAIL");
+  console.log(raceOk ? "  PASS: two concurrent workers, each item paid once" : "  FAIL (race)");
+
+  const ok = crashOk && raceOk;
+  console.log(ok ? "\nPASS" : "\nFAIL");
   await pool.end();
   await server.stop();
   await pg.close();
@@ -465,5 +543,5 @@ async function parent() {
 }
 
 const [mode, roundId] = process.argv.slice(2);
-if (mode === "crash" || mode === "recover") await child(mode, roundId!);
+if (mode === "crash" || mode === "recover" || mode === "race") await child(mode, roundId!);
 else await parent();

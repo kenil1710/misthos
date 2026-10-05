@@ -76,45 +76,45 @@ const profileHandle = (href: string | null | undefined) => {
  * JSON-LD author), the detected byline, and byline/author elements outside comment sections. A handle mentioned
  * anywhere else on the page (comments, sidebars, the body) doesn't make someone the author.
  */
-function findAuthorHandles(doc: Document, byline: string | null): string[] {
+/**
+ * X handles that structured author metadata attributes the page to (N-5): `twitter:creator`, the author meta tags,
+ * `<link rel="author">` in the head and JSON-LD `author` profile links. Never visible text, bylines, `itemprop` or
+ * classes (a forum reply or comment uses those too), and never a display name: only an @handle or an X profile URL.
+ */
+function findAuthorHandles(doc: Document): string[] {
   const set = new Set<string>();
-  const add = (h: string | null) => h && set.add(h.replace(/^@/, "").toLowerCase());
-  const meta = (sel: string) => doc.querySelector(sel)?.getAttribute("content") ?? "";
-  for (const h of handlesIn(` ${meta("meta[name='twitter:creator']")}`)) add(h);
-  if (/^@?[A-Za-z0-9_]{1,15}$/.test(meta("meta[name='twitter:creator']").trim()))
-    add(meta("meta[name='twitter:creator']").trim());
-  for (const h of handlesIn(` ${meta("meta[name='author']")}`)) add(h);
-  add(profileHandle(meta("meta[name='author']")));
-  const inComments = (el: Element) =>
-    !!el.closest("[class*='comment' i], [id*='comment' i], [class*='reply' i]");
-  doc
-    .querySelectorAll(
-      "[rel~='author'], [itemprop='author'], [class~='author'], [class~='byline'], [class*='byline' i]",
-    )
-    .forEach((el) => {
-      if (inComments(el)) return;
-      add(profileHandle(el.getAttribute("href")));
-      el.querySelectorAll("a[href]").forEach((a) => add(profileHandle(a.getAttribute("href"))));
-      for (const h of handlesIn(` ${el.textContent ?? ""}`)) add(h);
-    });
+  const add = (h: string | null | undefined) => h && set.add(h.replace(/^@/, "").toLowerCase());
+  const handleOnly = (v: unknown) =>
+    typeof v === "string" && /^@[A-Za-z0-9_]{1,15}$/.test(v.trim()) ? v.trim() : null;
+  const metas = (sel: string) =>
+    [...doc.querySelectorAll(sel)].map((m) => m.getAttribute("content") ?? "");
+  // twitter:creator is defined as an X username, with or without the @.
+  for (const v of metas("meta[name='twitter:creator'], meta[property='twitter:creator']"))
+    if (/^@?[A-Za-z0-9_]{1,15}$/.test(v.trim())) add(v.trim());
+  for (const v of metas("meta[name='author'], meta[property='article:author']")) {
+    add(handleOnly(v));
+    add(profileHandle(v));
+  }
+  doc.head
+    ?.querySelectorAll("link[rel~='author' i]")
+    .forEach((l) => add(profileHandle(l.getAttribute("href"))));
   for (const s of doc.querySelectorAll("script[type='application/ld+json']")) {
     try {
       const j = JSON.parse(s.textContent ?? "");
       const nodes = Array.isArray(j)
         ? j
         : [j, ...(Array.isArray(j?.["@graph"]) ? j["@graph"] : [])];
+      // The page's own author only (top-level nodes); comment and reply authors nested inside are ignored.
       for (const node of nodes)
         for (const a of [node?.author].flat()) {
           if (!a) continue;
-          if (typeof a === "string") for (const h of handlesIn(` ${a}`)) add(h);
-          for (const u of [a.url, ...[a.sameAs].flat()]) add(profileHandle(u));
-          if (typeof a.name === "string") for (const h of handlesIn(` ${a.name}`)) add(h);
+          if (typeof a === "string") add(handleOnly(a) ?? profileHandle(a));
+          else for (const u of [a.url, ...[a.sameAs].flat()]) add(profileHandle(u));
         }
     } catch {
       /* ignore malformed JSON-LD */
     }
   }
-  for (const h of handlesIn(` ${byline ?? ""}`)) add(h);
   return [...set].slice(0, 20);
 }
 
@@ -163,7 +163,7 @@ export function parseArticle(
       article: {
         siteName: article.siteName ?? null,
         byline: article.byline ?? null,
-        authorHandles: findAuthorHandles(doc, article.byline ?? null),
+        authorHandles: findAuthorHandles(doc),
         xMentions,
         hiddenText,
       },

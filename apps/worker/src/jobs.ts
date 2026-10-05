@@ -9,9 +9,11 @@ import {
 } from "@misthos/agent";
 import { payouts, rounds, submissions } from "@misthos/db";
 import {
+  LEGACY_RUN_ROUND_QUEUE,
   OverrideDecisionJob,
   ProcessSubmissionJob,
   QUEUES,
+  roundJobKey,
   RunRoundJob,
   SyncPayeeJob,
 } from "@misthos/shared";
@@ -40,8 +42,11 @@ export async function createQueues(boss: PgBoss, opts: JobOptions) {
   };
   await boss.createQueue(QUEUES.processSubmission, retry);
   await boss.createQueue(QUEUES.overrideDecision, { ...retry, retryLimit: 2 });
-  // Chain work retries longer: Circle/RPC hiccups are common and every step is idempotent.
-  await boss.createQueue(QUEUES.runRound, { ...retry, retryLimit: 8, expireInSeconds: 900 });
+  // Chain work retries longer: Circle/RPC hiccups are common and every step is idempotent. One queued job per round
+  // (stately, keyed by roundJobKey); the round's lease (runRound) is what stops two runs across processes.
+  const roundQueue = { ...retry, retryLimit: 8, expireInSeconds: 900 };
+  await boss.createQueue(QUEUES.runRound, { ...roundQueue, policy: "stately" });
+  await boss.createQueue(LEGACY_RUN_ROUND_QUEUE, roundQueue);
   await boss.createQueue(QUEUES.syncPayee, { ...retry, retryLimit: 8 });
 }
 
@@ -72,15 +77,22 @@ function handlers(deps: RoundDeps, log: Logger): Record<string, Handler> {
       const res = await syncPayee(deps, contributorId);
       log.info({ contributorId, ...res }, "payee synced");
     },
-    [QUEUES.runRound]: async (job) => {
-      const { roundId, force } = RunRoundJob.parse(job.data);
-      const res = await runRound(deps, roundId, { force });
-      log.info(
-        { roundId, ...res, total: "total" in res ? res.total.toString() : undefined },
-        "round processed",
-      );
-    },
+    [QUEUES.runRound]: runRoundHandler,
+    [LEGACY_RUN_ROUND_QUEUE]: runRoundHandler,
   };
+  async function runRoundHandler(job: Parameters<Handler>[0]) {
+    const { roundId, force } = RunRoundJob.parse(job.data);
+    const res = await runRound(deps, roundId, { force });
+    log.info(
+      {
+        roundId,
+        ...res,
+        total: "total" in res ? res.total.toString() : undefined,
+        balance: "balance" in res ? res.balance.toString() : undefined,
+      },
+      "round processed",
+    );
+  }
 }
 
 /** Close rounds whose window ended (programs with a vault). */
@@ -90,7 +102,7 @@ export async function scheduleRounds(boss: PgBoss, deps: RoundDeps, log: Logger,
     await boss.send(
       QUEUES.runRound,
       { roundId: id, force: false },
-      { singletonKey: `round:${id}` },
+      { singletonKey: roundJobKey(id) },
     );
   if (due.length) log.info({ count: due.length }, "enqueued due rounds");
   return due.length;
@@ -119,12 +131,12 @@ export async function recoverRounds(boss: PgBoss, deps: RoundDeps, log: Logger) 
     .limit(50);
   let sent = 0;
   for (const { id } of inFlight)
-    // One recovery job per round at a time: the key is held while it's queued, running or retrying.
+    // One queued job per round (stately queue): a round that already has one isn't queued again.
     if (
       await boss.send(
         QUEUES.runRound,
         { roundId: id, force: false },
-        { singletonKey: `round:${id}:recover` },
+        { singletonKey: roundJobKey(id) },
       )
     )
       sent++;
@@ -186,6 +198,7 @@ export async function runDrain(
     QUEUES.overrideDecision,
     QUEUES.syncPayee,
     QUEUES.runRound,
+    LEGACY_RUN_ROUND_QUEUE,
   ];
   let processed = 0;
   const max = opts.maxJobs ?? 500;

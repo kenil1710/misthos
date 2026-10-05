@@ -130,9 +130,16 @@ export async function startWorker(opts: StartOptions = {}) {
       res.end(JSON.stringify(body));
     };
     if (req.method === "GET" && req.url === "/health") {
+      // Public: the verdict and timestamps only. Error text stays in the logs (N-13).
       const h = runner.health();
       const verdict = runnerIsHealthy(h);
-      return send(verdict.ok ? 200 : 503, { ...verdict, ...h });
+      return send(verdict.ok ? 200 : 503, {
+        ...verdict,
+        lastTickAt: h.lastTickAt,
+        lastDrainAt: h.lastDrainAt,
+        draining: h.draining,
+        tickMinutes: h.tickMinutes,
+      });
     }
     if (req.method === "POST" && req.url === "/wake") {
       if (!authorized(req.headers.authorization)) return send(401, { ok: false });

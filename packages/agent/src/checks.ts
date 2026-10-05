@@ -19,7 +19,19 @@ export interface PriorMatch {
   hamming: number | null;
   /** When the matched content was published on its platform (null if unknown). */
   contentAt?: Date | null;
+  /** What the matched submission is. An article's date comes from its own page, so it is never trusted. */
+  sourceType?: SourceType;
 }
+
+/**
+ * Source types whose dates come from the platform (X's created_at, GitHub's merge time) rather than from the author.
+ * Only these may decide which of two similar pieces is the original. An article's date is whatever its page says.
+ */
+export const TRUSTED_TIME: ReadonlySet<SourceType> = new Set([
+  "x_post",
+  "github_pr",
+  "github_commit",
+]);
 
 export interface CheckContext {
   sourceType: SourceType;
@@ -135,7 +147,8 @@ export function runChecks(ctx: CheckContext): Flag[] {
     if (t < ctx.round.startsAt || t >= ctx.round.endsAt) {
       flags.push({
         code: "OUT_OF_WINDOW",
-        severity: "hard",
+        // An article's date is self-reported by its page: a person confirms it (never an automatic rejection).
+        severity: r.sourceType === "article" ? "soft" : "hard",
         message: (() => {
           // Dates alone read as a contradiction when the post and a boundary share a day; use times then.
           const close = day(t) === day(ctx.round.startsAt) || day(t) === day(ctx.round.endsAt);
@@ -186,10 +199,14 @@ export function runChecks(ctx: CheckContext): Flag[] {
     (a, b) => a.submittedAt.getTime() - b.submittedAt.getTime(),
   )[0];
   if (firstDup) {
+    // Articles have no platform-verified author, so who wrote one is for a person to decide (never auto-rejected).
+    const article = r.sourceType === "article";
     flags.push({
       code: "DUPLICATE_URL",
-      severity: "hard",
-      message: `Already submitted by @${firstDup.xHandle} on ${day(firstDup.submittedAt)}.`,
+      severity: article ? "soft" : "hard",
+      message: article
+        ? `Also submitted by @${firstDup.xHandle} on ${day(firstDup.submittedAt)}; a reviewer decides who wrote it.`
+        : `Already submitted by @${firstDup.xHandle} on ${day(firstDup.submittedAt)}.`,
       evidence: {
         matchedSubmissionId: firstDup.submissionId,
         matchedHandle: firstDup.xHandle,
@@ -200,17 +217,20 @@ export function runChecks(ctx: CheckContext): Flag[] {
 
   if (r.text.length >= NEAR_DUPLICATE_MIN_CHARS) {
     // The content published first on its platform is the original (F-03): a copy that was merely *submitted* first
-    // never makes the original look like the duplicate. Without both dates, fall back to submission order.
+    // never makes the original look like the duplicate. Without both dates, fall back to submission order. Only
+    // platform dates count (N-4): if either side is an article, the match goes to a person instead.
     const mine = r.timestamp ? Date.parse(r.timestamp) : NaN;
+    const trusted = (m: PriorMatch) =>
+      TRUSTED_TIME.has(r.sourceType) && TRUSTED_TIME.has(m.sourceType ?? "x_post");
     const best = ctx.similar.filter(
       (m) =>
         (m.similarity >= NEAR_DUPLICATE_SOFT || (m.hamming !== null && m.hamming <= 3)) &&
-        !(m.contentAt && Number.isFinite(mine) && m.contentAt.getTime() > mine),
+        !(trusted(m) && m.contentAt && Number.isFinite(mine) && m.contentAt.getTime() > mine),
     )[0];
     if (best) {
       const sim = Math.max(best.similarity, best.hamming !== null ? 1 - best.hamming / 64 : 0);
       const otherPerson = best.contributorId !== ctx.contributor.id;
-      const hard = otherPerson && sim >= NEAR_DUPLICATE_HARD;
+      const hard = otherPerson && sim >= NEAR_DUPLICATE_HARD && trusted(best);
       flags.push({
         code: "NEAR_DUPLICATE",
         severity: hard ? "hard" : "soft",

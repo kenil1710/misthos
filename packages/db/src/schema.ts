@@ -225,6 +225,14 @@ export const rounds = pgTable(
     executedAt: timestamp("executed_at", { withTimezone: true }),
     /** Last processing error (chain or upstream), shown to owners. */
     lastError: text("last_error"),
+    /**
+     * How many times this round was cancelled on-chain and re-planned. Each re-plan takes the next on-chain id
+     * (`roundIdBytes32(id + ":retry" + n)`), so a cancelled id is never reused, across runs too.
+     */
+    replanCount: integer("replan_count").notNull().default(0),
+    /** Lease held by the one worker run processing this round (two runs at once could pay twice). */
+    lockOwner: text("lock_owner"),
+    lockUntil: timestamp("lock_until", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [uniqueIndex("rounds_program_number_uq").on(t.programId, t.number)],
@@ -254,6 +262,8 @@ export const submissions = pgTable(
     processedAt: timestamp("processed_at", { withTimezone: true }),
     /** The payout that pays this submission (set when a round is planned; cleared if that payout is abandoned). */
     payoutId: uuid("payout_id"),
+    /** Last successful re-check at payout time; a re-plan or retry within a few hours doesn't fetch again. */
+    recheckedAt: timestamp("rechecked_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -335,6 +345,11 @@ export const payouts = pgTable(
       .notNull()
       .references(() => contributors.id),
     payoutIdBytes32: text("payout_id_bytes32").notNull().unique(),
+    /**
+     * The on-chain round id this payout was planned under. A round re-planned under a new id keeps its old payouts;
+     * releasing or recording acts only on the payouts of the id the chain reported.
+     */
+    roundIdBytes32: text("round_id_bytes32"),
     toAddress: text("to_address").notNull(),
     amount: usdc("amount").notNull(),
     decisionHash: text("decision_hash").notNull(),

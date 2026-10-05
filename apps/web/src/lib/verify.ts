@@ -34,8 +34,15 @@ export interface VerifyDeps {
   client: Pick<PublicClient, "verifyMessage" | "getCode">;
   getReceipt: (hash: Hex) => Promise<TransactionReceipt | null>;
   explorerTx: (hash: string) => string;
-  /** The vault's agent, read on-chain (`agent()`); null if it can't be read. Pins the signer (F-09). */
-  vaultAgent: (vault: Address) => Promise<Address | null>;
+  /** On-chain reads that pin the signer to a genuine vault's agent (F-09, N-8). */
+  chain: {
+    /** The vault's `agent()` at a block (historical read); null if it can't be read. */
+    agentAt: (vault: Address, block: bigint) => Promise<Address | null>;
+    /** Was this vault created by the Misthos factory? (Its address must be the factory's CREATE2 prediction.) */
+    isFactoryVault: (vault: Address) => Promise<boolean>;
+    /** The first block at or after this time; null if it can't be found. */
+    blockAt: (time: Date) => Promise<bigint | null>;
+  };
 }
 
 const short = (h: string) => `${h.slice(0, 10)}…${h.slice(-6)}`;
@@ -119,35 +126,25 @@ export async function verifyDecision(deps: VerifyDeps, pasted: string): Promise<
         : `Published on ${d.createdAt.toISOString().slice(0, 10)}.`,
   });
 
-  // 3. Signature, against the vault's on-chain agent rather than an address from Misthos's own database (F-09):
-  // the record names its signer, the published row must agree, and that address must be the program vault's agent.
-  const recordSigner = (() => {
+  // 3. Signature. The record names its signer and the published row must agree; the signature must verify for it.
+  // Which address is allowed to sign is decided on-chain (N-8): the agent of a vault our factory created, read at the
+  // block of the payout (or of the decision, if it wasn't paid), so records keep verifying after an agent rotation.
+  const parsed = (() => {
     try {
-      return String((JSON.parse(canonical) as { signer?: unknown }).signer ?? "").toLowerCase();
+      return JSON.parse(canonical) as { signer?: unknown; decidedAt?: unknown };
     } catch {
-      return "";
+      return {};
     }
   })();
-  const [prog] = await deps.db
-    .select({ vault: programs.vaultAddress })
-    .from(submissions)
-    .innerJoin(programs, eq(programs.id, submissions.programId))
-    .where(eq(submissions.id, d.submissionId))
-    .limit(1);
-  const onChainAgent = prog?.vault
-    ? ((await deps.vaultAgent(prog.vault as Address).catch(() => null))?.toLowerCase() ?? null)
-    : null;
-  const pinFail =
-    recordSigner !== d.signerAddress.toLowerCase()
-      ? `The record says it was signed by ${recordSigner || "nobody"}, but it was published as signed by ${d.signerAddress}.`
-      : prog?.vault && !onChainAgent
-        ? `The vault's agent couldn't be read on Arc, so the signer can't be confirmed. Try again in a moment.`
-        : onChainAgent && onChainAgent !== recordSigner
-          ? `Signed by ${d.signerAddress}, but the program vault's agent on Arc is ${onChainAgent}.`
-          : null;
-  if (pinFail) {
-    steps.push({ id: "signature", label: "Agent signature", state: "fail", detail: pinFail });
-    return done(false, hash, "Not verified: the signer isn't the vault's agent.");
+  const recordSigner = String(parsed.signer ?? "").toLowerCase();
+  if (recordSigner !== d.signerAddress.toLowerCase()) {
+    steps.push({
+      id: "signature",
+      label: "Agent signature",
+      state: "fail",
+      detail: `The record says it was signed by ${recordSigner || "nobody"}, but it was published as signed by ${d.signerAddress}.`,
+    });
+    return done(false, hash, "Not verified: the signer doesn't match the record.");
   }
   const sig = await verifyDecisionRecord(deps.client, {
     decisionJson: canonical,
@@ -167,12 +164,30 @@ export async function verifyDecision(deps: VerifyDeps, pasted: string): Promise<
     });
     return done(false, hash, "Not verified: the agent's signature doesn't match.");
   }
-  steps.push({
+  const sigStep: ProofStep = {
     id: "signature",
     label: "Agent signature",
     state: "pass",
-    detail: `Signed by the agent ${isContract ? "smart-contract wallet" : "key"} ${d.signerAddress}, verified with ${isContract ? "ERC-1271 isValidSignature on Arc" : "ECDSA recovery"}${onChainAgent ? `; it is the vault's agent on Arc (read from the vault's agent()).` : "; the program has no vault yet, so the signer isn't pinned to one."}`,
-  });
+    detail: `Signed by the agent ${isContract ? "smart-contract wallet" : "key"} ${d.signerAddress}, verified with ${isContract ? "ERC-1271 isValidSignature on Arc" : "ECDSA recovery"}`,
+  };
+  steps.push(sigStep);
+  /** Pin the signer to the agent of a factory vault at a block. Returns a failure message, or null. */
+  const pin = async (vault: Address, block: bigint | null, when: string) => {
+    if (!(await deps.chain.isFactoryVault(vault).catch(() => false)))
+      return `The vault ${vault} wasn't created by the Misthos vault factory, so its agent proves nothing.`;
+    const agent = block === null ? null : await deps.chain.agentAt(vault, block).catch(() => null);
+    if (!agent)
+      return "The vault's agent couldn't be read on Arc, so the signer can't be confirmed. Try again in a moment.";
+    if (agent.toLowerCase() !== recordSigner)
+      return `Signed by ${d.signerAddress}, but ${when} (block ${block}) the vault's agent was ${agent}.`;
+    sigStep.detail += `; it was the agent of vault ${vault} (created by the Misthos factory) ${when}, read on Arc at block ${block}.`;
+    return null;
+  };
+  const pinFailed = (message: string) => {
+    sigStep.state = "fail";
+    sigStep.detail = message;
+    return done(false, hash, "Not verified: the signer isn't the vault's agent.");
+  };
 
   // 4. Payout
   const [sub] = await deps.db
@@ -184,6 +199,26 @@ export async function verifyDecision(deps: VerifyDeps, pasted: string): Promise<
     ? await deps.db.select().from(payouts).where(eq(payouts.id, sub.payoutId)).limit(1)
     : [];
   if (!p || p.status !== "executed" || !p.txHash) {
+    // Not paid: the program's vault, checked against the factory, and its agent when the decision was made.
+    const [prog] = await deps.db
+      .select({ vault: programs.vaultAddress })
+      .from(programs)
+      .where(eq(programs.id, sub!.programId))
+      .limit(1);
+    if (prog?.vault) {
+      const decidedAt =
+        typeof parsed.decidedAt === "string" && !Number.isNaN(Date.parse(parsed.decidedAt))
+          ? new Date(parsed.decidedAt)
+          : d.createdAt;
+      const failed = await pin(
+        prog.vault as Address,
+        await deps.chain.blockAt(decidedAt).catch(() => null),
+        "when the decision was made",
+      );
+      if (failed) return pinFailed(failed);
+    } else {
+      sigStep.detail += "; the program has no vault yet, so the signer isn't pinned to one.";
+    }
     const why =
       d.action === "reject"
         ? "This decision rejected the submission, so nothing was paid."
@@ -241,23 +276,14 @@ export async function verifyDecision(deps: VerifyDeps, pasted: string): Promise<
     detail: `Payout ${short(p.payoutIdBytes32)} commits to keccak256 of its ${latest.size} decision hash${latest.size === 1 ? "" : "es"} (sorted): ${short(recomputed)}.`,
   });
 
-  // 5. Chain
-  const [program] = await deps.db
-    .select({ vault: programs.vaultAddress })
-    .from(programs)
-    .where(eq(programs.id, sub!.programId))
-    .limit(1);
+  // 5. Chain. The vault is whichever contract emitted the payout event (never an address from the database).
   const receipt = await deps.getReceipt(p.txHash as Hex);
   const events = receipt
     ? parseEventLogs({
         abi: misthosVaultAbi,
         logs: receipt.logs,
         eventName: "PayoutExecuted",
-      }).filter(
-        (l) =>
-          l.address.toLowerCase() === program?.vault?.toLowerCase() &&
-          l.args.payoutId === p.payoutIdBytes32,
-      )
+      }).filter((l) => l.args.payoutId === p.payoutIdBytes32)
     : [];
   const ev = events[0];
   const matches =
@@ -270,12 +296,16 @@ export async function verifyDecision(deps: VerifyDeps, pasted: string): Promise<
     label: "Matches the on-chain payout event",
     state: matches ? "pass" : "fail",
     detail: matches
-      ? `PayoutExecuted in block ${receipt!.blockNumber} paid ${p.toAddress} with decisionHash ${short(recomputed)}, from vault ${program!.vault}.`
+      ? `PayoutExecuted in block ${receipt!.blockNumber} paid ${p.toAddress} with decisionHash ${short(recomputed)}, from vault ${ev.address}.`
       : ev
         ? "The on-chain event's decision hash, amount or recipient differs from Misthos's records."
         : "The payout transaction has no matching PayoutExecuted event from this program's vault.",
     href: deps.explorerTx(p.txHash),
   });
+  if (matches) {
+    const failed = await pin(ev.address as Address, receipt!.blockNumber, "when it paid this");
+    if (failed) return pinFailed(failed);
+  }
   return matches
     ? {
         verified: true,

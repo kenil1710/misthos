@@ -23,6 +23,22 @@ Railway, Neon). Repository public. No mainnet without the owner's explicit OK.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
 
+## Done (fix-verification findings N-1…N-13, 2026-10-05) — main frozen after this
+
+- **N-1** one worker run per round (database lease, renewed before every transaction); payouts carry their on-chain
+  round id and release/record act only on the id that was sent. **N-2** re-plan ids from a persistent counter; payout
+  re-checks cached 6 h. **N-3/N-4/N-5** articles: dates untrusted, never "the original", conflicts go to a person;
+  authors only from structured metadata; articles never auto-approve (`R9B_ARTICLE_REVIEW`, `rules-v5`); the agent
+  never rejects or supersedes an earlier decision (late copies are held for review). **N-6** under-funded vault →
+  "Vault needs funds", approval kept, waits. **N-7** stately `round-run-once` queue, one key per round. **N-8**
+  Verify: vault from the payout event, factory check, agent read at the payout's (or decision's) block. **N-9**
+  GitHub secondary rate limit retried, earliest landing date. **N-10** paraphrased judge notes → review. **N-12**
+  approval route writes only on the approved id. **N-13** worker `/health` hides error text.
+- Migration `0008` (lease, re-plan counter, payout round ids with backfill, re-check time) applied to Neon.
+- Live on Arc testnet (`live:crash`, `docs/test-results/live-crash.txt`): crash after `executeRound` → paid once;
+  two concurrent workers on one round → one ran it, one propose + one execute, each item paid once.
+- From here **main is frozen**: no feature or audit work, only critical fixes, each tested before deploying.
+
 ## Done (independent audit fixes + Neon free-tier worker, 2026-10-05)
 
 - **Independent audit** (`docs/INDEPENDENT_AUDIT.md`, with a fix-status table): all High and Medium findings

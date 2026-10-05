@@ -410,9 +410,20 @@ describe("runRound", () => {
   });
 
   it("marks the round failed and releases its items when the chain refuses", async () => {
-    const v = fake({}, 1n * U); // vault underfunded
+    const v = fake();
     const s = await approved("alice", 2n * U);
-    expect(await runRound(deps(v), round1)).toMatchObject({ status: "failed" });
+    // The vault is drained between the pre-flight and executeRound, so the execute reverts.
+    const exec = {
+      kind: v.kind,
+      address: v.address,
+      send: async (call: Parameters<typeof v.send>[0]) => {
+        if (call.label.startsWith("executeRound")) v.vaultBalance = 1n * U;
+        return v.send(call);
+      },
+    };
+    expect(await runRound({ ...deps(v), executor: exec }, round1)).toMatchObject({
+      status: "failed",
+    });
     expect(await roundRow()).toMatchObject({ status: "failed" });
     expect((await roundRow()).lastError).toMatch(/InsufficientBalance/);
     expect((await db.select().from(submissions).where(eq(submissions.id, s)))[0]).toMatchObject({

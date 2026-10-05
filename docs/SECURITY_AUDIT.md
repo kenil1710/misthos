@@ -5,7 +5,8 @@ Date: 2026-10-05 · Scope: `packages/contracts`, `apps/web` (routes, server acti
 this file. Testing is covered separately in [TEST_REPORT.md](./TEST_REPORT.md).
 
 > **Later:** an independent audit on the same day found issues this pass missed (money-flow retries, duplicate
-> ordering, article and commit ownership). They are fixed; see [INDEPENDENT_AUDIT.md](./INDEPENDENT_AUDIT.md). M-5
+> ordering, article and commit ownership). They are fixed; see [INDEPENDENT_AUDIT.md](./INDEPENDENT_AUDIT.md) and the follow-up review of
+> those fixes, [FIX_VERIFICATION.md](./FIX_VERIFICATION.md) (also fixed). M-5
 > below was corrected (F-06).
 
 Severity: **Critical** (funds at risk or full compromise), **High** (a control can be bypassed or misleads the

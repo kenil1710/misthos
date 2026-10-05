@@ -204,7 +204,11 @@ export default async function RoundPage({
 
       {round.lastError ? (
         <Notice tone={round.status === "failed" ? "danger" : "warning"}>
-          {round.status === "failed" ? "This round failed: " : "The agent is retrying: "}
+          {round.status === "failed"
+            ? "This round failed: "
+            : round.lastError.startsWith("Vault needs funds")
+              ? null
+              : "The agent is retrying: "}
           {round.lastError}
         </Notice>
       ) : null}

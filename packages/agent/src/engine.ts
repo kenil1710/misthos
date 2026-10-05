@@ -4,7 +4,7 @@ import type { JudgmentOutput } from "./judge";
 import type { Flag, Resource } from "./types";
 
 /** Bump whenever a rule below changes. Recorded in every decision. */
-export const RULE_VERSION = "rules-v4";
+export const RULE_VERSION = "rules-v5";
 
 /** Clear spam: the model is very sure the work doesn't qualify and every criterion scored 0 or 1. */
 export const SPAM_CONFIDENCE = 0.9;
@@ -14,7 +14,32 @@ export const SPAM_MAX_SCORE = 1;
  * The judge's own notes that mean "someone tried to steer me" (it's told to write "attempts to influence the grader").
  * Any of these sends the submission to a person, even if the judge then recommended approval (F-07).
  */
-export const JUDGE_INJECTION_NOTE = /influenc|instruct|grader|inject|manipulat|jailbreak|prompt/i;
+export const JUDGE_INJECTION_NOTE = new RegExp(
+  [
+    "influenc",
+    "instruct",
+    "grader",
+    "inject",
+    "manipulat",
+    "jailbreak",
+    "prompt",
+    // Paraphrases (N-10): asking for marks, claiming approval, gaming the scoring, talking to the reviewer.
+    "full marks",
+    "(max|maximum|perfect|top|high) (score|marks|points)",
+    "pre-?approv",
+    "already approved",
+    "approved by the (program )?owner",
+    "\\bgam(e|es|ing)\\b.*(rubric|scor|review|grad)",
+    "(rubric|scor).*\\bgam(e|es|ing)\\b",
+    "addressed to the (ai|reviewer|judge|model|grader)",
+    "\\b(ai|llm|model)\\b.*\\b(review|judge|grad|scor)",
+    "ignore (the |all |previous |your )",
+    "override",
+    "bribe",
+    "coerc",
+  ].join("|"),
+  "i",
+);
 
 /** Flags that end in rejection: the work can't be paid, whatever its quality. */
 export const REJECT_FLAGS = new Set([
@@ -160,6 +185,8 @@ export function decide(i: EngineInput): EngineDecision {
   if (i.judgment.confidence < i.autoApproveConfidence) return out("escalate", "R7_LOW_CONFIDENCE");
   if (amount === 0n) return out("escalate", "R8_ZERO_AMOUNT");
   if (amount > i.maxAutoApproveItem) return out("escalate", "R9_ABOVE_AUTO_CAP");
+  // Articles have no platform-verified author or date: a person always approves them (never automatic).
+  if (i.resource?.sourceType === "article") return out("escalate", "R9B_ARTICLE_REVIEW");
   return out(
     i.judgment.recommended_action === "partial" ? "partial" : "approve",
     "R10_AUTO_APPROVE",

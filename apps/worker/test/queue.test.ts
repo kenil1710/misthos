@@ -11,7 +11,7 @@ import {
   type DbLike,
 } from "@misthos/db";
 import { testDb } from "@misthos/db/testing";
-import { PRODUCER_OPTIONS, QUEUE_SCHEMA, QUEUES, Rubric } from "@misthos/shared";
+import { PRODUCER_OPTIONS, QUEUE_SCHEMA, QUEUES, roundJobKey, Rubric } from "@misthos/shared";
 import { eq } from "drizzle-orm";
 import { fromPglite, PgBoss } from "pg-boss";
 import pino from "pino";
@@ -280,10 +280,15 @@ describe("queue → drain → decision (no polling)", () => {
     await boss.send(
       QUEUES.runRound,
       { roundId: round!.id, force: false },
-      { singletonKey: `round:${round!.id}` },
+      { singletonKey: roundJobKey(round!.id) },
     );
-    expect(await boss.fetch(QUEUES.runRound)).toHaveLength(1);
-    // The next pass recovers it under its own key and pays exactly once; later passes do nothing more.
+    const [orphan] = await boss.fetch(QUEUES.runRound);
+    expect(orphan).toBeTruthy();
+    // While the dead worker's job still counts as active, the round isn't run a second time (one job per round).
+    await drain(d);
+    expect(vault.calls).not.toContain("proposeRound");
+    // pg-boss expires the orphan (supervise, on the next tick within ~15 min); the next pass then pays exactly once.
+    await boss.fail(QUEUES.runRound, orphan!.id, { message: "expired" });
     await drain(d);
     expect((await statusOf()).status).toBe("paid");
     await drain(d);
@@ -384,12 +389,13 @@ describe("runner", () => {
     };
     expect(runnerIsHealthy(base, now)).toEqual({ ok: true, problem: null });
     expect(runnerIsHealthy({ ...base, lastTickAt: "2026-10-05T11:00:00Z" }, now).ok).toBe(false);
+    // N-13: the public verdict never carries internal error text.
     expect(
-      runnerIsHealthy({ ...base, lastDrainOk: false, lastError: "db down" }, now),
-    ).toMatchObject({
-      ok: false,
-      problem: "The last pass failed: db down",
-    });
+      runnerIsHealthy(
+        { ...base, lastDrainOk: false, lastError: "connect ECONNREFUSED db.internal:5432" },
+        now,
+      ),
+    ).toEqual({ ok: false, problem: "The last pass failed; see the worker logs." });
     expect(runnerIsHealthy({ ...base, oldestQueuedAt: "2026-10-05T11:40:00Z" }, now).ok).toBe(
       false,
     );

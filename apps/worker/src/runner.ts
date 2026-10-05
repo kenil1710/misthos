@@ -125,7 +125,7 @@ export function runnerIsHealthy(h: RunnerHealth, now = Date.now()) {
     now - lastTick > 2 * tickMs + 5 * 60_000
       ? `No scheduled pass for ${Math.round((now - lastTick) / 60_000)} minutes.`
       : h.lastDrainOk === false
-        ? `The last pass failed: ${h.lastError ?? "unknown error"}`
+        ? "The last pass failed; see the worker logs."
         : h.oldestQueuedAt && now - Date.parse(h.oldestQueuedAt) > 10 * 60_000 && !h.draining
           ? "Work is waiting in the queue that the last pass didn't finish."
           : null;

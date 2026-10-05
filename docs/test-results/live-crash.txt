@@ -1,46 +1,64 @@
 $ tsx --env-file=../../.env scripts/live-crash.ts
-
 1. Throwaway program, vault and contributors
   reusing throwaway vault https://explorer.testnet.arc.io/address/0x39510416F51C2E9C730033e3ACd618b1db034DA3
-  alice: wallet 0xa14526cd41ddEA957Cc46F2FEdAa87E2E5563F9e · approve
-  bob: wallet 0xbf5ec7f2f39393ce34a4fd5496dCAEee1C17ab3E · approve
-
+  approve 0.02 USDC: https://explorer.testnet.arc.io/tx/0xfe161782bddd8d9cff82d7b9647f500dcf76eb4b5fd5a2fd1bbc6fdedd7b2885
+  top up 0.02 USDC: https://explorer.testnet.arc.io/tx/0x1de24bff3c137e95e3ddeafa61856278b96d4ecfd8c90db58d20463a6f1334a9
+  alice #1: wallet 0x4Fb8272245dAde8f01BCA4819157d11800f4ede7 · approve
+  bob #1: wallet 0xCf3ad0Cfa023348a382A5236eCe0d780cF41c929 · approve
 2. Worker A runs the round and is killed right after executeRound
-  [worker 45423] executeRound landed: https://explorer.testnet.arc.io/tx/0xc207f3315b1859fb6b310ba5b7c40237e4c51d6aa84a679e3d9884ba217e36b8 (recorded later by worker B)
-  [worker 45423] SIGKILL before recording anything
+  [worker 82471] executeRound landed: https://explorer.testnet.arc.io/tx/0x34aeaad654a6b710b4dae5be12d31aac12f1bb456d3de7d75d5f1a2bb8b6ca9d
+  [worker 82471] SIGKILL before recording anything
   worker A exited: signal SIGKILL, code null
   database after the crash: round proposed, executed tx recorded: false
   on-chain after the crash: alice 0.02 USDC, bob 0.02 USDC
-
-3. Worker B (fresh process) picks the round up
-  [worker 45435] round job returned: executed
-  worker B exited: code 0
-
-4. Worker C runs it once more (any later retry)
-  [worker 45438] round job returned: skipped
-  worker C exited: code 0
-
-5. Result
+3. Fresh workers pick the round up (each waits out the dead run's 60 s lease)
+  [worker 82490] round job returned: skipped
+  worker exited: code 0 · round proposed
+  [worker 82498] round job returned: skipped
+  worker exited: code 0 · round proposed
+  [worker 82544] round job returned: skipped
+  worker exited: code 0 · round proposed
+  [worker 82571] round job returned: skipped
+  worker exited: code 0 · round proposed
+  [worker 82587] round job returned: executed
+  worker exited: code 0 · round executed
+  one more run (any later retry):
+  [worker 82596] round job returned: skipped
 {
   "roundStatus": "executed",
-  "executeTxRecorded": "0xc207f3315b1859fb6b310ba5b7c40237e4c51d6aa84a679e3d9884ba217e36b8",
+  "executeTxRecorded": "0x34aeaad654a6b710b4dae5be12d31aac12f1bb456d3de7d75d5f1a2bb8b6ca9d",
   "payouts": [
     "executed",
     "executed"
   ],
-  "submissions": [
-    "paid",
-    "paid"
-  ],
   "onChainRoundExecutedEvents": 1,
-  "onChainPayoutEvents": 2,
   "contributorBalances": [
     "alice 0.02 USDC",
     "bob 0.02 USDC"
   ],
-  "totalPaid": "0.04 USDC",
-  "vaultLeft": "0.06 USDC",
   "recoveredFromChain": true
 }
-
-PASS: paid exactly once after the crash
+  PASS: paid exactly once after the crash
+4. Two workers start the next round at the same moment
+  alice #2: wallet 0x4Fb8272245dAde8f01BCA4819157d11800f4ede7 · approve
+  bob #2: wallet 0xCf3ad0Cfa023348a382A5236eCe0d780cF41c929 · approve
+  [worker 82603] round job returned: skipped
+  [worker 82602] round job returned: executed
+  workers exited: 0, 0
+  [worker 82612] round job returned: skipped
+{
+  "roundStatus": "executed",
+  "livePayouts": [
+    "executed",
+    "executed"
+  ],
+  "proposeEvents": 1,
+  "executeEvents": 1,
+  "contributorBalances": [
+    "alice 0.04 USDC",
+    "bob 0.04 USDC"
+  ],
+  "vaultLeft": "0.00 USDC"
+}
+  PASS: two concurrent workers, each item paid once
+PASS
