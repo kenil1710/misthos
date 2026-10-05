@@ -28,3 +28,6 @@ apps/web/playwright-report
 .next-qa
 # Every alternate Next build dir (e2e, QA, showcase, Neon checks, Lighthouse)
 .next-*
+
+# Local scratch output (old Claude sessions, Lighthouse dumps); never committed
+private/
