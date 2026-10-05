@@ -34,6 +34,8 @@ export interface VerifyDeps {
   client: Pick<PublicClient, "verifyMessage" | "getCode">;
   getReceipt: (hash: Hex) => Promise<TransactionReceipt | null>;
   explorerTx: (hash: string) => string;
+  /** The vault's agent, read on-chain (`agent()`); null if it can't be read. Pins the signer (F-09). */
+  vaultAgent: (vault: Address) => Promise<Address | null>;
 }
 
 const short = (h: string) => `${h.slice(0, 10)}…${h.slice(-6)}`;
@@ -117,7 +119,36 @@ export async function verifyDecision(deps: VerifyDeps, pasted: string): Promise<
         : `Published on ${d.createdAt.toISOString().slice(0, 10)}.`,
   });
 
-  // 3. Signature
+  // 3. Signature, against the vault's on-chain agent rather than an address from Misthos's own database (F-09):
+  // the record names its signer, the published row must agree, and that address must be the program vault's agent.
+  const recordSigner = (() => {
+    try {
+      return String((JSON.parse(canonical) as { signer?: unknown }).signer ?? "").toLowerCase();
+    } catch {
+      return "";
+    }
+  })();
+  const [prog] = await deps.db
+    .select({ vault: programs.vaultAddress })
+    .from(submissions)
+    .innerJoin(programs, eq(programs.id, submissions.programId))
+    .where(eq(submissions.id, d.submissionId))
+    .limit(1);
+  const onChainAgent = prog?.vault
+    ? ((await deps.vaultAgent(prog.vault as Address).catch(() => null))?.toLowerCase() ?? null)
+    : null;
+  const pinFail =
+    recordSigner !== d.signerAddress.toLowerCase()
+      ? `The record says it was signed by ${recordSigner || "nobody"}, but it was published as signed by ${d.signerAddress}.`
+      : prog?.vault && !onChainAgent
+        ? `The vault's agent couldn't be read on Arc, so the signer can't be confirmed. Try again in a moment.`
+        : onChainAgent && onChainAgent !== recordSigner
+          ? `Signed by ${d.signerAddress}, but the program vault's agent on Arc is ${onChainAgent}.`
+          : null;
+  if (pinFail) {
+    steps.push({ id: "signature", label: "Agent signature", state: "fail", detail: pinFail });
+    return done(false, hash, "Not verified: the signer isn't the vault's agent.");
+  }
   const sig = await verifyDecisionRecord(deps.client, {
     decisionJson: canonical,
     decisionHash: hash,
@@ -140,7 +171,7 @@ export async function verifyDecision(deps: VerifyDeps, pasted: string): Promise<
     id: "signature",
     label: "Agent signature",
     state: "pass",
-    detail: `Signed by the agent ${isContract ? "smart-contract wallet" : "key"} ${d.signerAddress}, verified with ${isContract ? "ERC-1271 isValidSignature on Arc" : "ECDSA recovery"}.`,
+    detail: `Signed by the agent ${isContract ? "smart-contract wallet" : "key"} ${d.signerAddress}, verified with ${isContract ? "ERC-1271 isValidSignature on Arc" : "ECDSA recovery"}${onChainAgent ? `; it is the vault's agent on Arc (read from the vault's agent()).` : "; the program has no vault yet, so the signer isn't pinned to one."}`,
   });
 
   // 4. Payout

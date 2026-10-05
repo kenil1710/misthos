@@ -77,9 +77,15 @@ export function circleExecutor(
         id = created.data?.id;
       } catch (e) {
         const status = (e as { response?: { status?: number } }).response?.status;
+        // 401/403 means the API key or entity secret needs fixing, not that the call can never work: retry (the
+        // round job never releases items on an error alone; it reads the chain first).
         throw new ChainError(
-          `Circle rejected ${label} (${status ?? "network"})`,
-          status === undefined || status === 429 || status >= 500,
+          `Circle rejected ${label} (${status ?? "network"}${status === 401 || status === 403 ? ": check the Circle API key and entity secret" : ""})`,
+          status === undefined ||
+            status === 429 ||
+            status === 401 ||
+            status === 403 ||
+            status >= 500,
         );
       }
       if (!id) throw new ChainError(`Circle returned no transaction id for ${label}`, true);

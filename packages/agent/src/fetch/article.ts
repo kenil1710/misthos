@@ -60,6 +60,64 @@ function findXMentions(doc: Document, text: string): string[] {
   return [...set].slice(0, 200);
 }
 
+const X_PROFILE =
+  /^https?:\/\/(?:www\.|mobile\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})(?:[/?#]|$)/i;
+const handlesIn = (text: string) =>
+  [...text.matchAll(/(?:^|[^\w@])@([A-Za-z0-9_]{1,15})\b/g)].map((m) => m[1]!.toLowerCase());
+const profileHandle = (href: string | null | undefined) => {
+  const m = X_PROFILE.exec(href ?? "");
+  return m && !["i", "intent", "share", "home", "search"].includes(m[1]!.toLowerCase())
+    ? m[1]!.toLowerCase()
+    : null;
+};
+
+/**
+ * X handles that name the article's author (F-04): author metadata (twitter:creator, meta author, rel=author,
+ * JSON-LD author), the detected byline, and byline/author elements outside comment sections. A handle mentioned
+ * anywhere else on the page (comments, sidebars, the body) doesn't make someone the author.
+ */
+function findAuthorHandles(doc: Document, byline: string | null): string[] {
+  const set = new Set<string>();
+  const add = (h: string | null) => h && set.add(h.replace(/^@/, "").toLowerCase());
+  const meta = (sel: string) => doc.querySelector(sel)?.getAttribute("content") ?? "";
+  for (const h of handlesIn(` ${meta("meta[name='twitter:creator']")}`)) add(h);
+  if (/^@?[A-Za-z0-9_]{1,15}$/.test(meta("meta[name='twitter:creator']").trim()))
+    add(meta("meta[name='twitter:creator']").trim());
+  for (const h of handlesIn(` ${meta("meta[name='author']")}`)) add(h);
+  add(profileHandle(meta("meta[name='author']")));
+  const inComments = (el: Element) =>
+    !!el.closest("[class*='comment' i], [id*='comment' i], [class*='reply' i]");
+  doc
+    .querySelectorAll(
+      "[rel~='author'], [itemprop='author'], [class~='author'], [class~='byline'], [class*='byline' i]",
+    )
+    .forEach((el) => {
+      if (inComments(el)) return;
+      add(profileHandle(el.getAttribute("href")));
+      el.querySelectorAll("a[href]").forEach((a) => add(profileHandle(a.getAttribute("href"))));
+      for (const h of handlesIn(` ${el.textContent ?? ""}`)) add(h);
+    });
+  for (const s of doc.querySelectorAll("script[type='application/ld+json']")) {
+    try {
+      const j = JSON.parse(s.textContent ?? "");
+      const nodes = Array.isArray(j)
+        ? j
+        : [j, ...(Array.isArray(j?.["@graph"]) ? j["@graph"] : [])];
+      for (const node of nodes)
+        for (const a of [node?.author].flat()) {
+          if (!a) continue;
+          if (typeof a === "string") for (const h of handlesIn(` ${a}`)) add(h);
+          for (const u of [a.url, ...[a.sameAs].flat()]) add(profileHandle(u));
+          if (typeof a.name === "string") for (const h of handlesIn(` ${a.name}`)) add(h);
+        }
+    } catch {
+      /* ignore malformed JSON-LD */
+    }
+  }
+  for (const h of handlesIn(` ${byline ?? ""}`)) add(h);
+  return [...set].slice(0, 20);
+}
+
 /** Parse fetched HTML into a Resource. Pure, so fixtures can exercise it without the network. */
 export function parseArticle(
   resourceId: string,
@@ -105,6 +163,7 @@ export function parseArticle(
       article: {
         siteName: article.siteName ?? null,
         byline: article.byline ?? null,
+        authorHandles: findAuthorHandles(doc, article.byline ?? null),
         xMentions,
         hiddenText,
       },

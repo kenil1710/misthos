@@ -12,6 +12,7 @@ import {
 import { testDb } from "@misthos/db/testing";
 import { Rubric } from "@misthos/shared";
 import { keccak256, toBytes } from "viem";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { computeMetrics } from "@/lib/server/metrics";
 import { publicDecisions, publicStats } from "@/lib/server/public";
@@ -37,6 +38,7 @@ async function program(isDemo: boolean) {
       chain: "arc-testnet",
       status: "active",
       isDemo,
+      vaultAddress: `0x${String(n).padStart(40, "f")}`,
       rubricJson: Rubric.parse({
         categories: [
           {
@@ -264,5 +266,32 @@ describe("fraud and current decisions", () => {
       (d) => d.summary === "escalate" || d.summary === "approve",
     );
     expect(shown.map((d) => d.action)).toEqual(["approve"]);
+  });
+});
+
+describe("metrics count each submission once (F-11)", () => {
+  it("a re-processed submission and drafts don't inflate the numbers", async () => {
+    const before = await computeMetrics(db);
+    // Re-process the paid submission: a second agent decision for the same submission.
+    const [d] = await db.select().from(decisions).where(eq(decisions.action, "approve")).limit(1);
+    await db.insert(decisions).values({
+      ...d!,
+      id: undefined,
+      decisionHash: keccak256(toBytes(`reprocessed${n}`)),
+      createdAt: new Date(Date.now() + 1000),
+    } as never);
+    // A draft program with no vault (someone trying the wizard) isn't a real program.
+    const [o] = await db.select().from(programs).limit(1);
+    await db.insert(programs).values({
+      ...o!,
+      id: undefined,
+      slug: `draft-${n}`,
+      status: "draft",
+      vaultAddress: null,
+      isDemo: false,
+    } as never);
+    const after = await computeMetrics(db);
+    expect(after.submissionsReviewed).toBe(before.submissionsReviewed);
+    expect(after.programsOnboarded).toBe(before.programsOnboarded);
   });
 });

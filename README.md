@@ -80,7 +80,9 @@ round closes ──► re-check ──► plan payouts within caps ──► pro
   smart-contract wallet. Each payout's on-chain `decisionHash` commits to the records it pays. A reviewer override
   or a re-process is a new signed record that names the one it supersedes; nothing is rewritten.
 - **The vault** enforces per-payout, per-round and rolling 24h caps, an owner approval threshold, a cooldown for new
-  or changed payout wallets, pause, and owner withdrawal at any time. A `payoutId` can never be paid twice.
+  or changed payout wallets, pause, and owner withdrawal at any time. A `payoutId` can never be paid twice. If the
+  agent itself were compromised, the most it could pay out is `maxPerDay` per day until the owner pauses: the
+  approval threshold is checked per round on-chain (the honest agent also applies it to its last 24 h of payouts).
 
 More: [ARCHITECTURE.md](./ARCHITECTURE.md) · [SECURITY.md](./SECURITY.md) ·
 [docs/SECURITY_AUDIT.md](./docs/SECURITY_AUDIT.md) · [docs/TEST_REPORT.md](./docs/TEST_REPORT.md)

@@ -77,6 +77,8 @@ export function explain(p: {
   const rec = d.amount > 0n ? ` The agent recommends ${formatUsdc(d.amount)}.` : "";
   const why: Record<string, string> = {
     R2_INJECTION: `${flags.find((f) => f.code === "PROMPT_INJECTION_ATTEMPT")?.message ?? "Contains text aimed at the grader."} Submissions that try to influence scoring always get a human review.`,
+    R2B_JUDGE_INJECTION:
+      "The reviewing model noticed text aimed at it, so a person reviews this one, whatever the scores.",
     R3_NO_JUDGMENT: `The agent couldn't complete its review${p.judgeError ? ` (${p.judgeError})` : ""}.`,
     R4_CATEGORY_INVALID: "The agent couldn't match this to a rubric category.",
     R5_AGENT_RECOMMENDS_REVIEW:

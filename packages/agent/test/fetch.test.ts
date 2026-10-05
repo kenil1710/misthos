@@ -275,17 +275,65 @@ describe("GitHub fetchers", () => {
     });
   });
 
-  it("reads a commit by its full SHA", async () => {
-    const f = fixtureFetch({ "/commits/": { json: fixture("github/commit.json") } });
-    const r = await fetchGithubCommit(`arc-builders/payroll@${"a".repeat(40)}`, {
-      token: "g",
-      fetch: f,
-    });
-    if (r.outcome.status !== "ok") throw new Error("expected ok");
-    expect(r.outcome.resource).toMatchObject({
-      timestamp: "2026-10-06T11:05:00Z",
+  it("F-05: a commit counts only on the default branch, dated by when its PR merged there", async () => {
+    const sha = "a".repeat(40);
+    const commitFetch = (compare: string, pulls: unknown[]) =>
+      fixtureFetch({
+        "/pulls": { json: pulls },
+        "/compare/": { json: { status: compare } },
+        "/commits/": { json: fixture("github/commit.json") },
+        "/repos/arc-builders/payroll": { json: { default_branch: "main" } },
+      });
+    const read = async (compare: string, pulls: unknown[]) => {
+      const r = await fetchGithubCommit(`arc-builders/payroll@${sha}`, {
+        token: "g",
+        fetch: commitFetch(compare, pulls),
+      });
+      if (r.outcome.status !== "ok") throw new Error("expected ok");
+      return r.outcome.resource;
+    };
+    // Merged into main through a pull request: on the default branch, dated by the merge (not the commit date).
+    const merged = await read("behind", [
+      { merged_at: "2026-10-07T08:00:00Z", base: { ref: "main" } },
+    ]);
+    expect(merged).toMatchObject({
+      timestamp: "2026-10-07T08:00:00Z",
+      timestampKind: "merged",
       author: { handle: "alice-dev" },
+      github: { merged: true },
     });
+    // Only in a fork (GitHub still serves it under the upstream URL): not on main → NOT_MERGED, hard.
+    const fork = await read("diverged", []);
+    expect(fork.github).toMatchObject({ merged: false });
+    const { runChecks } = await import("../src/checks");
+    const { CATEGORIES } = await import("./helpers");
+    const checks = (r: typeof fork) =>
+      runChecks({
+        sourceType: "github_commit",
+        resource: r,
+        contributor: {
+          id: "c",
+          xUserId: "1",
+          xHandle: "alice",
+          githubLogin: "alice-dev",
+          githubUserId: r.author.id,
+          walletChangedAt: null,
+        },
+        round: {
+          startsAt: new Date("2026-10-05T00:00:00Z"),
+          endsAt: new Date("2026-10-19T00:00:00Z"),
+        },
+        program: { minAccountAgeDays: 0, payeeCooldownSeconds: 0, categories: CATEGORIES },
+        sameResource: [],
+        similar: [],
+        submittedAt: new Date("2026-10-08T00:00:00Z"),
+      }).map((f) => `${f.code}:${f.severity}`);
+    expect(checks(fork)).toContain("NOT_MERGED:hard");
+    // Pushed straight to main: on the branch, but when it landed can't be proven → no date → a person reviews it.
+    const pushed = await read("identical", []);
+    expect(pushed).toMatchObject({ timestamp: null, github: { merged: true } });
+    expect(checks(pushed)).toContain("DATE_UNVERIFIED:soft");
+    expect(checks(merged)).toEqual([]);
   });
 
   it("treats 404 as not found and rate limits as retryable", async () => {
@@ -308,6 +356,7 @@ describe("article parsing", () => {
     if (o.status !== "ok") throw new Error("expected ok");
     expect(o.resource.timestamp).toBe("2026-10-06T09:00:00.000Z");
     expect(o.resource.article?.xMentions).toContain("alice_builds");
+    expect(o.resource.article?.authorHandles).toEqual(["alice_builds"]); // from twitter:creator
     expect(o.resource.text).toContain("6-decimal base units");
     expect(o.resource.article?.hiddenText).toBe("");
   });

@@ -14,6 +14,7 @@
     "circle:probe": "tsx --env-file=../../.env scripts/circle-probe.ts",
     "demo:cap-revert": "tsx --env-file=../../.env scripts/demo-cap-revert.ts",
     "live:round": "tsx --env-file=../../.env scripts/live-round.ts",
+    "live:crash": "tsx --env-file=../../.env scripts/live-crash.ts",
     "seed:showcase": "tsx --env-file=../../.env scripts/seed-showcase.ts",
     "reprocess": "tsx --env-file=../../.env scripts/reprocess.ts"
   },
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11",
     "@types/node": "^22",
     "typescript": "^5",
     "vitest": "^4"

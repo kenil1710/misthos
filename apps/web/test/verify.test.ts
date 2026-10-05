@@ -86,7 +86,9 @@ const deps = (r: TransactionReceipt | null | undefined = undefined): VerifyDeps 
   client: offline,
   getReceipt: async () => (r === undefined ? receipt() : r),
   explorerTx: (h) => `https://explorer/tx/${h}`,
+  vaultAgent: async () => vaultAgent,
 });
+let vaultAgent: Address | null = agent.address;
 
 beforeEach(async () => {
   ctx = await testDb();
@@ -281,6 +283,22 @@ describe("verifyDecision", () => {
       "payout:skip",
       "chain:skip",
     ]);
+  });
+
+  it("F-09: fails when the signer isn't the vault's agent on-chain, even if the signature itself is valid", async () => {
+    vaultAgent = "0x00000000000000000000000000000000000000e7";
+    const v = await verifyDecision(deps(), recordJson);
+    expect(v.verified).toBe(false);
+    expect(v.steps.find((s) => s.id === "signature")).toMatchObject({
+      state: "fail",
+      detail: expect.stringContaining(
+        "the program vault's agent on Arc is 0x00000000000000000000000000000000000000e7",
+      ),
+    });
+    vaultAgent = null; // can't read the vault: never claims a verified signer
+    expect((await verifyDecision(deps(), recordJson)).verified).toBe(false);
+    vaultAgent = agent.address;
+    expect((await verifyDecision(deps(), recordJson)).verified).toBe(true);
   });
 
   it("explains invalid input", async () => {

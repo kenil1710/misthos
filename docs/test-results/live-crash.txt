@@ -1,0 +1,46 @@
+$ tsx --env-file=../../.env scripts/live-crash.ts
+
+1. Throwaway program, vault and contributors
+  reusing throwaway vault https://explorer.testnet.arc.io/address/0x39510416F51C2E9C730033e3ACd618b1db034DA3
+  alice: wallet 0xa14526cd41ddEA957Cc46F2FEdAa87E2E5563F9e · approve
+  bob: wallet 0xbf5ec7f2f39393ce34a4fd5496dCAEee1C17ab3E · approve
+
+2. Worker A runs the round and is killed right after executeRound
+  [worker 45423] executeRound landed: https://explorer.testnet.arc.io/tx/0xc207f3315b1859fb6b310ba5b7c40237e4c51d6aa84a679e3d9884ba217e36b8 (recorded later by worker B)
+  [worker 45423] SIGKILL before recording anything
+  worker A exited: signal SIGKILL, code null
+  database after the crash: round proposed, executed tx recorded: false
+  on-chain after the crash: alice 0.02 USDC, bob 0.02 USDC
+
+3. Worker B (fresh process) picks the round up
+  [worker 45435] round job returned: executed
+  worker B exited: code 0
+
+4. Worker C runs it once more (any later retry)
+  [worker 45438] round job returned: skipped
+  worker C exited: code 0
+
+5. Result
+{
+  "roundStatus": "executed",
+  "executeTxRecorded": "0xc207f3315b1859fb6b310ba5b7c40237e4c51d6aa84a679e3d9884ba217e36b8",
+  "payouts": [
+    "executed",
+    "executed"
+  ],
+  "submissions": [
+    "paid",
+    "paid"
+  ],
+  "onChainRoundExecutedEvents": 1,
+  "onChainPayoutEvents": 2,
+  "contributorBalances": [
+    "alice 0.02 USDC",
+    "bob 0.02 USDC"
+  ],
+  "totalPaid": "0.04 USDC",
+  "vaultLeft": "0.06 USDC",
+  "recoveredFromChain": true
+}
+
+PASS: paid exactly once after the crash

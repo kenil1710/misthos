@@ -1,0 +1,2 @@
+DROP INDEX "payouts_round_contributor_uq";--> statement-breakpoint
+CREATE UNIQUE INDEX "payouts_round_contributor_uq" ON "payouts" USING btree ("round_id","contributor_id") WHERE "payouts"."status" <> 'failed';

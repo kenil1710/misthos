@@ -26,6 +26,10 @@ export class FakeVault implements VaultReader, AgentExecutor {
   calls: string[] = [];
   /** Throw a retryable error on the next N sends (simulates a Circle/RPC hiccup). */
   failNext = 0;
+  /** Recipients the token refuses (USDC-style blocklist): a transfer to them reverts the whole executeRound. */
+  blocked = new Set<string>();
+  /** executeRound transactions by round id, as the RoundExecuted event would show. */
+  executedTxs = new Map<Hex, Hex>();
 
   constructor(
     public lim: VaultLimits,
@@ -52,6 +56,12 @@ export class FakeVault implements VaultReader, AgentExecutor {
   }
   async chainTime() {
     return this.time;
+  }
+  async canReceive(_v: Address, to: Address) {
+    return !this.blocked.has(to.toLowerCase());
+  }
+  async executedTx(_v: Address, id: Hex) {
+    return this.executedTxs.get(id) ?? null;
   }
 
   /** Owner action outside the agent: approveRound. */
@@ -114,6 +124,14 @@ export class FakeVault implements VaultReader, AgentExecutor {
         revert("RoundNotExecutable");
       if (r!.status === ChainRoundStatus.Proposed && r!.total > this.lim.autoApproveThreshold)
         revert("ApprovalRequired");
+      // Like MisthosVault: every payout is re-validated against the payees as they are now.
+      for (const p of r!.payouts) {
+        const payee = this.payees.get(p.contributorId);
+        if (!payee || payee.wallet !== p.to) revert("PayeeMismatch");
+        if (this.time < payee!.payableAfter) revert("PayeeInCooldown");
+        if (this.paidIds.has(p.payoutId)) revert("AlreadyPaid");
+        if (this.blocked.has(p.to.toLowerCase())) revert("Blocklisted");
+      }
       if (r!.total > this.vaultBalance) revert("ERC20InsufficientBalance");
       for (const p of r!.payouts) {
         this.paidIds.add(p.payoutId);
@@ -124,6 +142,13 @@ export class FakeVault implements VaultReader, AgentExecutor {
       }
       this.vaultBalance -= r!.total;
       r!.status = ChainRoundStatus.Executed;
+      this.executedTxs.set(roundId, keccak256(toBytes(`tx:${idempotencyKey}`)));
+    } else if (functionName === "cancelRound") {
+      const [roundId] = args as [Hex];
+      const r = this.rounds.get(roundId);
+      if (!r || (r.status !== ChainRoundStatus.Proposed && r.status !== ChainRoundStatus.Approved))
+        revert("RoundNotExecutable");
+      r!.status = ChainRoundStatus.Cancelled;
     } else revert(`unexpected ${functionName}`);
     const txHash = keccak256(toBytes(`tx:${idempotencyKey}`));
     this.sentKeys.set(idempotencyKey, txHash);

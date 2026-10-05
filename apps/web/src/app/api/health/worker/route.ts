@@ -1,35 +1,28 @@
-import { getDb } from "@misthos/db";
-import { sql } from "drizzle-orm";
+import { env } from "@/lib/server/env";
 import { allow, clientKey } from "@/lib/server/rate-limit";
 import { workerHealth } from "@/lib/worker-health";
 
 export const dynamic = "force-dynamic";
 
 /**
- * For uptime monitors: 200 when the database answers and the worker is alive and keeping up, 503 otherwise (with
- * the reason). Read-only, two small queries; nothing private in the response.
+ * For uptime monitors: 200 when the worker answers and its scheduled passes are running and keeping up, 503
+ * otherwise (with the reason). Asks the worker's own /health, which answers from memory: checking never touches
+ * the database, so monitoring doesn't keep Neon awake.
  */
 export async function GET(req: Request) {
   if (!allow(`health:${clientKey(req)}`, 30, 60_000))
     return Response.json({ ok: false, problem: "rate_limited" }, { status: 429 });
   const headers = { "Cache-Control": "no-store" };
-  try {
-    const db = getDb();
-    const beat = await db.execute(
-      sql`select (extract(epoch from greatest(cron_on, flow_on, bam_on)) * 1000)::float8 as beat from pgboss.version limit 1`,
-    );
-    const queued = await db.execute(
-      sql`select (extract(epoch from min(created_on)) * 1000)::float8 as oldest from pgboss.job where name = 'submission-process' and state in ('created', 'retry') and start_after <= now()`,
-    );
-    const row = (r: unknown) => ((r as { rows?: Record<string, unknown>[] }).rows ?? [])[0];
-    // Epoch milliseconds from SQL: Postgres timestamp strings ("…+00") don't parse reliably as JS dates.
-    const asDate = (v: unknown) => (v === null || v === undefined ? null : new Date(Number(v)));
-    const h = workerHealth(asDate(row(beat)?.beat), asDate(row(queued)?.oldest));
-    return Response.json(h, { status: h.ok ? 200 : 503, headers });
-  } catch {
+  const url = env().WORKER_URL;
+  if (!url)
     return Response.json(
-      { ok: false, problem: "The database didn't answer." },
+      { ok: false, problem: "WORKER_URL isn't configured." },
       { status: 503, headers },
     );
-  }
+  const h = workerHealth(
+    await fetch(new URL("/health", url), { cache: "no-store", signal: AbortSignal.timeout(5000) })
+      .then((r) => r.json() as Promise<unknown>)
+      .catch(() => null),
+  );
+  return Response.json(h, { status: h.ok ? 200 : 503, headers });
 }

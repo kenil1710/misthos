@@ -344,7 +344,11 @@ export const payouts = pgTable(
     ...timestamps,
   },
   (t) => [
-    uniqueIndex("payouts_round_contributor_uq").on(t.roundId, t.contributorId),
+    // One live payout per contributor per round. A payout cancelled with its on-chain round (status "failed") doesn't
+    // count, so the round can be re-planned under a fresh on-chain id.
+    uniqueIndex("payouts_round_contributor_uq")
+      .on(t.roundId, t.contributorId)
+      .where(sql`${t.status} <> 'failed'`),
     // A contributor's earnings and payout history.
     index("payouts_contributor_idx").on(t.contributorId),
   ],

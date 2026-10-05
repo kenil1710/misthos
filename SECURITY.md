@@ -7,6 +7,10 @@ Misthos moves money on behalf of other people's programs. These are the controls
 - **Limits are on-chain.** `MisthosVault` enforces per-payout, per-round and rolling 24h caps, an approval threshold
   for large rounds, and a cooldown before a new or changed payout wallet can be paid. Execution re-checks every
   payout against the limits and payees as they are at that moment.
+- **Loss bound if the agent is compromised: `maxPerDay` per day**, until the owner pauses. The approval threshold is
+  checked per round on-chain, so a rogue agent could split payouts into rounds under it. The honest agent applies
+  the threshold to its last 24 h of auto-paid rounds, but that is the agent's own rule, not the vault's. Set
+  `maxPerDay` to what you're prepared to lose in a day.
 - **Non-custodial.** The program owner owns the vault, can pause it, change limits, replace the agent, and withdraw
   at any time (also while paused). The agent can only register payees and propose and execute rounds.
 - **Idempotent.** `paid[payoutId]` is never reset; a `payoutId` can't be paid twice. Agent transactions carry

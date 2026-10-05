@@ -17,6 +17,8 @@ export interface PriorMatch {
   similarity: number;
   /** SimHash Hamming distance (0–64) when both fingerprints exist */
   hamming: number | null;
+  /** When the matched content was published on its platform (null if unknown). */
+  contentAt?: Date | null;
 }
 
 export interface CheckContext {
@@ -38,7 +40,10 @@ export interface CheckContext {
     payeeCooldownSeconds: number;
     categories: RubricCategory[];
   };
-  /** Other contributors' submissions of the exact same resource. */
+  /**
+   * Other contributors' earlier submissions of the exact same resource that passed the ownership check (one rejected
+   * as "not theirs" doesn't count, so a stranger can't block the real author by submitting first).
+   */
   sameResource: { submissionId: string; xHandle: string; submittedAt: Date }[];
   /** Most similar earlier submissions in the program (other resources). */
   similar: PriorMatch[];
@@ -107,13 +112,19 @@ export function runChecks(ctx: CheckContext): Flag[] {
       });
     }
   } else if (r.sourceType === "article") {
+    // Only the author metadata and byline count (F-04); a mention in a comment or the body proves nothing.
+    // Unproven authorship is a soft flag, which always sends the article to a person (never auto-approved).
     const handle = ctx.contributor.xHandle.toLowerCase();
-    if (!r.article?.xMentions.includes(handle)) {
+    if (!(r.article?.authorHandles ?? []).includes(handle)) {
       flags.push({
         code: "OWNERSHIP_UNVERIFIED",
         severity: "soft",
-        message: `The article doesn't mention or link @${ctx.contributor.xHandle}, so authorship can't be confirmed automatically.`,
-        evidence: { byline: r.article?.byline ?? null, expectedHandle: ctx.contributor.xHandle },
+        message: `The article's author details don't name @${ctx.contributor.xHandle}, so authorship can't be confirmed automatically.`,
+        evidence: {
+          byline: r.article?.byline ?? null,
+          authorHandles: (r.article?.authorHandles ?? []).join(", ") || null,
+          expectedHandle: ctx.contributor.xHandle,
+        },
       });
     }
   }
@@ -163,7 +174,15 @@ export function runChecks(ctx: CheckContext): Flag[] {
   }
 
   // ── Duplicates ─────────────────────────────────────────────────────────
-  const firstDup = [...ctx.sameResource].sort(
+  // The verified author of the resource is never the duplicate (F-03): only one account can own a post or PR.
+  const isVerifiedAuthor =
+    !!r.author.id &&
+    (r.sourceType === "x_post"
+      ? r.author.id === ctx.contributor.xUserId
+      : r.sourceType === "github_pr" || r.sourceType === "github_commit"
+        ? r.author.id === ctx.contributor.githubUserId
+        : false);
+  const firstDup = [...(isVerifiedAuthor ? [] : ctx.sameResource)].sort(
     (a, b) => a.submittedAt.getTime() - b.submittedAt.getTime(),
   )[0];
   if (firstDup) {
@@ -180,8 +199,13 @@ export function runChecks(ctx: CheckContext): Flag[] {
   }
 
   if (r.text.length >= NEAR_DUPLICATE_MIN_CHARS) {
+    // The content published first on its platform is the original (F-03): a copy that was merely *submitted* first
+    // never makes the original look like the duplicate. Without both dates, fall back to submission order.
+    const mine = r.timestamp ? Date.parse(r.timestamp) : NaN;
     const best = ctx.similar.filter(
-      (m) => m.similarity >= NEAR_DUPLICATE_SOFT || (m.hamming !== null && m.hamming <= 3),
+      (m) =>
+        (m.similarity >= NEAR_DUPLICATE_SOFT || (m.hamming !== null && m.hamming <= 3)) &&
+        !(m.contentAt && Number.isFinite(mine) && m.contentAt.getTime() > mine),
     )[0];
     if (best) {
       const sim = Math.max(best.similarity, best.hamming !== null ? 1 - best.hamming / 64 : 0);
@@ -253,6 +277,16 @@ export function runChecks(ctx: CheckContext): Flag[] {
   if (r.sourceType === "github_pr" && r.github && !r.github.merged) {
     const prCats = ctx.program.categories.filter((c) => c.sourceTypes.includes("github_pr"));
     if (prCats.length > 0 && prCats.every(requiresMerged)) flags.push(notMerged(r));
+  }
+  // A commit counts only once it's on the repository's default branch (F-05): not one that only lives in a fork.
+  if (r.sourceType === "github_commit" && r.github && !r.github.merged) {
+    flags.push({
+      code: "NOT_MERGED",
+      severity: "hard",
+      message:
+        "The commit isn't on the repository's default branch (it may only exist in a fork). Submit it once it's merged.",
+      evidence: { state: r.github.state ?? null, merged: false },
+    });
   }
 
   // ── Wallet ─────────────────────────────────────────────────────────────

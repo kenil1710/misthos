@@ -56,7 +56,7 @@ flowchart LR
    the author's own self-reply thread via one capped search), and runs the deterministic checks against earlier
    submissions in the program.
 3. If no rejecting flag already decides, Claude scores it via the `record_judgment` tool (`judge-v3`).
-4. The decision engine (`rules-v3`) picks the action and amount (points always from the criterion scores; 0 when the
+4. The decision engine (`rules-v4`) picks the action and amount (points always from the criterion scores; 0 when the
    judge recommends rejecting); the explanation is written from facts.
 5. The record is canonicalized, hashed and signed; decision, status and audit event commit in one transaction.
 6. Retryable upstream errors go back to the queue with backoff; the last attempt escalates instead of failing.
@@ -92,3 +92,18 @@ flowchart LR
 
 Vercel (web), Railway (worker), Neon (Postgres). The worker uses Neon's direct endpoint for pg-boss; the web app
 only sends jobs.
+
+The worker doesn't poll. It works the queues in short drains and closes its database connections in between, so
+Neon can scale to zero:
+
+- **Wake:** after enqueueing a job, the web app calls the worker's `POST /wake` (shared secret
+  `WORKER_WAKE_SECRET`, timing-safe compare). The worker drains at once. Best effort: a missed wake is picked up by
+  the next tick.
+- **Tick:** every `WORKER_TICK_MINUTES` (15) a drain closes due rounds, re-enqueues unfinished rounds (crashed runs,
+  rounds waiting for the owner's on-chain approval) and stuck submissions, and runs pg-boss maintenance.
+- **Retries:** a drain reports when the next backed-off retry is due; the worker sets a timer for it.
+- **Health:** `GET /health` on the worker answers from memory (last tick, last drain, errors).
+  `/api/health/worker` on the web app relays it, so monitoring never touches the database. `/api/health` is static.
+
+Payout safety doesn't depend on timing: every round run reads the chain and the database first, and every agent
+transaction has a deterministic Circle idempotency key.

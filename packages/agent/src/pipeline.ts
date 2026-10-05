@@ -12,7 +12,7 @@ import {
 import { formatUsdc, hashCanonical, hashText, type OverrideDecisionJob } from "@misthos/shared";
 import { and, desc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Hex } from "viem";
-import { runChecks, type PriorMatch } from "./checks";
+import { NEAR_DUPLICATE_HARD, runChecks, type PriorMatch } from "./checks";
 import { decide, RULE_VERSION, type EngineDecision } from "./engine";
 import { explain } from "./explain";
 import { JudgeError, type Judge, type Judgment } from "./judge";
@@ -245,7 +245,13 @@ export async function processSubmission(
     fetchError = fe.message;
   }
 
-  // ── Duplicates and similarity (earlier submissions only: first come, first paid) ──
+  // ── Duplicates and similarity (earlier submissions; the original is whoever published first) ──
+  const passedOwnership = sql`exists (
+    select 1 from decisions d
+    where d.submission_id = ${submissions.id}
+      and not exists (select 1 from decisions d2 where d2.submission_id = d.submission_id and d2.created_at > d.created_at)
+      and not (d.flags_json @> '[{"code":"OWNERSHIP_MISMATCH"}]'::jsonb)
+  )`;
   const earlier = or(
     lt(submissions.createdAt, sub.createdAt),
     and(eq(submissions.createdAt, sub.createdAt), lt(submissions.id, sub.id)),
@@ -267,6 +273,9 @@ export async function processSubmission(
           ne(submissions.contributorId, contributor.id),
           ne(submissions.id, sub.id),
           earlier,
+          // Only a prior whose current decision passed ownership counts (F-03): someone who submitted another
+          // person's post first, and was rejected for it, doesn't make the real author a duplicate.
+          passedOwnership,
         ),
       )
   ).map((r) => ({ ...r }));
@@ -282,11 +291,13 @@ export async function processSubmission(
       created_at: string | Date;
       simhash: string | null;
       sim: number;
+      content_at: string | null;
     };
     const rows = rowsOf<SimilarRow>(
       await db.execute(sql`
       select s.id, s.contributor_id, c.x_handle, s.url, s.created_at, fr.simhash::text as simhash,
-             similarity(fr.content_text, ${resource.text}) as sim
+             similarity(fr.content_text, ${resource.text}) as sim,
+             fr.payload_json->>'timestamp' as content_at
       from submissions s
       join fetched_resources fr on fr.source_type = s.source_type and fr.resource_id = s.resource_id
       join contributors c on c.id = s.contributor_id
@@ -294,6 +305,11 @@ export async function processSubmission(
         and s.id <> ${sub.id}
         and not (s.source_type = ${sub.sourceType} and s.resource_id = ${sub.resourceId})
         and (s.created_at < ${sub.createdAt} or (s.created_at = ${sub.createdAt} and s.id < ${sub.id}))
+        and not exists (
+          select 1 from decisions d where d.submission_id = s.id
+            and not exists (select 1 from decisions d2 where d2.submission_id = d.submission_id and d2.created_at > d.created_at)
+            and d.flags_json @> '[{"code":"OWNERSHIP_MISMATCH"}]'::jsonb
+        )
       order by sim desc
       limit 5`),
     );
@@ -304,6 +320,8 @@ export async function processSubmission(
       url: r.url,
       submittedAt: new Date(r.created_at),
       similarity: Number(r.sim),
+      contentAt:
+        r.content_at && !Number.isNaN(Date.parse(r.content_at)) ? new Date(r.content_at) : null,
       hamming:
         simhash !== null && r.simhash !== null
           ? hamming(simhash, fromSigned64(BigInt(r.simhash)))
@@ -501,6 +519,26 @@ export async function processSubmission(
         : undefined,
     now: now(),
   });
+  // This submission is the original of a near-identical post someone else submitted earlier but published later
+  // (F-03): that later copy is the duplicate. Re-decide it as one (signed, superseding), if it isn't being paid yet.
+  if (resource?.timestamp && !Number.isNaN(Date.parse(resource.timestamp))) {
+    const mine = Date.parse(resource.timestamp);
+    for (const m of similar) {
+      const sim = Math.max(m.similarity, m.hamming !== null ? 1 - m.hamming / 64 : 0);
+      if (
+        m.contributorId !== contributor.id &&
+        sim >= NEAR_DUPLICATE_HARD &&
+        m.contentAt &&
+        m.contentAt.getTime() > mine
+      )
+        await rejectAsCopy(deps, m.submissionId, {
+          url: sub.url,
+          xHandle: contributor.xHandle,
+          publishedAt: new Date(mine),
+          similarity: sim,
+        });
+    }
+  }
   return { status: "decided", action: decision.action, decisionHash: signed.decisionHash, summary };
 }
 
@@ -775,6 +813,114 @@ export async function rejectAtPayout(
     auditAction: "decision.payout_recheck_failed",
     now: now(),
   });
+  return signed.decisionHash;
+}
+
+/**
+ * A later copy of someone's earlier-published work (F-03). Records a signed agent decision that supersedes the
+ * copy's own and rejects it, unless the item is already in a payout or paid (then the owner is told instead).
+ */
+export async function rejectAsCopy(
+  deps: PipelineDeps,
+  copySubmissionId: string,
+  original: { url: string; xHandle: string; publishedAt: Date; similarity: number },
+): Promise<Hex | null> {
+  const db = deps.db;
+  const now = deps.now ?? (() => new Date());
+  const ctx = await loadContext(db, copySubmissionId);
+  if (!ctx) return null;
+  const { submission: sub, program, contributor, round } = ctx;
+  const [prev] = await db
+    .select()
+    .from(decisions)
+    .where(eq(decisions.submissionId, sub.id))
+    .orderBy(desc(decisions.createdAt))
+    .limit(1);
+  if (!prev || prev.action === "reject") return null;
+  const pct = Math.round(original.similarity * 100);
+  if (
+    sub.payoutId ||
+    sub.status === "paid" ||
+    sub.status === "pending" ||
+    sub.status === "processing"
+  ) {
+    await db.insert(auditEvents).values({
+      programId: program.id,
+      actor: "agent",
+      action: "copy.detected_too_late",
+      entity: "submission",
+      entityId: sub.id,
+      dataJson: {
+        original: original.url,
+        originalBy: original.xHandle,
+        similarity: pct,
+        status: sub.status,
+      },
+    });
+    return null;
+  }
+  const flag: Flag = {
+    code: "NEAR_DUPLICATE",
+    severity: "hard",
+    message: `${pct}% identical to a post by @${original.xHandle} that was published earlier (${original.publishedAt.toISOString().slice(0, 16).replace("T", " ")} UTC).`,
+    evidence: {
+      matchedUrl: original.url,
+      matchedHandle: original.xHandle,
+      originalPublishedAt: original.publishedAt.toISOString(),
+      trigramSimilarity: Math.round(original.similarity * 1000) / 1000,
+    },
+  };
+  const prevRecord = JSON.parse(prev.decisionJson) as DecisionRecord;
+  const reason =
+    "A near-identical post by someone else was published earlier; this one is the copy.";
+  const signed = await signRecord(
+    {
+      ...prevRecord,
+      contributor: { ...prevRecord.contributor, wallet: contributor.walletAddress },
+      round: {
+        id: round.id,
+        number: round.number,
+        startsAt: round.startsAt.toISOString(),
+        endsAt: round.endsAt.toISOString(),
+      },
+      flags: [...prevRecord.flags.filter((f) => f.code !== "NEAR_DUPLICATE"), flag],
+      ruleVersion: RULE_VERSION,
+      rule: "R1_REJECT_FLAG",
+      decision: {
+        action: "reject",
+        categoryKey: prev.categoryKey,
+        points: prev.points,
+        amount: "0",
+        auto: true,
+      },
+      decidedBy: { type: "agent", supersedes: prev.decisionHash as Hex, reason },
+      summary: `Rejected. ${flag.message} Recycled content isn't paid under this program's rules.`,
+      decidedAt: now().toISOString(),
+    },
+    deps.signer,
+  );
+  try {
+    await persist(db, {
+      submissionId: sub.id,
+      programId: program.id,
+      status: "rejected",
+      amount: 0n,
+      signed,
+      llmOutput: prev.llmOutputJson,
+      model: prev.model,
+      promptVersion: prev.promptVersion,
+      decidedBy: "agent",
+      decidedByUserId: null,
+      overrideReason: null,
+      auditAction: "decision.copy_detected",
+      supersedes: { decisionId: prev.id, decisionHash: prev.decisionHash, actor: "agent", reason },
+      requireNoPayout: true,
+      now: now(),
+    });
+  } catch (e) {
+    if (e instanceof InPayoutError) return null;
+    throw e;
+  }
   return signed.decisionHash;
 }
 

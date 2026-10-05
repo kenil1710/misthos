@@ -1,32 +1,37 @@
 import { describe, expect, it } from "vitest";
 import { workerHealth } from "@/lib/worker-health";
 
-const now = Date.UTC(2026, 9, 5, 12);
-const ago = (s: number) => new Date(now - s * 1000);
-
 describe("workerHealth", () => {
-  it("is ok when the worker was seen recently and nothing is stuck", () => {
-    expect(workerHealth(ago(20), null, now)).toEqual({
+  it("passes the worker's own verdict through, without anything private", () => {
+    expect(
+      workerHealth({
+        ok: true,
+        problem: null,
+        lastTickAt: "2026-10-05T12:00:00Z",
+        lastDrainAt: "2026-10-05T12:01:00Z",
+        tickMinutes: 15,
+        lastError: "x",
+      }),
+    ).toEqual({
       ok: true,
       problem: null,
-      workerSeenSecondsAgo: 20,
-      oldestQueuedSeconds: null,
+      lastTickAt: "2026-10-05T12:00:00Z",
+      lastDrainAt: "2026-10-05T12:01:00Z",
+      tickMinutes: 15,
     });
-    expect(workerHealth(ago(20), ago(90), now).ok).toBe(true);
   });
 
-  it("fails when the worker has gone quiet for more than 5 minutes", () => {
-    expect(workerHealth(ago(6 * 60), null, now)).toMatchObject({
-      ok: false,
-      problem: "The worker hasn't been seen for 6 minutes.",
-    });
-    expect(workerHealth(null, null, now).problem).toBe("The worker has never reported in.");
+  it("reports the worker's problem", () => {
+    expect(workerHealth({ ok: false, problem: "No scheduled pass for 40 minutes." })).toMatchObject(
+      {
+        ok: false,
+        problem: "No scheduled pass for 40 minutes.",
+      },
+    );
   });
 
-  it("fails when a submission has waited more than 10 minutes, even if the worker looks alive", () => {
-    expect(workerHealth(ago(10), ago(11 * 60), now)).toMatchObject({
-      ok: false,
-      problem: "A submission has been waiting 11 minutes for the worker.",
-    });
+  it("no answer is unhealthy", () => {
+    expect(workerHealth(null)).toMatchObject({ ok: false, problem: "The worker didn't answer." });
+    expect(workerHealth("<html>")).toMatchObject({ ok: false });
   });
 });

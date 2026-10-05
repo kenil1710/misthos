@@ -27,6 +27,12 @@ const Env = z.object({
     .optional(),
   ARC_RPC_URL: z.string().optional(),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
+  /** How often the worker looks for due rounds, stuck jobs and retries (minutes). The web app wakes it for new work. */
+  WORKER_TICK_MINUTES: z.coerce.number().min(1).max(120).default(15),
+  /** Shared with the web app: authenticates its "new work" wake calls. Without it, /wake is disabled. */
+  WORKER_WAKE_SECRET: z.string().min(32).optional(),
+  /** HTTP port for /health and /wake (Railway sets PORT). */
+  PORT: z.coerce.number().int().default(8080),
 });
 export type WorkerEnv = z.infer<typeof Env>;
 

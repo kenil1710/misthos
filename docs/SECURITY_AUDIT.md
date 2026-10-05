@@ -4,6 +4,10 @@ Date: 2026-10-05 · Scope: `packages/contracts`, `apps/web` (routes, server acti
 `packages/agent` (fetchers, injection defenses, engine), secrets and dependencies · Commit: see the commit that adds
 this file. Testing is covered separately in [TEST_REPORT.md](./TEST_REPORT.md).
 
+> **Later:** an independent audit on the same day found issues this pass missed (money-flow retries, duplicate
+> ordering, article and commit ownership). They are fixed; see [INDEPENDENT_AUDIT.md](./INDEPENDENT_AUDIT.md). M-5
+> below was corrected (F-06).
+
 Severity: **Critical** (funds at risk or full compromise), **High** (a control can be bypassed or misleads the
 owner about money), **Medium** (abuse, denial of service or a weakened defense), **Low** (hardening),
 **Info** (by design or no impact).
@@ -58,10 +62,13 @@ agent now plans at most **50 payouts per round** (`MAX_PAYOUTS_PER_ROUND` in `pa
 items carry over to the next round with the reason recorded.
 
 **M-5 Agent payee trust (accepted).** The agent registers payee wallets. A compromised agent could register its own
-wallet for a contributor id and pay it, but only after the payee cooldown, only within the per-payout, per-round
-and daily caps, and only below the approval threshold without the owner. Every registration and change emits
-`PayeeRegistered`/`PayeeChanged` (shown to owners as "wallet changed recently"), and the owner can pause, replace the
-agent and withdraw at any time. The caps are the bound on loss; owners choose them.
+wallet for a contributor id and pay it after the payee cooldown, within the per-payout, per-round and daily caps.
+**The real bound on a compromised agent is `maxPerDay` per day until the owner pauses** (corrected after the
+independent audit, F-06). The approval threshold is checked per round on-chain, so a rogue agent can split spend into
+rounds under it; the honest agent counts the last 24 h of auto-paid rounds and asks the owner once that passes the
+threshold, but a compromised agent can skip its own guard. Registrations for contributor ids the app doesn't know
+are visible on-chain (`PayeeRegistered`) but not yet surfaced in the app. The owner can pause, replace the agent and
+withdraw at any time. Owners should set `maxPerDay` to what they are prepared to lose in a day.
 
 **L-3 Single-step ownership transfer.** A mistyped `transferOwnership` would lose owner control (pause, limits,
 withdraw). Recommend `Ownable2Step` semantics in the next vault implementation; the deployed, verified

@@ -40,9 +40,9 @@ export async function enqueue(
   // One retry on a dropped or timed-out connection (seen live: Neon timing out a single send).
   for (let attempt = 1; ; attempt++) {
     try {
-      return (await (await boss()).send(queue, data, { singletonKey })) === null
-        ? "duplicate"
-        : "queued";
+      const sent = await (await boss()).send(queue, data, { singletonKey });
+      if (sent !== null) await wakeWorker();
+      return sent === null ? "duplicate" : "queued";
     } catch (e) {
       const msg = (e as Error).message;
       if (attempt < 2 && /connection|timeout|terminated|ECONNRESET/i.test(msg)) {
@@ -52,5 +52,26 @@ export async function enqueue(
       console.error("enqueue failed", queue, msg);
       return "failed";
     }
+  }
+}
+
+/**
+ * Tell the worker there's new work so it drains now rather than on its next tick (it doesn't poll, so the database
+ * can sleep). Best effort, short timeout: if the worker misses it, its periodic pass picks the job up.
+ */
+export async function wakeWorker(): Promise<boolean> {
+  const { WORKER_URL, WORKER_WAKE_SECRET } = env();
+  if (!WORKER_URL || !WORKER_WAKE_SECRET) return false;
+  try {
+    const res = await fetch(new URL("/wake", WORKER_URL), {
+      method: "POST",
+      headers: { authorization: `Bearer ${WORKER_WAKE_SECRET}` },
+      signal: AbortSignal.timeout(3000),
+      cache: "no-store",
+    });
+    return res.ok;
+  } catch (e) {
+    console.error("worker wake failed", (e as Error).message);
+    return false;
   }
 }

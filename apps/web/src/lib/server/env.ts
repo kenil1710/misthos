@@ -12,6 +12,10 @@ const ServerEnv = z.object({
   /** GitHub OAuth app for verifying contributors' GitHub accounts (optional: GitHub work is refused without it). */
   GITHUB_OAUTH_CLIENT_ID: z.string().optional(),
   GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
+  /** The worker's base URL (Railway). With the secret, new work wakes it at once instead of on its next tick. */
+  WORKER_URL: z.url().optional(),
+  /** Shared with the worker; authenticates wake calls. Not a signing key and can't move money. */
+  WORKER_WAKE_SECRET: z.string().min(32).optional(),
 });
 export type ServerEnv = z.infer<typeof ServerEnv>;
 

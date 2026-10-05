@@ -23,7 +23,7 @@ Set when you create the program, changeable at any time from **Settings** (one t
 | Max per payout | No single payout in a round may exceed it. Over it, `proposeRound` reverts with `PayoutTooLarge`. |
 | Max per round | The round's total may not exceed it (`RoundTooLarge`). |
 | Max per rolling 24h | Paid in the last 24 hours plus this round may not exceed it (`DailyCapExceeded`), checked again at execution. |
-| Approval threshold | Rounds with a larger total wait for the owner's `approveRound` (`ApprovalRequired`). |
+| Approval threshold | Rounds with a larger total wait for the owner's `approveRound` (`ApprovalRequired`). The vault checks it per round; the agent also waits for you once its auto-paid rounds in the last 24 h pass it. |
 | Payee cooldown | A newly registered or changed payout wallet can't be paid until the cooldown ends (`PayeeInCooldown`). |
 
 The vault accepts up to 200 payouts per round; the agent puts at most 50 in one, so each transaction stays well
@@ -31,11 +31,22 @@ under Arc's 30M block gas limit, and carries the rest to the next round. Executi
 the limits and payout wallets as they are at that moment, so lowering a limit or pausing takes effect even for a
 round that was already proposed.
 
+**If the agent were compromised**, the most it could pay out is `maxPerDay` per day until you pause the vault. The
+approval threshold is checked per round on-chain, so a rogue agent could split payouts into rounds just under it.
+Set `maxPerDay` to what you're prepared to lose in a day.
+
 ## Exactly once
 
 Every payout has a fixed id, `keccak256(abi.encode(programId, roundId, contributorId))`. The vault records it when
 paid and never resets it (`AlreadyPaid`, `DuplicatePayout`). The agent's transactions also carry deterministic Circle
-idempotency keys, so a retried job gets the original transaction back instead of sending a second one.
+idempotency keys, so a retried job gets the original transaction back instead of sending a second one. Before the
+worker ever marks a round failed it reads the round on-chain: if it was executed, it's recorded as paid; if it's
+still proposed, it's cancelled on-chain first. Items are released for another round only when the vault confirms
+they weren't paid.
+
+If one payee can't be paid (their wallet changed after planning, or the token refuses the transfer), the worker
+cancels the round on-chain and re-plans it without them, so everyone else is paid; the dropped item carries over.
+A contributor's wallet change waits while one of their payouts is in a round.
 
 ## Tested
 

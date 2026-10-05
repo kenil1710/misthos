@@ -4,11 +4,17 @@ import type { JudgmentOutput } from "./judge";
 import type { Flag, Resource } from "./types";
 
 /** Bump whenever a rule below changes. Recorded in every decision. */
-export const RULE_VERSION = "rules-v3";
+export const RULE_VERSION = "rules-v4";
 
 /** Clear spam: the model is very sure the work doesn't qualify and every criterion scored 0 or 1. */
 export const SPAM_CONFIDENCE = 0.9;
 export const SPAM_MAX_SCORE = 1;
+
+/**
+ * The judge's own notes that mean "someone tried to steer me" (it's told to write "attempts to influence the grader").
+ * Any of these sends the submission to a person, even if the judge then recommended approval (F-07).
+ */
+export const JUDGE_INJECTION_NOTE = /influenc|instruct|grader|inject|manipulat|jailbreak|prompt/i;
 
 /** Flags that end in rejection: the work can't be paid, whatever its quality. */
 export const REJECT_FLAGS = new Set([
@@ -135,6 +141,8 @@ export function decide(i: EngineInput): EngineDecision {
   if (i.flags.some((f) => f.code === "PROMPT_INJECTION_ATTEMPT"))
     return out("escalate", "R2_INJECTION");
   if (!i.judgment) return out("escalate", "R3_NO_JUDGMENT");
+  if (i.judgment.soft_flags.some((f) => JUDGE_INJECTION_NOTE.test(f)))
+    return out("escalate", "R2B_JUDGE_INJECTION");
   if (!cat) return out("escalate", "R4_CATEGORY_INVALID");
   // R5a: clear spam is rejected automatically (injection was already routed to a human by R2). Owners can override.
   const scores = cat.criteria.map((k) => i.judgment!.rubric_scores[k.key] ?? 0);

@@ -23,6 +23,27 @@ Railway, Neon). Repository public. No mainnet without the owner's explicit OK.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
 
+## Done (independent audit fixes + Neon free-tier worker, 2026-10-05)
+
+- **Independent audit** (`docs/INDEPENDENT_AUDIT.md`, with a fix-status table): all High and Medium findings
+  fixed with regression tests. F-01 round transitions follow the chain; items are released only if the vault says
+  unpaid. F-02 wallet changes deferred while a payout is in flight; failing payees dropped and carried over
+  (cancel + re-plan). F-03 duplicates count only verified priors; earlier platform time wins; late originals reject
+  the copy. F-04 article author metadata only. F-05 commits must be on the default branch, dated by PR merge.
+  F-06 docs say the compromised-agent bound is `maxPerDay`/day; the agent applies the threshold to its 24 h total.
+  F-07 judge injection flags escalate (`rules-v4`). F-08 periodic round recovery incl. awaiting approval. F-09 Verify
+  pins the signer to the vault's on-chain `agent()`. F-10 GitHub id at payout. F-11 metrics count each submission
+  once. Low/Info documented with status. Contract audit tests renamed `test_ONCHAIN_*` (vault is immutable).
+- Migration `0007`: payouts unique per (round, contributor) only among non-failed rows (re-planned rounds). Applied
+  to Neon.
+- **Live crash test** (`pnpm --filter @misthos/worker live:crash`, output in `docs/test-results/live-crash.txt`):
+  worker SIGKILLed right after `executeRound` on a throwaway testnet vault; a fresh worker recorded it from the
+  chain; a third run did nothing; each contributor paid exactly once (1 `RoundExecuted`, 2 `PayoutExecuted`).
+- **Neon free tier:** the worker no longer polls. It drains the queues on wake (web app `POST /wake` with
+  `WORKER_WAKE_SECRET` after each enqueue), every 15 min (`WORKER_TICK_MINUTES`) and for due retries, closing its
+  connections in between so Neon can suspend. Worker `GET /health` answers from memory; `/api/health/worker` relays
+  it without touching the database. Before: ~369 transactions/min, compute never suspended.
+
 ## Done (UX and bug sweep before submission, 2026-10-05)
 
 `docs/UX_SWEEP.md`: 28 findings, all fixed, with before/after screenshots (`docs/screenshots/ux-sweep/`). Every page
@@ -568,8 +589,8 @@ None. `/c/[slug]` says submissions open with the agent pipeline (Phase 3); no fa
 - No rate limiting on public endpoints yet (Phase 8 security pass). Nonce table is cleaned opportunistically.
 - `next dev` with `NEXT_DIST_DIR=.next-e2e` adds `.next-e2e` type paths to `apps/web/tsconfig.json`; harmless.
 - X returns `impression_count: 0` for old posts; ENGAGEMENT_ANOMALY's impressions rule ignores 0 (regression test).
-- Article ownership can only be verified when the page mentions or links the contributor's @handle; otherwise it's
-  a soft flag and goes to review.
+- Article ownership is verified only from author metadata (byline, author tags, JSON-LD); otherwise it's a soft
+  flag and goes to review.
 - The browser e2e env has no worker, so `payee-sync` enqueues fail there (logged); joins still succeed by design.
 - The live vault used for the showcase was topped up with 0.90 test USDC from the QA owner wallet on 2026-10-03
   (tx 0xc8eaf1d6…); after the reseed and the 2026-10-05 proof payout (0.01) it holds ~0.11. Top up before the next

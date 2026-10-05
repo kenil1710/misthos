@@ -1,4 +1,6 @@
 import { getDb } from "@misthos/db";
+import { misthosVaultAbi } from "@misthos/shared/abi";
+import type { Address } from "viem";
 import { z } from "zod";
 import { publicClient } from "@/lib/server/chain";
 import { jsonError, readJson } from "@/lib/server/http";
@@ -21,6 +23,11 @@ export async function POST(req: Request) {
       client,
       getReceipt: (hash) => client.getTransactionReceipt({ hash }).catch(() => null),
       explorerTx,
+      vaultAgent: (vault) =>
+        client
+          .readContract({ address: vault, abi: misthosVaultAbi, functionName: "agent" })
+          .then((a) => a as Address)
+          .catch(() => null),
     },
     body.data.record,
   );

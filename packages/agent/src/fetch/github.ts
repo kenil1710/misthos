@@ -40,6 +40,12 @@ const Commit = z.object({
   files: z.array(File).optional(),
 });
 
+const RepoInfo = z.object({ default_branch: z.string() });
+const CompareInfo = z.object({ status: z.string() });
+const PullsForCommit = z.array(
+  z.object({ merged_at: z.string().nullable(), base: z.object({ ref: z.string() }).optional() }),
+);
+
 function headers(token?: string) {
   return {
     Accept: "application/vnd.github+json",
@@ -172,7 +178,7 @@ export async function fetchGithubCommit(
   const m = /^([^/]+)\/([^@]+)@([0-9a-f]{40})$/.exec(resourceId);
   if (!m) throw new FetchError("Malformed commit id", false);
   const [, owner, repo, sha] = m;
-  const usage = [
+  const usage: FetchResult["usage"] = [
     {
       provider: "github" as const,
       endpoint: "GET /repos/:o/:r/commits/:sha",
@@ -190,7 +196,45 @@ export async function fetchGithubCommit(
   const c = Commit.safeParse(await res.json());
   if (!c.success) throw new FetchError("Unexpected GitHub response", false);
   const files = c.data.files ?? [];
-  const date = c.data.commit.committer?.date ?? c.data.commit.author?.date ?? null;
+
+  // F-05. GitHub serves any commit from the repository's fork network under the upstream URL, and commit dates are
+  // set by whoever made the commit. So: the commit must be reachable from the default branch, and its date is when it
+  // landed there (the merge time of the pull request that brought it in). A direct push has no provable landing time:
+  // no date, so it goes to a person (DATE_UNVERIFIED); a commit not on the default branch is rejected (NOT_MERGED).
+  const repoRes = await get(`/repos/${owner}/${repo}`, opts);
+  const defaultBranch = repoRes.ok
+    ? (RepoInfo.safeParse(await repoRes.json()).data?.default_branch ?? null)
+    : null;
+  let onDefaultBranch = false;
+  if (defaultBranch) {
+    const cmp = await get(
+      `/repos/${owner}/${repo}/compare/${encodeURIComponent(defaultBranch)}...${sha}`,
+      opts,
+    );
+    const status = cmp.ok ? CompareInfo.safeParse(await cmp.json()).data?.status : undefined;
+    // "behind"/"identical": the default branch already contains this commit.
+    onDefaultBranch = status === "behind" || status === "identical";
+  }
+  let landedAt: string | null = null;
+  if (onDefaultBranch) {
+    const prs = await get(`/repos/${owner}/${repo}/commits/${sha}/pulls`, opts);
+    const list = prs.ok ? (PullsForCommit.safeParse(await prs.json()).data ?? []) : [];
+    landedAt = list.find((p) => p.merged_at && p.base?.ref === defaultBranch)?.merged_at ?? null;
+  }
+  usage.push(
+    { provider: "github", endpoint: "GET /repos/:o/:r", units: 1, estCostUsd: 0 },
+    { provider: "github", endpoint: "GET /repos/:o/:r/compare", units: 1, estCostUsd: 0 },
+    ...(onDefaultBranch
+      ? [
+          {
+            provider: "github" as const,
+            endpoint: "GET /repos/:o/:r/commits/:sha/pulls",
+            units: 1,
+            estCostUsd: 0,
+          },
+        ]
+      : []),
+  );
 
   return {
     usage,
@@ -200,8 +244,8 @@ export async function fetchGithubCommit(
         sourceType: "github_commit",
         resourceId,
         url: c.data.html_url,
-        timestamp: date,
-        timestampKind: date ? "committed" : "unknown",
+        timestamp: landedAt,
+        timestampKind: landedAt ? "merged" : "unknown",
         title: c.data.commit.message.split("\n")[0] ?? null,
         text: `${c.data.commit.message}\n\nFiles changed:${patchDigest(files)}`.trim(),
         author: {
@@ -212,6 +256,9 @@ export async function fetchGithubCommit(
           followers: null,
         },
         github: github(`${owner}/${repo}`, {
+          state: onDefaultBranch ? `on ${defaultBranch}` : "not on the default branch",
+          merged: onDefaultBranch,
+          mergedAt: landedAt,
           additions: c.data.stats?.additions ?? 0,
           deletions: c.data.stats?.deletions ?? 0,
           changedFiles: files.length,

@@ -11,17 +11,24 @@ import {
   rounds,
   submissions,
 } from "@misthos/db";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
 
 /**
- * Traction numbers for the hackathon submission. Real rows only: every query is restricted to non-demo programs,
- * and USDC paid is split by network.
+ * Traction numbers for the hackathon submission. Real rows only: every query is restricted to real programs (not
+ * demo, published, with a deployed vault), and USDC paid is split by network. Each submission counts once, by its
+ * first agent decision; re-processing or payout re-checks don't add to the counts (F-11).
  */
 export async function computeMetrics(db: DbLike = getDb()) {
   const real = await db
     .select({ id: programs.id, chain: programs.chain, status: programs.status })
     .from(programs)
-    .where(eq(programs.isDemo, false));
+    .where(
+      and(
+        eq(programs.isDemo, false),
+        ne(programs.status, "draft"),
+        sql`${programs.vaultAddress} is not null`,
+      ),
+    );
   const ids = real.map((p) => p.id);
   const none = ["00000000-0000-0000-0000-000000000000"];
   const inReal = ids.length ? ids : none;
@@ -41,6 +48,10 @@ export async function computeMetrics(db: DbLike = getDb()) {
     );
 
   // Agent decisions only (the first verdict on each submission), for auto/escalation rates.
+  const firstAgentDecision = sql`not exists (
+    select 1 from decisions d0
+    where d0.submission_id = ${decisions.submissionId} and d0.decided_by = 'agent' and d0.created_at < ${decisions.createdAt}
+  )`;
   const agentRows = await db
     .select({
       action: decisions.action,
@@ -49,7 +60,13 @@ export async function computeMetrics(db: DbLike = getDb()) {
     })
     .from(decisions)
     .innerJoin(submissions, eq(submissions.id, decisions.submissionId))
-    .where(and(inArray(submissions.programId, inReal), eq(decisions.decidedBy, "agent")))
+    .where(
+      and(
+        inArray(submissions.programId, inReal),
+        eq(decisions.decidedBy, "agent"),
+        firstAgentDecision,
+      ),
+    )
     .groupBy(decisions.action, sql`(${decisions.decisionJson}::jsonb)->>'rule'`);
   const reviewed = agentRows
     .filter((r) => r.rule !== "R0_PAYOUT_RECHECK")
@@ -102,7 +119,13 @@ export async function computeMetrics(db: DbLike = getDb()) {
     })
     .from(decisions)
     .innerJoin(submissions, eq(submissions.id, decisions.submissionId))
-    .where(and(inArray(submissions.programId, inReal), eq(decisions.decidedBy, "agent")));
+    .where(
+      and(
+        inArray(submissions.programId, inReal),
+        eq(decisions.decidedBy, "agent"),
+        firstAgentDecision,
+      ),
+    );
   const spend = await db
     .select({
       provider: apiUsage.provider,

@@ -12,7 +12,7 @@ A submission goes through four stages. Only the third uses a model.
    in the program, and raises flags.
 3. **Judge.** Claude Haiku 4.5 scores the work against your rubric through a strict tool schema (`judge-v3`). It
    returns a category, a score per criterion, a confidence, a recommendation and its reasons. It doesn't set amounts.
-4. **Decision engine.** Plain TypeScript rules (`rules-v3`) combine the flags and the judgment into an action and an
+4. **Decision engine.** Plain TypeScript rules (`rules-v4`) combine the flags and the judgment into an action and an
    amount, and write the explanation the contributor sees.
 
 ## Threads on X
@@ -39,12 +39,12 @@ person's eyes; they send the submission to review.
 | --- | --- | --- |
 | `OWNERSHIP_MISMATCH` | hard, rejects | The post belongs to a different X account, or it's a repost; or the PR/commit author isn't the GitHub account the contributor connected (checked by GitHub's numeric id, never a typed username). |
 | `OUT_OF_WINDOW` | hard, rejects | The work was published before the round started or after it ended. |
-| `DUPLICATE_URL` | hard, rejects | The same resource was already submitted in this program. |
-| `NEAR_DUPLICATE` | hard or soft | The text is similar to an earlier submission (pg_trgm similarity, or SimHash within 3 bits). At 80% or more against **someone else's** work it's hard and rejects; otherwise (60%+, or your own earlier work) it's soft. |
-| `NOT_MERGED` | hard, rejects | A pull request isn't merged and the category pays only for merged work. |
+| `DUPLICATE_URL` | hard, rejects | The same resource was already submitted in this program by someone whose ownership checked out. It never fires for the verified author, so submitting someone else's post first doesn't lock its real author out. |
+| `NEAR_DUPLICATE` | hard or soft | The text is similar to an earlier submission (pg_trgm similarity, or SimHash within 3 bits). Earlier means created earlier on the platform, not submitted earlier. At 80% or more against **someone else's** earlier work it's hard and rejects; otherwise (60%+, or your own earlier work) it's soft. If the original arrives after its copy was approved, the copy is rejected by a new signed record. |
+| `NOT_MERGED` | hard, rejects | A pull request isn't merged and the category pays only for merged work, or a commit isn't on the repository's default branch (a fork or side branch). A commit's date is when its pull request merged into the default branch, never the author-set commit date. |
 | `DELETED` | hard, rejects | The content no longer exists. Also checked again before payout. |
 | `PROMPT_INJECTION_ATTEMPT` | hard, escalates | The content tries to instruct the grader, including in hidden article text. Always goes to a person, even if the model wasn't fooled. |
-| `OWNERSHIP_UNVERIFIED` | soft | An article doesn't mention or link the contributor's X handle, so authorship can't be confirmed in code. |
+| `OWNERSHIP_UNVERIFIED` | soft | An article's author metadata (`twitter:creator`, author meta tags, byline, JSON-LD author) doesn't name the contributor's X handle. A handle in comments or the body doesn't count. |
 | `DATE_UNVERIFIED` | soft | No publication date was found, so the round window can't be confirmed. |
 | `NEW_ACCOUNT` | soft | The X account is younger than the program's minimum account age. |
 | `ENGAGEMENT_ANOMALY` | soft | Likes and reposts far beyond the account's reach (more than 5× followers and over 200), or more than half of impressions. |
@@ -60,6 +60,7 @@ The engine applies these in order and stops at the first match. The rule that de
 | `R1_REJECT_FLAG` | Any hard flag in the reject set → **reject**. |
 | `R2_INJECTION` | `PROMPT_INJECTION_ATTEMPT` → **review**, whatever the model said. |
 | `R3_NO_JUDGMENT` | The judge produced no valid output → **review**. |
+| `R2B_JUDGE_INJECTION` | The judge itself flagged an attempt to influence or instruct it → **review**, even if the code-level screen saw nothing. |
 | `R4_CATEGORY_INVALID` | The judged category doesn't exist or doesn't accept this source type → **review**. |
 | `R5A_CLEAR_SPAM` | The judge recommends rejecting with confidence ≥ 0.9 and every criterion scores ≤ 1 → **reject** (you can override). |
 | `R5_AGENT_RECOMMENDS_REVIEW` | The judge recommends rejecting or reviewing → **review**. |
