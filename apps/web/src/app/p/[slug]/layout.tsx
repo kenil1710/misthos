@@ -3,7 +3,7 @@ import { getPublicProgramCached as getPublicProgram } from "@/lib/server/public-
 import { draftPreviewFor } from "@/lib/server/preview";
 
 /**
- * Checks the program exists before this segment's loading.tsx starts streaming: a layout renders outside that
+ * Checks the program exists before the audit page's loading.tsx starts streaming: a layout renders outside that
  * boundary, so an unknown program answers with a real 404 status (the page's own check would come too late, after
  * the 200 is sent). Drafts pass for their owner, who sees a preview.
  */
