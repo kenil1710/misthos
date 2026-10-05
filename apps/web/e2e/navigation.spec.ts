@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import pg from "pg";
-import { generatePrivateKey } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { E2E } from "../playwright.config";
 import {
   contributorSession,
@@ -152,7 +152,10 @@ test("mobile: the menu closes with Back, and its links navigate with a clean his
   await expect(menu).toBeHidden();
 
   // The mobile header logo also goes to the app home (which, with one program, opens that program).
-  await expect(page.getByRole("link", { name: "Misthos app home" })).toHaveAttribute("href", "/app");
+  await expect(page.getByRole("link", { name: "Misthos app home" })).toHaveAttribute(
+    "href",
+    "/app",
+  );
   expect(errors).toEqual([]);
 });
 
@@ -180,14 +183,53 @@ test("wizard steps follow Back and Forward without losing what was typed", async
   await page.goForward();
   await page.goForward();
   await expect(page).toHaveURL(/step=3/);
-  // The in-page Back button and a crumb lead out of the wizard.
+  // The in-page Back button and "Save and exit" lead out of the wizard; the draft stays on the device.
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL(/step=2/);
-  await page
-    .getByRole("navigation", { name: "Breadcrumb" })
-    .getByRole("link", { name: "All programs" })
-    .click();
+  await expect(page.getByRole("link", { name: "Back to site" })).toHaveCount(0); // full screen, no rail
+  await page.getByRole("link", { name: "Save and exit" }).click();
   await expect(page).toHaveURL(/\/app$/);
+  await page.goto("/app/programs/new");
+  await expect(page.getByLabel("Program name")).toHaveValue("Back Button Builders");
+  expect(errors).toEqual([]);
+});
+
+test("guided setup: ready screen → setup → finish later, with the way back", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext();
+  const key = generatePrivateKey();
+  await injectWallet(ctx, key);
+  const { page, errors } = await newPage(ctx);
+  await ownerSignIn(page);
+  const ownerId = await userIdForWallet(db, privateKeyToAccount(key).address);
+  const programId = await seedProgram(db, {
+    ownerId,
+    slug: `ready-${Date.now()}`,
+    status: "draft",
+  });
+  const base = `/app/programs/${programId}`;
+  await page.goto(`${base}/ready`);
+  await expect(page.getByRole("heading", { name: "Your program is ready" })).toBeVisible();
+  await expect(page).toHaveTitle(/is ready · Misthos$/);
+  await page.getByRole("link", { name: "Set up the vault" }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}/setup$`));
+  await expect(page.getByRole("heading", { name: "Deploy your vault", level: 1 })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Setup steps" })).toContainText(
+    "Fund the vault",
+  );
+  // Browser Back returns to the ready screen; "Finish later" goes to the overview.
+  await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`${base}/ready$`));
+  await page.goForward();
+  await page.getByRole("link", { name: "Finish later" }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}$`));
+  // The overview's setup track opens the same guided flow.
+  await page.getByRole("link", { name: "Deploy the vault" }).click();
+  await expect(page).toHaveURL(new RegExp(`${base}/setup$`));
+  // The logo leaves the flow for the app home.
+  await page.getByRole("link", { name: "Misthos app home" }).click();
+  await expect(page).toHaveURL(/\/app(\/programs\/[0-9a-f-]{36})?$/);
   expect(errors).toEqual([]);
 });
 

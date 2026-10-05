@@ -22,6 +22,7 @@ const show = JSON.parse(
   readFileSync(path.join(root, "apps/worker/scripts/.showcase.json"), "utf8"),
 ) as {
   programId: string;
+  setupProgramId: string;
   slug: string;
   ownerUserId: string;
   owner: string;
@@ -63,6 +64,11 @@ const ALL_PAGES = [
     cookie: ownerCookie,
   },
   { name: "Treasury", path: `/app/programs/${show.programId}/treasury`, cookie: ownerCookie },
+  { name: "Wizard", path: "/app/programs/new", cookie: ownerCookie },
+  { name: "Program ready", path: `/app/programs/${show.setupProgramId}/ready`, cookie: ownerCookie },
+  { name: "Setup", path: `/app/programs/${show.setupProgramId}/setup`, cookie: ownerCookie },
+  { name: "Programs joined", path: "/c", cookie: contributorCookie },
+  { name: "Docs", path: "/docs" },
 ];
 const PAGES = ALL_PAGES.filter((p) => !ONLY || ONLY.includes(p.name));
 const CATS = ["performance", "accessibility", "best-practices", "seo"] as const;

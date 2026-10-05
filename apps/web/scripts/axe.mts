@@ -53,6 +53,10 @@ const PAGES: [string, string, "owner" | "contributor" | null, string?][] = [
   ["Wizard", "/app/programs/new", "owner"],
   ["Contributor home", "/c", "contributor"],
   ["Contributor program", `/c/${show.slug}`, "contributor"],
+  ["Program ready", `/app/programs/${show.setupProgramId}/ready`, "owner"],
+  ["Setup (deploy)", `/app/programs/${show.setupProgramId}/setup`, "owner"],
+  ["Setup (live)", `/app/programs/${show.programId}/setup`, "owner"],
+  ["Empty submissions", `/app/programs/${show.setupProgramId}/submissions`, "owner"],
 ];
 
 const browser = await chromium.launch();

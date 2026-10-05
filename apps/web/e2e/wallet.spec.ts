@@ -36,7 +36,9 @@ test("owner: account and network switches show quietly in the wallet chip, the f
   expect(wallet.signRequests).toHaveLength(1); // the sign-in itself
   const ownerId = await userIdForWallet(db, wallet.address);
   const programId = await seedProgram(db, { ownerId, slug: `w-owner-${Date.now()}` });
-  await page.goto(`/app/programs/${programId}`);
+  // The guided setup's first step deploys the vault; its header carries the wallet chip.
+  // Opened directly: two wallet islands (header chip + deploy) resolve together, and the wallet still reconnects.
+  await page.goto(`/app/programs/${programId}/setup`);
   const chip = (name: string) => page.getByRole("button", { name, exact: true });
   await expect(chip("Wallet ready")).toBeVisible();
 

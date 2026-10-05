@@ -95,6 +95,20 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await expect(op.getByText(/rounds above 50\.00 USDC/)).toBeVisible();
     await op.getByRole("button", { name: "Create program" }).click();
 
+    // "Your program is ready", then on to the overview.
+    await expect(op).toHaveURL(/\/app\/programs\/[0-9a-f-]{36}\/ready$/);
+    await expect(op.getByRole("heading", { name: "Your program is ready" })).toBeVisible();
+    await expect(op.getByRole("link", { name: "Set up the vault" })).toHaveAttribute(
+      "href",
+      /\/setup$/,
+    );
+    // The guided setup's first step is the vault deploy; Back returns to the ready screen.
+    await op.getByRole("link", { name: "Set up the vault" }).click();
+    await expect(op).toHaveURL(/\/app\/programs\/[0-9a-f-]{36}\/setup$/);
+    await expect(op.getByRole("button", { name: "Deploy vault" })).toBeVisible();
+    await op.goBack();
+    await expect(op.getByRole("heading", { name: "Your program is ready" })).toBeVisible();
+    await op.getByRole("main").getByRole("link", { name: "Go to overview" }).click();
     await expect(op).toHaveURL(/\/app\/programs\/[0-9a-f-]{36}$/);
     await expect(op.getByRole("heading", { name: "E2E Builders" })).toBeVisible();
     await expect(op.getByText("draft", { exact: true })).toBeVisible();

@@ -44,6 +44,12 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
     await expect(page.getByRole("button", { name: "Back" })).toHaveCount(0);
     await page.getByLabel("Program name").fill("Kency Arc Creators");
     await expect(page.locator("#slug")).toHaveValue("kency-arc-creators"); // filled from the name
+    // Editable, and once edited the name no longer overwrites it.
+    await page.locator("#slug").fill("kency-creators");
+    await page.getByLabel("Program name").fill("Kency Arc Creators!");
+    await expect(page.locator("#slug")).toHaveValue("kency-creators");
+    await page.locator("#slug").fill("kency-arc-creators");
+    await page.getByLabel("Program name").fill("Kency Arc Creators");
     // Leave Description empty once: its error shows in plain words…
     await page.getByLabel("Description").click();
     await page.getByLabel("Program name").click();
@@ -83,6 +89,8 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
     await page.getByRole("radio", { name: "Now" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Create program" }).click();
+    await expect(page).toHaveURL(/\/app\/programs\/[0-9a-f-]{36}\/ready$/);
+    await page.getByRole("main").getByRole("link", { name: "Go to overview" }).click();
     await expect(page).toHaveURL(/\/app\/programs\/[0-9a-f-]{36}$/);
     const programId = /programs\/([0-9a-f-]{36})/.exec(page.url())![1]!;
 
