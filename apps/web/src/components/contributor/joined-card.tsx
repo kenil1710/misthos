@@ -5,7 +5,7 @@ import type { JoinedProgram } from "@/lib/server/joined";
 import { isScheduled } from "@/lib/rounds";
 import { roundPhrase } from "@/lib/status-line";
 
-/** A program someone joined: the round and its countdown, what's waiting or approved, and what they've earned. */
+/** A program someone joined: the round and its countdown, their submissions by outcome, and what they've earned. */
 export function JoinedCard({ j }: { j: JoinedProgram }) {
   const href = `/c/${j.program.slug}`;
   const open = !!j.round && j.round.status === "open" && !isScheduled(j.round);
@@ -30,16 +30,34 @@ export function JoinedCard({ j }: { j: JoinedProgram }) {
           <span className="text-muted-foreground ml-1.5 font-sans text-xs">USDC</span>
         </p>
       </div>
-      <dl className="mt-5 grid grid-cols-2 gap-3 border-t pt-4 text-sm">
+      <dl className="mt-5 grid grid-cols-2 gap-x-3 gap-y-4 border-t pt-4 text-sm">
         <div>
-          <dt className="text-muted-foreground text-xs">Waiting</dt>
-          <dd className="mono-num mt-0.5">{j.waiting}</dd>
+          <dt className="text-muted-foreground text-xs">Submitted</dt>
+          <dd className="mono-num mt-0.5">{j.submitted}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground text-xs">Approved</dt>
+          <dt className="text-muted-foreground text-xs">In review</dt>
+          <dd className="mono-num mt-0.5">{j.inReview}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground text-xs">Approved, not paid yet</dt>
           <dd className="mono-num mt-0.5">
-            {j.approved ? formatUsdc(j.approvedAmount, { withSymbol: false }) : "0"}
+            {j.approved ? (
+              <>
+                {j.approved}
+                <span className="text-muted-foreground font-sans text-xs">
+                  {" "}
+                  · {formatUsdc(j.approvedAmount)}
+                </span>
+              </>
+            ) : (
+              "0"
+            )}
           </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground text-xs">Paid</dt>
+          <dd className="mono-num mt-0.5">{j.paid}</dd>
         </div>
       </dl>
       <div className="relative mt-5 flex justify-end">

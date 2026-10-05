@@ -91,18 +91,21 @@ export default async function MetricsPage() {
           </dl>
         </Section>
         <Section title="Caught by flag">
-          <dl className="bg-card grid grid-cols-[1fr_auto] gap-y-2 rounded-lg border p-4 text-sm">
-            {Object.keys(m.fraudByFlag).length === 0 ? (
-              <dd className="text-muted-foreground col-span-2">Nothing caught yet.</dd>
-            ) : (
-              Object.entries(m.fraudByFlag).map(([k, v]) => (
+          {Object.keys(m.fraudByFlag).length === 0 ? (
+            // Not a <dl>: a description list needs at least one term.
+            <p className="bg-card text-muted-foreground rounded-lg border p-4 text-sm">
+              Nothing caught yet.
+            </p>
+          ) : (
+            <dl className="bg-card grid grid-cols-[1fr_auto] gap-y-2 rounded-lg border p-4 text-sm">
+              {Object.entries(m.fraudByFlag).map(([k, v]) => (
                 <div key={k} className="contents">
                   <dt className="text-muted-foreground">{FLAG_LABELS[k] ?? k}</dt>
                   <dd className="mono-num">{v}</dd>
                 </div>
-              ))
-            )}
-          </dl>
+              ))}
+            </dl>
+          )}
         </Section>
         <Section title="API spend">
           <dl className="bg-card grid grid-cols-[1fr_auto] gap-y-2 rounded-lg border p-4 text-sm">

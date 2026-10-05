@@ -3,6 +3,7 @@ import { auditEvents, contributors, programs, submissions, type DbLike } from "@
 import { classifySubmissionUrl, QUEUES, SOURCE_LABELS } from "@misthos/shared";
 import { and, eq, gte, ne, sql } from "drizzle-orm";
 import { ensureCurrentRound } from "./rounds";
+import { utc } from "@/lib/time";
 
 export const DAILY_SUBMISSION_LIMIT = 20;
 
@@ -63,7 +64,7 @@ export async function createSubmission(
   if (!round)
     return {
       ok: false,
-      error: `Round 1 opens on ${program.firstRoundStartsAt.toUTCString().slice(0, 16)}.`,
+      error: `Round 1 opens on ${utc(program.firstRoundStartsAt)}.`,
     };
 
   const [{ n }] = (await db

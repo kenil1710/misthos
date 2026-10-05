@@ -31,7 +31,7 @@ export default async function ContributorHomeIndex() {
       />
       <main
         id="main"
-        className="mx-auto grid w-full max-w-6xl flex-1 gap-10 px-4 py-8 sm:px-6 sm:py-14"
+        className="mx-auto grid w-full max-w-6xl flex-1 content-start gap-10 px-4 py-8 sm:px-6 sm:py-12"
       >
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
@@ -57,9 +57,9 @@ export default async function ContributorHomeIndex() {
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground text-xs">Waiting for review</dt>
+                <dt className="text-muted-foreground text-xs">In review</dt>
                 <dd className="display text-[2rem] leading-none tabular-nums">
-                  {joined.reduce((s, j) => s + j.waiting, 0)}
+                  {joined.reduce((s, j) => s + j.inReview, 0)}
                 </dd>
               </div>
             </dl>
@@ -84,7 +84,7 @@ export default async function ContributorHomeIndex() {
         ) : (
           <section
             aria-label="Programs you joined"
-            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-3"
           >
             {joined.map((j) => (
               <JoinedCard key={j.contributorId} j={j} />

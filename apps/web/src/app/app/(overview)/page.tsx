@@ -13,7 +13,10 @@ import { exampleAuditSlug } from "@/lib/server/landing";
 import { programSummaries } from "@/lib/server/program-summary";
 import { getContributorSession, getOwnerSession } from "@/lib/server/session";
 
-export const metadata = { title: "Your programs" };
+/** Signed out, this page is the sign-in screen; the tab should say so. */
+export async function generateMetadata() {
+  return { title: (await getOwnerSession()) ? "Your programs" : "Sign in" };
+}
 
 export default async function OverviewPage() {
   const session = await getOwnerSession();
@@ -79,7 +82,7 @@ export default async function OverviewPage() {
         </section>
         {joined.length ? (
           <Section title="Programs you joined">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {joined.map((j) => (
                 <JoinedCard key={j.contributorId} j={j} />
               ))}

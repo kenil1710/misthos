@@ -54,8 +54,25 @@ export const FLAG_COPY: Record<string, { label: string; fix: string }> = {
   },
 };
 
-export const flagLabel = (code: string) =>
-  FLAG_COPY[code]?.label ?? code.replace(/_/g, " ").toLowerCase();
+/** Soft flags that read differently from their hard version (e.g. similarity to one's own earlier work). */
+const SOFT_LABELS: Record<string, string> = {
+  NEAR_DUPLICATE: "Similar to earlier work",
+};
+
+export const flagLabel = (code: string, severity?: string) =>
+  (severity === "soft" ? SOFT_LABELS[code] : undefined) ??
+  FLAG_COPY[code]?.label ??
+  code.replace(/_/g, " ").toLowerCase();
+
+/**
+ * What to do differently next time, for the flags that decided the outcome: the hard ones when there are any
+ * (a soft note alongside a rejection didn't cause it), otherwise the soft ones that sent it to review.
+ */
+export function fixesFor(flags: { code: string; severity: string }[]): string[] {
+  const hard = flags.filter((f) => f.severity === "hard");
+  const decisive = hard.length ? hard : flags;
+  return [...new Set(decisive.map((f) => FLAG_COPY[f.code]?.fix).filter((x): x is string => !!x))];
+}
 
 /** Evidence keys as words; anything unlisted is shown as-is. */
 export const EVIDENCE_LABELS: Record<string, string> = {

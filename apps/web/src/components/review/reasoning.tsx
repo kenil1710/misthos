@@ -10,17 +10,10 @@ import { Stepper, type Step } from "@/components/ui-kit/stepper";
 import { EVIDENCE_LABELS } from "@/lib/flags";
 import type { CheckLine, JourneyStep, ScoreLine } from "@/lib/journey";
 import { cn } from "@/lib/utils";
+import { utc } from "@/lib/time";
 
 const ARC_TX = (h: string) => `${getChainConfig().chain.blockExplorers!.default.url}/tx/${h}`;
-const time = (iso?: string) =>
-  iso
-    ? new Intl.DateTimeFormat("en-GB", {
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(iso))
-    : undefined;
+const time = (iso?: string) => (iso ? utc(new Date(iso)) : undefined);
 
 /**
  * A submission's journey on the shared Stepper. Failed steps say what failed; for contributors they also say how

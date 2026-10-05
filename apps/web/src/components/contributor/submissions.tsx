@@ -11,7 +11,7 @@ import { StatusBadge, type Status } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FLAG_COPY } from "@/lib/flags";
+import { fixesFor } from "@/lib/flags";
 import { submissionJourney, type JourneyStep } from "@/lib/journey";
 import type { SubmissionItem } from "@/lib/server/contributor-submissions";
 import { cn } from "@/lib/utils";
@@ -250,7 +250,7 @@ export function Submissions({
             <li>
               Approved work is paid in USDC to your wallet
               {roundNumber && roundEndsAt
-                ? ` when round ${roundNumber} closes on ${roundEndsAt.slice(0, 10)}`
+                ? ` when Round ${roundNumber} closes on ${roundEndsAt.slice(0, 10)}`
                 : " when the round closes"}
               .
             </li>
@@ -307,9 +307,7 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
   const [open, setOpen] = useState(false);
   const paidish = i.status === "approved" || i.status === "partial" || i.status === "paid";
   const fixes =
-    i.status === "rejected" || i.status === "escalated"
-      ? [...new Set((i.decision?.flags ?? []).map((f) => FLAG_COPY[f.code]?.fix).filter(Boolean))]
-      : [];
+    i.status === "rejected" || i.status === "escalated" ? fixesFor(i.decision?.flags ?? []) : [];
   const steps = submissionJourney({
     status: i.status,
     createdAt: i.createdAt,

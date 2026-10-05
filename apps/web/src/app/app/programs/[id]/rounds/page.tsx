@@ -88,7 +88,7 @@ export default async function RoundsPage({ params }: PageProps<"/app/programs/[i
             </p>
           </div>
           <Button asChild variant="outline" className="w-fit">
-            <Link href={`${base}/rounds/${open.id}`}>Open round {open.number}</Link>
+            <Link href={`${base}/rounds/${open.id}`}>View round {open.number}</Link>
           </Button>
         </section>
       ) : null}
@@ -98,7 +98,8 @@ export default async function RoundsPage({ params }: PageProps<"/app/programs/[i
         </EmptyState>
       ) : (
         <ul className="bg-card shadow-soft divide-border/70 divide-y overflow-hidden rounded-[1.25rem]">
-          {[...rounds].reverse().map((r) => (
+          {/* Newest first, like the public audit page. */}
+          {rounds.map((r) => (
             <li
               key={r.id}
               className="hover:bg-muted/40 relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-1 px-5 py-4 transition-colors sm:grid-cols-[7rem_minmax(0,1fr)_auto_auto]"

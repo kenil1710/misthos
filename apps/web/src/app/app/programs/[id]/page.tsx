@@ -26,7 +26,7 @@ import {
   submissionCounts,
 } from "@/lib/server/queries";
 import { shortFromNow } from "@/lib/when";
-import { Suspense } from "react";
+import { Fragment, Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { programSummary } from "@/lib/server/program-summary";
 import { programStatusLine } from "@/lib/status-line";
@@ -39,7 +39,7 @@ import { shareOnXUrl } from "@/lib/share";
 import { programNameForTitle } from "@/lib/server/titles";
 
 export async function generateMetadata({ params }: PageProps<"/app/programs/[id]">) {
-  return { title: (await programNameForTitle((await params).id)) ?? "Program" };
+  return { title: (await programNameForTitle((await params).id)) ?? "No access" };
 }
 
 /**
@@ -214,7 +214,7 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
       done: paidOnce,
       description:
         current?.status === "open" && !summary.round?.scheduled
-          ? `Approved work is paid when round ${current.number} closes, in ${shortFromNow(current.endsAt)}. You can also close it early from Rounds.`
+          ? `Approved work is paid when Round ${current.number} closes, in ${shortFromNow(current.endsAt)}. You can also close it early from Rounds.`
           : "Approved work is paid when the round closes, inside your vault limits.",
       action: <StepLink href={`${base}/rounds`}>Open rounds</StepLink>,
     },
@@ -227,7 +227,7 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
   const line = programStatusLine({
     status: program.status,
     round: summary.round,
-    submissions: total,
+    submissions: summary.roundSubmissions,
     readyToPay: summary.readyToPay,
   });
 
@@ -248,7 +248,15 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
             {line[0]}
             {line.length > 1 ? (
               <span className="text-soft block font-sans text-base leading-relaxed sm:text-lg">
-                {line.slice(1).join(" · ")}
+                {/* Each phrase stays whole and keeps its separator, so a wrapped line never starts with "·". */}
+                {line.slice(1).map((part, i, all) => (
+                  <Fragment key={part}>
+                    <span className="whitespace-nowrap">
+                      {part}
+                      {i < all.length - 1 ? " ·" : ""}
+                    </span>{" "}
+                  </Fragment>
+                ))}
               </span>
             ) : null}
           </p>
@@ -303,7 +311,7 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
             value={formatUsdc(summary.readyToPay, { withSymbol: false })}
             hint={
               current?.status === "open"
-                ? `USDC from ${approvedUnpaid} approved item${approvedUnpaid === 1 ? "" : "s"}, paid when round ${current.number} closes`
+                ? `USDC from ${approvedUnpaid} approved item${approvedUnpaid === 1 ? "" : "s"}, paid when Round ${current.number} closes`
                 : `USDC from ${approvedUnpaid} approved item${approvedUnpaid === 1 ? "" : "s"}`
             }
           />
@@ -364,7 +372,9 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
                   <Term key="c" k="cooldown">
                     New wallet cooldown
                   </Term>,
-                  `${limits.payeeCooldownSeconds / 3600} h`,
+                  limits.payeeCooldownSeconds
+                    ? `${limits.payeeCooldownSeconds / 3600} hours`
+                    : "None",
                 ],
               ] as const
             ).map(([label, value], i) => (

@@ -121,7 +121,7 @@ export function submissionJourney(j: JourneyInput): JourneyStep[] {
                   : "Checks passed",
                 state: "done",
                 detail: softChecks.length
-                  ? softChecks.map((f) => flagLabel(f.code)).join(" · ")
+                  ? softChecks.map((f) => flagLabel(f.code, f.severity)).join(" · ")
                   : undefined,
               },
   );
@@ -241,7 +241,8 @@ export function reasoningChecks(
 ): CheckLine[] {
   const line = (f: FlagLike): CheckLine => ({
     key: f.code,
-    label: f.code === "PROMPT_INJECTION_ATTEMPT" ? "Injection detected" : flagLabel(f.code),
+    label:
+      f.code === "PROMPT_INJECTION_ATTEMPT" ? "Injection detected" : flagLabel(f.code, f.severity),
     state: f.severity === "hard" ? "fail" : "warn",
     message: f.message,
     evidence: f.evidence,

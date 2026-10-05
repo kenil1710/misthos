@@ -227,7 +227,7 @@ export function Section({
   className?: string;
 }) {
   return (
-    <section className={cn("grid gap-3", className)}>
+    <section className={cn("grid content-start gap-3", className)}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="display text-[1.75rem] leading-tight">{title}</h2>

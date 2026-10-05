@@ -10,6 +10,8 @@ import { getProgramForMember } from "@/lib/server/queries";
 import { getOwnerSession } from "@/lib/server/session";
 import { explorerAddress, explorerTx } from "@/lib/server/vault";
 import { programNameForTitle } from "@/lib/server/titles";
+import { AUDIT_LABELS } from "@/lib/audit-labels";
+import { utc } from "@/lib/time";
 
 export async function generateMetadata({
   params,
@@ -24,6 +26,7 @@ const EVENT_LABEL: Record<string, string> = {
   "contributor.wallet_changed": "Changed payout wallet",
   "payee.registered": "Registered as payee in the vault",
   "payee.changed": "Payee wallet updated in the vault (cooldown restarted)",
+  "contributor.github_connected": "Connected GitHub",
 };
 
 export default async function ContributorPage({
@@ -134,7 +137,7 @@ export default async function ContributorPage({
             </ul>
           )}
         </Section>
-        <Section title="Wallet history">
+        <Section title="Account history">
           {d.walletEvents.length === 0 ? (
             <EmptyState>No wallet events.</EmptyState>
           ) : (
@@ -144,9 +147,9 @@ export default async function ContributorPage({
                 return (
                   <li key={e.id} className="grid gap-1 p-3">
                     <div className="flex justify-between gap-3">
-                      <span>{EVENT_LABEL[e.action] ?? e.action}</span>
+                      <span>{EVENT_LABEL[e.action] ?? AUDIT_LABELS[e.action] ?? e.action}</span>
                       <span className="text-muted-foreground mono-num text-xs">
-                        {e.createdAt.toISOString().slice(0, 16).replace("T", " ")}
+                        {utc(e.createdAt)}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-3">

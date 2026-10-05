@@ -1,4 +1,5 @@
 import "server-only";
+import { isLatestDecision } from "./latest-decision";
 import {
   contributors,
   decisions,
@@ -66,6 +67,7 @@ export async function landingData() {
             eq(submissions.programId, featured.id),
             eq(decisions.decidedBy, "agent"),
             inArray(decisions.action, ["approve", "reject"]),
+            isLatestDecision,
           ),
         )
         .orderBy(desc(decisions.createdAt))

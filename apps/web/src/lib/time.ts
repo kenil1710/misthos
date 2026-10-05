@@ -13,13 +13,3 @@ export function relativeTime(d: Date, now: number = Date.now()): string {
 
 /** "2026-10-09" (UTC), for dates where the time of day doesn't matter. */
 export const utcDay = (d: Date) => d.toISOString().slice(0, 10);
-
-/** "3 Oct, 12:00" in UTC: compact, for steppers and cards. */
-export const shortUtc = (d: Date) =>
-  new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  }).format(d);

@@ -71,7 +71,7 @@ export function RoundSchedule(p: {
         ) : (
           <>
             <p className="font-medium">
-              Round {p.round.number} is open · ends {fromNow(ends, now)}
+              Round {p.round.number} is open · closes {fromNow(ends, now)}
             </p>
             <p className="text-soft mt-1">Closes {localAndUtc(ends)}</p>
           </>

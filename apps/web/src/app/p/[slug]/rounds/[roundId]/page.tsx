@@ -21,8 +21,20 @@ import {
   publicRoundsCached as publicRounds,
 } from "@/lib/server/public-cached";
 import { explorerAddress, explorerTx } from "@/lib/server/vault";
+import { utc } from "@/lib/time";
 
-export const metadata: Metadata = { title: "Round receipt" };
+export async function generateMetadata({
+  params,
+}: PageProps<"/p/[slug]/rounds/[roundId]">): Promise<Metadata> {
+  const { slug, roundId } = await params;
+  const program = z.uuid().safeParse(roundId).success ? await getPublicProgram(slug) : null;
+  const round = program
+    ? (await publicRounds(program.id)).find((r) => r.id === roundId)
+    : undefined;
+  // Resolved before streaming, so a wrong link is a real 404.
+  if (!program || !round) notFound();
+  return { title: `Round ${round.number} receipt · ${program.name}` };
+}
 
 export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/rounds/[roundId]">) {
   const { slug, roundId } = await params;
@@ -53,8 +65,7 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
           <RoundStatus status={round.status} />
         </div>
         <p className="text-muted-foreground mono-num text-sm">
-          {round.startsAt.toISOString().slice(0, 16).replace("T", " ")} to{" "}
-          {round.endsAt.toISOString().slice(0, 16).replace("T", " ")} UTC
+          {utc(round.startsAt)} to {utc(round.endsAt)}
         </p>
       </header>
 
@@ -129,7 +140,7 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
                 <TableRow>
                   <TableHead>Contributor</TableHead>
                   <TableHead>Wallet</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Amount (USDC)</TableHead>
                   <TableHead>Decision records</TableHead>
                 </TableRow>
               </TableHeader>

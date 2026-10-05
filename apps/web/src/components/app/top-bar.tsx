@@ -20,7 +20,7 @@ import type { ShellProgram } from "./app-sidebar";
 type Need = ShellProgram["needs"][number] & { programName?: string };
 
 function pillTone(pill: string) {
-  if (/ends in|closing/.test(pill)) return "bg-success";
+  if (/closes in|closing/.test(pill)) return "bg-success";
   if (/paying/.test(pill)) return "bg-warning";
   if (/failed/.test(pill)) return "bg-danger";
   return "bg-muted-foreground/60";

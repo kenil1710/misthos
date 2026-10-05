@@ -85,7 +85,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
       <SiteHeader right={session ? <SignOutButton kind="contributor" /> : null} />
       <main
         id="main"
-        className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-[minmax(0,1fr)] gap-12 px-4 py-8 sm:px-6 sm:py-14 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-16"
+        className="mx-auto grid w-full max-w-6xl flex-1 content-start grid-cols-[minmax(0,1fr)] gap-12 px-4 py-8 sm:px-6 sm:py-14 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-16"
       >
         <article className="min-w-0">
           <p className="text-brand text-sm font-medium">Contributor program</p>
@@ -103,7 +103,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
                   className={`size-2 rounded-full ${roundOpen ? "bg-brand" : "bg-muted-foreground/50"}`}
                 />
                 {roundOpen
-                  ? `Round ${round.number} is open, ends ${fromNow(round.endsAt)}`
+                  ? `Round ${round.number} is open, closes ${fromNow(round.endsAt)}`
                   : `Round ${round.number}: ${utcDay(round.startsAt)} to ${utcDay(round.endsAt)}`}
               </li>
             ) : null}

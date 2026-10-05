@@ -13,8 +13,10 @@ import {
  * new decision still shows within seconds. Verifying a decision always reads fresh from the API.
  */
 const opts = { revalidate: 15, tags: ["public"] };
-export const getPublicProgramCached = cached(getPublicProgram, ["public-program"], opts);
-export const publicStatsCached = cached((id: string) => publicStats(id), ["public-stats"], opts);
-export const publicRoundsCached = cached(publicRounds, ["public-rounds"], opts);
-export const publicPayoutsCached = cached(publicPayouts, ["public-payouts"], opts);
-export const publicDecisionsCached = cached(publicDecisions, ["public-decisions"], opts);
+/** Bump when a cached query's logic changes, so a deploy never serves the old shape from the shared cache. */
+const V = "v2";
+export const getPublicProgramCached = cached(getPublicProgram, ["public-program", V], opts);
+export const publicStatsCached = cached((id: string) => publicStats(id), ["public-stats", V], opts);
+export const publicRoundsCached = cached(publicRounds, ["public-rounds", V], opts);
+export const publicPayoutsCached = cached(publicPayouts, ["public-payouts", V], opts);
+export const publicDecisionsCached = cached(publicDecisions, ["public-decisions", V], opts);

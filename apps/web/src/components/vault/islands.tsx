@@ -6,7 +6,10 @@ import { walletIsland } from "@/components/web3/island";
  * Owner wallet components as islands (see walletIsland): pages import these, so the wallet stack loads after the
  * page is visible. Placeholders match each component's resting size.
  */
-const box = (h: string, w = "w-full") => <div className={`${h} ${w}`} aria-hidden="true" />;
+const box = (h: string, w = "w-full") => (
+  // A quiet skeleton, so the space reads as "loading" rather than an empty card.
+  <div className={`${h} ${w} bg-muted/50 animate-pulse rounded-xl`} aria-hidden="true" />
+);
 
 export const OwnerWallet = walletIsland(
   () => import("./owner-wallet").then((m) => m.OwnerWallet),

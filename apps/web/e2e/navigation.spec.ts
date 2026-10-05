@@ -89,7 +89,7 @@ test("logos, back links, the active nav item and tab titles", async ({ browser }
   // Nested pages have a visible way back.
   await page.goto(`${base}/rounds`);
   await page.getByRole("link", { name: "Round 1" }).first().click();
-  await expect(page).toHaveTitle("Round · Nav Program · Misthos");
+  await expect(page).toHaveTitle("Round 1 · Nav Program · Misthos");
   const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
   await crumbs.getByRole("link", { name: "Rounds" }).click();
   await expect(page).toHaveURL(new RegExp(`${base}/rounds$`));

@@ -191,7 +191,7 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
                   <TableRow>
                     <TableHead>Date (UTC)</TableHead>
                     <TableHead>Transaction</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Amount (USDC)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -230,7 +230,7 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
                   <TableRow>
                     <TableHead>Contributor</TableHead>
                     <TableHead>Transaction</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Amount (USDC)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

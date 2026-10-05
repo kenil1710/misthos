@@ -23,6 +23,23 @@ Railway, Neon). Repository public. No mainnet without the owner's explicit OK.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
 
+## Done (UX and bug sweep before submission, 2026-10-05)
+
+`docs/UX_SWEEP.md`: 28 findings, all fixed, with before/after screenshots (`docs/screenshots/ux-sweep/`). Every page
+and state for every role at 375/1440 px in light and dark, against a production build with real data
+(`apps/web/scripts/sweep.mts`: screenshots, console, failed requests, titles, overflow, dates, axe).
+
+- **High:** public audit showed superseded decisions as current; "fraud caught" counted late work; "Programs you
+  joined" read "Approved 0" for paid work (now Submitted · In review · Approved, not paid yet · Paid).
+- **Medium:** overview counted all-time submissions under the current round; times in four formats and two
+  timezones (now `2026-10-05 09:29 UTC` everywhere); soft own-work similarity labeled "Copied"; landing rounded
+  0.366 up to 0.37; unknown audit links answered 200; long "Needs you" lists; truncated program names; stretched
+  grids (gap above `/c`'s heading, tall cards, misaligned sections).
+- **Low:** tab titles (404, sign-in, no access, round numbers), units on amount columns, "closes in" everywhere,
+  "View round", cooldown "None", skeleton placeholders, docs/board/metrics axe issues, versioned public cache keys.
+- **Tests:** web 131 (+ joined counts, fraud vs late work, current-decision-only, severity-aware flag copy),
+  e2e 21/21.
+
 ## Done (Phase 7: deployment on Arc testnet, 2026-10-05)
 
 - **Web (Vercel):** project `misthos`, root `apps/web`, Node 22, built from GitHub `main` (pushes deploy

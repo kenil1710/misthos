@@ -3,6 +3,8 @@ import { SiteHeader } from "@/components/app/site-header";
 import { BrokenLinkArt } from "@/components/brand/illustrations";
 import { Button } from "@/components/ui/button";
 
+export const metadata = { title: "Page not found", robots: { index: false } };
+
 /** Every 404: say what probably happened and offer the places people usually meant to go. */
 export default function NotFound() {
   return (

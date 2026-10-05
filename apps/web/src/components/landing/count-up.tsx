@@ -29,7 +29,8 @@ export function CountUp({ value, decimals = 0 }: { value: number; decimals?: num
   }, [value]);
   return (
     <span ref={ref} className="tabular-nums">
-      {shown.toLocaleString("en-US", {
+      {/* Truncate, never round up: amounts must read the same as everywhere else (0.366666 USDC is 0.36). */}
+      {(Math.floor(shown * 10 ** decimals + 1e-9) / 10 ** decimals).toLocaleString("en-US", {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
       })}

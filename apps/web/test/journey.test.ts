@@ -169,3 +169,27 @@ describe("scores and board", () => {
     ]);
   });
 });
+
+describe("flag copy follows severity", () => {
+  it("labels a soft own-work similarity differently from copied text", async () => {
+    const { flagLabel } = await import("@/lib/flags");
+    expect(flagLabel("NEAR_DUPLICATE", "hard")).toBe("Copied or recycled text");
+    expect(flagLabel("NEAR_DUPLICATE", "soft")).toBe("Similar to earlier work");
+    expect(flagLabel("OUT_OF_WINDOW", "hard")).toBe("Outside the round");
+  });
+
+  it("only gives tips for the flags that decided the outcome", async () => {
+    const { fixesFor } = await import("@/lib/flags");
+    // The real case: rejected for timing; the soft similarity to their own thread didn't cause it.
+    expect(
+      fixesFor([
+        { code: "OUT_OF_WINDOW", severity: "hard" },
+        { code: "NEAR_DUPLICATE", severity: "soft" },
+      ]),
+    ).toEqual([
+      "Submit work published after the current round started. Older work isn't eligible.",
+    ]);
+    // Sent to review by soft flags only: those are the tips.
+    expect(fixesFor([{ code: "NEW_ACCOUNT", severity: "soft" }])).toHaveLength(1);
+  });
+});

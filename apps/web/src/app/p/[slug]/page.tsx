@@ -35,15 +35,18 @@ const ACTION_WORD: Record<string, string> = {
   escalate: "sent to review",
 };
 import { draftPreviewFor } from "@/lib/server/preview";
+import { utc } from "@/lib/time";
 
 export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Promise<Metadata> {
-  const p = await getPublicProgram((await params).slug);
-  return p
-    ? {
-        title: `${p.name} audit`,
-        description: `Every payout ${p.name} made through Misthos, with verifiable decision records.`,
-      }
-    : {};
+  const slug = (await params).slug;
+  // Same lookup as the page (a draft is visible to its owner as a preview). Resolved before streaming starts, so
+  // an unknown program is a real 404 (status and title), not a 200.
+  const p = (await getPublicProgram(slug)) ?? (await draftPreviewFor(slug));
+  if (!p) notFound();
+  return {
+    title: p.status === "draft" ? `Preview: ${p.name} audit` : `${p.name} audit`,
+    description: `Every payout ${p.name} made through Misthos, with verifiable decision records.`,
+  };
 }
 
 export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">) {
@@ -175,7 +178,7 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
                 <TableRow>
                   <TableHead>Contributor</TableHead>
                   <TableHead>Round</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Amount (USDC)</TableHead>
                   <TableHead>Decision hash</TableHead>
                   <TableHead>Transaction</TableHead>
                   <TableHead className="text-right">Records</TableHead>
@@ -245,8 +248,8 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
                   <TableHead>Round</TableHead>
                   <TableHead>Window (UTC)</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Payouts</TableHead>
+                  <TableHead className="text-right">Total (USDC)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -267,7 +270,9 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
                     <TableCell>
                       <RoundStatus status={r.status} />
                     </TableCell>
-                    <TableCell className="mono-num text-right">{r.paidCount}</TableCell>
+                    <TableCell className="mono-num text-right">
+                      {r.status === "executed" ? r.paidCount : "—"}
+                    </TableCell>
                     <TableCell className="mono-num text-right">
                       {r.totalAmount > 0n ? formatUsdc(r.totalAmount, { withSymbol: false }) : "—"}
                     </TableCell>
@@ -285,7 +290,7 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
             Each decision the agent makes appears here with its signed record.
           </EmptyState>
         ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
+          <ul className="grid items-start gap-3 md:grid-cols-2">
             {recent.map((d) => (
               <li
                 key={d.hash}
@@ -296,7 +301,7 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
                   <span className="font-medium">@{d.handle}</span>
                   <span className="text-muted-foreground">{SOURCE_LABEL[d.sourceType]}</span>
                   <span className="text-muted-foreground mono-num ml-auto text-xs">
-                    {d.createdAt.toISOString().slice(0, 16).replace("T", " ")} UTC
+                    {utc(d.createdAt)}
                   </span>
                 </div>
                 <p className="text-sm leading-relaxed">{d.summary}</p>

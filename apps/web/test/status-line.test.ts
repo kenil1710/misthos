@@ -18,7 +18,9 @@ describe("programStatusLine", () => {
         { status: "active", round: round(), submissions: 0, readyToPay: 4_000_000n },
         now,
       ).join(" · "),
-    ).toBe("Round 1 is open · ends in 6 days · 0 submissions · 4.00 USDC ready to pay");
+    ).toBe(
+      "Round 1 is open · closes in 6 days · 0 submissions this round · 4.00 USDC ready to pay",
+    );
   });
   it("scheduled round", () => {
     expect(
@@ -38,7 +40,7 @@ describe("programStatusLine", () => {
         now,
       ).join(" · "),
     ).toBe(
-      "Joining paused · Round 1 is open · ends in 6 days · 1 submission · 0.00 USDC ready to pay",
+      "Joining paused · Round 1 is open · closes in 6 days · 1 submission this round · 0.00 USDC ready to pay",
     );
   });
   it("rounds being paid or paid", () => {
@@ -57,7 +59,9 @@ describe("roundPill and shortFromNow", () => {
   });
   it("round pill", async () => {
     const { roundPill } = await import("@/lib/status-line");
-    expect(roundPill(round({ endsAt: new Date(now + 6 * day) }), now)).toBe("Round 1 · ends in 6d");
+    expect(roundPill(round({ endsAt: new Date(now + 6 * day) }), now)).toBe(
+      "Round 1 · closes in 6d",
+    );
     expect(
       roundPill(
         round({ startsAt: new Date(now + 3 * day), endsAt: new Date(now + 10 * day) }),

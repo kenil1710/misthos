@@ -10,6 +10,7 @@ import { flagLabel } from "@/lib/flags";
 import { BOARD_STAGES, boardStage } from "@/lib/journey";
 import { cn } from "@/lib/utils";
 import type { Optimistic } from "./review-drawer";
+import { utc } from "@/lib/time";
 
 // The drawer (and its evidence views) only loads when a row is opened.
 const ReviewDrawer = dynamic(() => import("./review-drawer").then((m) => m.ReviewDrawer), {
@@ -28,13 +29,7 @@ export interface ReviewRow {
   flags: { code: string; severity: string }[];
 }
 
-const when = (iso: string) =>
-  new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(iso));
+const when = (iso: string) => utc(new Date(iso));
 
 function Amount({ r, size = "md" }: { r: ReviewRow; size?: "md" | "sm" }) {
   if (!r.amount || r.amount === "0")
@@ -105,12 +100,13 @@ export function ReviewTable({
                   aria-label={`${stage.label}: ${items.length}`}
                   className="bg-muted/50 rounded-[1.25rem] p-2.5"
                 >
-                  <h3 className="flex items-center justify-between px-2 pt-1 pb-3 text-sm font-medium">
+                  {/* h2: the board's columns sit directly under the page's h1. */}
+                  <h2 className="flex items-center justify-between px-2 pt-1 pb-3 text-sm font-medium">
                     {stage.label}
                     <span className="bg-card text-muted-foreground rounded-full px-2 py-0.5 text-xs tabular-nums">
                       {items.length}
                     </span>
-                  </h3>
+                  </h2>
                   <ul className="grid gap-2.5">
                     {items.map((r) => (
                       <li key={`${r.id}-${r.status}`}>
@@ -175,7 +171,7 @@ export function ReviewTable({
                               : "bg-warning-subtle text-warning",
                           )}
                         >
-                          {flagLabel(f.code)}
+                          {flagLabel(f.code, f.severity)}
                         </span>
                       ))}
                     </div>

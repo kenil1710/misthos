@@ -1,4 +1,5 @@
 import "server-only";
+import { FRAUD_CODES } from "./public";
 import type { DbLike } from "@misthos/db";
 import {
   apiUsage,
@@ -73,6 +74,7 @@ export async function computeMetrics(db: DbLike = getDb()) {
         inArray(submissions.programId, inReal),
         eq(decisions.decidedBy, "agent"),
         sql`f->>'severity' = 'hard'`,
+        sql`f->>'code' = any(${sql.raw(`array[${FRAUD_CODES.map((c) => `'${c}'`).join(",")}]`)})`,
       ),
     )
     .groupBy(sql`f->>'code'`);

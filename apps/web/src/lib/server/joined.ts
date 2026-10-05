@@ -1,15 +1,13 @@
 import "server-only";
 import { contributors, getDb, payouts, programs, rounds, submissions } from "@misthos/db";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { joinedCounts, type JoinedCounts } from "@/lib/joined-counts";
 import { currentRound } from "@/lib/rounds";
 
-export interface JoinedProgram {
+export interface JoinedProgram extends JoinedCounts {
   contributorId: string;
   program: { id: string; name: string; slug: string; status: string };
   round: { number: number; startsAt: Date; endsAt: Date; status: string } | null;
-  waiting: number;
-  approved: number;
-  approvedAmount: bigint;
   earned: bigint;
 }
 
@@ -53,9 +51,9 @@ export async function joinedPrograms(xUserId: string): Promise<JoinedProgram[]> 
     db.select().from(rounds).where(inArray(rounds.programId, pids)).orderBy(rounds.number),
   ]);
   return rows.map(({ c, p }) => {
-    const mine = subs.filter((s) => s.contributorId === c.id);
-    const of = (...st: string[]) => mine.filter((s) => st.includes(s.status));
-    const approvedRows = of("approved", "partial");
+    const counts = joinedCounts(
+      subs.filter((s) => s.contributorId === c.id).map((s) => ({ ...s, n: Number(s.n) })),
+    );
     const r = currentRound(roundRows.filter((x) => x.programId === p.id));
     return {
       contributorId: c.id,
@@ -63,9 +61,7 @@ export async function joinedPrograms(xUserId: string): Promise<JoinedProgram[]> 
       round: r
         ? { number: r.number, startsAt: r.startsAt, endsAt: r.endsAt, status: r.status }
         : null,
-      waiting: of("pending", "processing", "escalated").reduce((a, s) => a + s.n, 0),
-      approved: approvedRows.reduce((a, s) => a + s.n, 0),
-      approvedAmount: approvedRows.reduce((a, s) => a + BigInt(s.amount), 0n),
+      ...counts,
       earned: BigInt(paid.find((x) => x.contributorId === c.id)?.total ?? "0"),
     };
   });

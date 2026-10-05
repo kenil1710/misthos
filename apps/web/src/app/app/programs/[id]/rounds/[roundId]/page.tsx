@@ -23,18 +23,19 @@ import { getProgramForMember } from "@/lib/server/queries";
 import { getRoundDetail, listRounds } from "@/lib/server/rounds-view";
 import { Notice, PageHeader } from "@/components/ui-kit";
 import { Term } from "@/components/ui-kit/term";
-import { shortUtc, utc } from "@/lib/time";
+import { utc } from "@/lib/time";
 import { isScheduled } from "@/lib/rounds";
 import { getOwnerSession } from "@/lib/server/session";
 import { explorerAddress, explorerTx, readVault } from "@/lib/server/vault";
-import { programNameForTitle } from "@/lib/server/titles";
+import { programNameForTitle, roundNumber } from "@/lib/server/titles";
 
 export async function generateMetadata({
   params,
 }: PageProps<"/app/programs/[id]/rounds/[roundId]">) {
-  const { id } = await params;
+  const { id, roundId } = await params;
   const name = await programNameForTitle(id);
-  return { title: name ? `Round · ${name}` : "Round" };
+  const n = name && z.uuid().safeParse(roundId).success ? await roundNumber(id, roundId) : null;
+  return { title: name ? `${n ? `Round ${n}` : "Round"} · ${name}` : "Round" };
 }
 
 const ROUND_STATUS_TEXT: Record<string, string> = {
@@ -159,7 +160,7 @@ export default async function RoundPage({
             key: st.key,
             label: st.label,
             status: st.state,
-            meta: st.meta ?? (st.at ? shortUtc(st.at) : undefined),
+            meta: st.meta ?? (st.at ? utc(st.at) : undefined),
             detail: st.txHash ? (
               <a
                 href={explorerTx(st.txHash)}
@@ -221,7 +222,7 @@ export default async function RoundPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Contributor</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Amount (USDC)</TableHead>
                   <TableHead>Records</TableHead>
                   <TableHead>Transaction</TableHead>
                 </TableRow>

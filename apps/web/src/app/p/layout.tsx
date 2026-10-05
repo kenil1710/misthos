@@ -14,7 +14,7 @@ export default function PublicLayout({ children }: LayoutProps<"/p">) {
       />
       <main
         id="main"
-        className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-[minmax(0,1fr)] gap-12 px-4 py-10 sm:px-6"
+        className="mx-auto grid w-full max-w-6xl flex-1 content-start grid-cols-[minmax(0,1fr)] gap-12 px-4 py-10 sm:px-6"
       >
         {children}
       </main>

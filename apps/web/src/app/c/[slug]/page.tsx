@@ -18,7 +18,7 @@ import { contributorDetail } from "@/lib/server/contributors-view";
 import { contributorSubmissionItems } from "@/lib/server/contributor-submissions";
 import { getContributorMembership, getProgramBySlug, getRounds } from "@/lib/server/queries";
 import { getContributorSession } from "@/lib/server/session";
-import { shortUtc, utc, utcDay } from "@/lib/time";
+import { utc, utcDay } from "@/lib/time";
 import { contributorTimeline } from "@/lib/contributor-timeline";
 import { CoinsArt } from "@/components/brand/illustrations";
 import { Stepper } from "@/components/ui-kit/stepper";
@@ -102,7 +102,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
       />
       <main
         id="main"
-        className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-[minmax(0,1fr)] gap-8 px-4 py-8 sm:px-6 sm:py-12"
+        className="mx-auto grid w-full max-w-6xl flex-1 content-start grid-cols-[minmax(0,1fr)] gap-8 px-4 py-8 sm:px-6 sm:py-12"
       >
         <div>
           <Link
@@ -126,7 +126,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
                   className={`size-2 rounded-full ${roundOpen ? "bg-brand" : "bg-muted-foreground/50"}`}
                 />
                 {roundOpen
-                  ? `Round ${round.number} ends ${fromNow(round.endsAt)}`
+                  ? `Round ${round.number} closes ${fromNow(round.endsAt)}`
                   : scheduled
                     ? `Round ${round.number} starts ${fromNow(round.startsAt)}`
                     : `Round ${round.number}: ${utcDay(round.startsAt)} to ${utcDay(round.endsAt)}`}
@@ -162,7 +162,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
               </dd>
               <dd className="text-muted-foreground mt-2 text-xs leading-relaxed">
                 {roundOpen && round
-                  ? `USDC approved, round ends ${fromNow(round.endsAt)}`
+                  ? `USDC approved, round closes ${fromNow(round.endsAt)}`
                   : "USDC approved"}
               </dd>
             </div>
@@ -325,7 +325,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
                   key: t.key,
                   label: t.label,
                   status: t.state,
-                  meta: t.at ? (t.state === "waiting" ? shortUtc(t.at) : utcDay(t.at)) : undefined,
+                  meta: t.at ? (t.state === "waiting" ? utc(t.at) : utcDay(t.at)) : undefined,
                   detail: t.detail,
                 }))}
               />

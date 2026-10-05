@@ -26,6 +26,8 @@ export interface ProgramSummary {
   round: (Round & { scheduled: boolean }) | null;
   contributors: number;
   submissions: number;
+  /** Submissions in the current round (what the overview's status line counts). */
+  roundSubmissions: number;
   waitingReview: number;
   approvedUnpaid: number;
   /** Approved, unpaid work, capped by the per-round limit: what the next close would pay. */
@@ -63,12 +65,13 @@ export async function programSummaries(
     db
       .select({
         programId: submissions.programId,
+        roundId: submissions.roundId,
         status: submissions.status,
         n: sql<number>`count(*)::int`,
       })
       .from(submissions)
       .where(inArray(submissions.programId, ids))
-      .groupBy(submissions.programId, submissions.status),
+      .groupBy(submissions.programId, submissions.roundId, submissions.status),
     db
       .select({
         programId: submissions.programId,
@@ -117,10 +120,14 @@ export async function programSummaries(
 
   return mine.map(({ p, role }, i) => {
     const vault = vaults[i] ?? null;
-    const by = (s: string) => counts.find((c) => c.programId === p.id && c.status === s)?.n ?? 0;
-    const total = counts.filter((c) => c.programId === p.id).reduce((a, c) => a + c.n, 0);
+    const own = counts.filter((c) => c.programId === p.id);
+    const by = (s: string) => own.filter((c) => c.status === s).reduce((a, c) => a + c.n, 0);
+    const total = own.reduce((a, c) => a + c.n, 0);
     const mineRounds = roundRows.filter((r) => r.programId === p.id);
     const cur = currentRound(mineRounds, now);
+    const roundSubmissions = cur
+      ? own.filter((c) => c.roundId === cur.id).reduce((a, c) => a + c.n, 0)
+      : 0;
     const raw = BigInt(ready.find((r) => r.programId === p.id)?.total ?? "0");
     const cap = BigInt(p.limitsJson.maxPerRound);
     const readyToPay = raw > cap ? cap : raw;
@@ -166,6 +173,7 @@ export async function programSummaries(
       round: cur ? { ...cur, scheduled: isScheduled(cur, now) } : null,
       contributors: people.find((x) => x.programId === p.id)?.n ?? 0,
       submissions: total,
+      roundSubmissions,
       waitingReview: waiting,
       approvedUnpaid: by("approved") + by("partial"),
       readyToPay,

@@ -110,7 +110,7 @@ export function contributorTimeline(t: TimelineInput): TimelineStep[] {
           state: "waiting",
           detail:
             t.awaiting > 0n && t.round?.open
-              ? `${formatUsdc(t.awaiting)} approved, paid when round ${t.round.number} closes.`
+              ? `${formatUsdc(t.awaiting)} approved, paid when Round ${t.round.number} closes.`
               : undefined,
         },
   );

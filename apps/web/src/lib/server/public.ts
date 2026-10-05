@@ -1,4 +1,5 @@
 import "server-only";
+import { isLatestDecision } from "./latest-decision";
 import type { DbLike } from "@misthos/db";
 import {
   contributors,
@@ -24,13 +25,16 @@ export async function getPublicProgram(slug: string) {
   return p ?? null;
 }
 
-const HARD_REJECT_CODES = [
+/**
+ * What "fraud caught" counts: work that wasn't theirs, was copied or resubmitted, or tried to game the grader.
+ * Late (OUT_OF_WINDOW), deleted or unmerged work is rejected too, but it isn't fraud.
+ */
+export const FRAUD_CODES = [
   "OWNERSHIP_MISMATCH",
   "DUPLICATE_URL",
   "NEAR_DUPLICATE",
-  "OUT_OF_WINDOW",
   "PROMPT_INJECTION_ATTEMPT",
-];
+] as const;
 
 export async function publicStats(programId: string, db: DbLike = getDb()) {
   const [paid] = await db
@@ -55,7 +59,7 @@ export async function publicStats(programId: string, db: DbLike = getDb()) {
       and(
         eq(submissions.programId, programId),
         eq(decisions.decidedBy, "agent"),
-        sql`exists (select 1 from jsonb_array_elements(${decisions.flagsJson}) f where f->>'severity' = 'hard' and f->>'code' = any(${sql.raw(`array[${HARD_REJECT_CODES.map((c) => `'${c}'`).join(",")}]`)}))`,
+        sql`exists (select 1 from jsonb_array_elements(${decisions.flagsJson}) f where f->>'severity' = 'hard' and f->>'code' = any(${sql.raw(`array[${FRAUD_CODES.map((c) => `'${c}'`).join(",")}]`)}))`,
       ),
     );
   const [roundsPaid] = await db
@@ -170,8 +174,8 @@ export async function publicPayouts(programId: string, roundId?: string) {
   }));
 }
 
-export async function publicDecisions(programId: string, limit = 25) {
-  return getDb()
+export async function publicDecisions(programId: string, limit = 25, db: DbLike = getDb()) {
+  return db
     .select({
       hash: decisions.decisionHash,
       action: decisions.action,
@@ -186,7 +190,7 @@ export async function publicDecisions(programId: string, limit = 25) {
     .from(decisions)
     .innerJoin(submissions, eq(submissions.id, decisions.submissionId))
     .innerJoin(contributors, eq(contributors.id, submissions.contributorId))
-    .where(eq(submissions.programId, programId))
+    .where(and(eq(submissions.programId, programId), isLatestDecision))
     .orderBy(desc(decisions.createdAt))
     .limit(limit);
 }

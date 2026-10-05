@@ -40,7 +40,7 @@ export interface ShellProgram {
   slug: string;
   status: "draft" | "active" | "paused" | "archived";
   review: number;
-  /** "Round 1 · ends in 6d", or null before publishing. */
+  /** "Round 1 · closes in 6d", or null before publishing. */
   roundPill: string | null;
   needs: { text: string; href: string; action: string; kind: string }[];
   joinUrl: string;

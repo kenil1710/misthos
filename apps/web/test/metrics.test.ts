@@ -14,7 +14,7 @@ import { Rubric } from "@misthos/shared";
 import { keccak256, toBytes } from "viem";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { computeMetrics } from "@/lib/server/metrics";
-import { publicStats } from "@/lib/server/public";
+import { publicDecisions, publicStats } from "@/lib/server/public";
 
 let ctx: Awaited<ReturnType<typeof testDb>>;
 let db: DbLike;
@@ -195,5 +195,74 @@ describe("publicStats", () => {
       fraudCaught: 2,
       roundsPaid: 1,
     });
+  });
+});
+
+describe("fraud and current decisions", () => {
+  async function addSubmission(
+    programId: string,
+    status: "rejected" | "paid",
+    flags: object[],
+    action: "approve" | "reject" | "escalate",
+    at: Date,
+  ) {
+    const [r] = await db.select().from(rounds).limit(1);
+    const [c] = await db.select().from(contributors).limit(1);
+    const [s] = await db
+      .insert(submissions)
+      .values({
+        programId,
+        roundId: r!.id,
+        contributorId: c!.id,
+        url: `u${++n}`,
+        sourceType: "x_post",
+        resourceId: `${n}`,
+        status,
+      })
+      .returning();
+    const decide = async (a: typeof action, f: object[], when: Date) =>
+      db.insert(decisions).values({
+        submissionId: s!.id,
+        flagsJson: f,
+        action: a,
+        amount: 0n,
+        summary: a,
+        decisionJson: "{}",
+        decisionHash: keccak256(toBytes(`d${++n}`)),
+        signature: "0x",
+        signerAddress: "0x",
+        ruleVersion: "rules-v3",
+        decidedBy: "agent",
+        createdAt: when,
+      });
+    await decide(action, flags, at);
+    return { id: s!.id, decide };
+  }
+
+  it("doesn't count late work as fraud (out of window, with a soft own-work similarity)", async () => {
+    await addSubmission(
+      real,
+      "rejected",
+      [
+        { code: "OUT_OF_WINDOW", severity: "hard" },
+        { code: "NEAR_DUPLICATE", severity: "soft" },
+      ],
+      "reject",
+      new Date(),
+    );
+    expect((await publicStats(real, db)).fraudCaught).toBe(2);
+    expect((await computeMetrics(db)).fraudByFlag).toEqual({
+      NEAR_DUPLICATE: 1,
+      PROMPT_INJECTION_ATTEMPT: 1,
+    });
+  });
+
+  it("shows only each submission's current decision, never a superseded one", async () => {
+    const s = await addSubmission(real, "paid", [], "escalate", new Date(Date.now() - 3_600_000));
+    await s.decide("approve", [], new Date());
+    const shown = (await publicDecisions(real, 25, db)).filter(
+      (d) => d.summary === "escalate" || d.summary === "approve",
+    );
+    expect(shown.map((d) => d.action)).toEqual(["approve"]);
   });
 });

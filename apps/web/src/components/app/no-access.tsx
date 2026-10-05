@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { ArrowRight, Lock } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -27,9 +27,10 @@ export function NoProgramAccess({ programs }: { programs: { id: string; name: st
             <li key={p.id}>
               <Link
                 href={`/app/programs/${p.id}`}
-                className="hover:bg-muted/60 block rounded-lg px-3 py-2 text-sm"
+                className="hover:bg-muted/60 flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm font-medium"
               >
                 {p.name}
+                <ArrowRight className="text-muted-foreground size-3.5" aria-hidden="true" />
               </Link>
             </li>
           ))}

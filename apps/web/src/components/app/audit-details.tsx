@@ -1,5 +1,6 @@
 import { formatUsdc, shortHex } from "@misthos/shared";
 import type { ReactNode } from "react";
+import { utc } from "@/lib/time";
 
 /** Keys whose values are 6-decimal USDC base units. */
 const USDC_KEYS = new Set([
@@ -20,6 +21,9 @@ const LABELS: Record<string, string> = {
   decisionRoot: "root",
   payoutId: "payout",
 };
+
+/** "sourceType" → "source type": stored keys read as words. */
+const label = (k: string) => LABELS[k] ?? k.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 
 const link = (href: string, text: string) => (
   <a
@@ -42,8 +46,10 @@ function value(key: string, v: unknown, explorer: string, verifyBase: string | n
     if (key === "decisionHash" && /^0x[0-9a-fA-F]{64}$/.test(v) && verifyBase)
       return link(`${verifyBase}#verify?d=${v}`, shortHex(v));
     if (/^0x[0-9a-fA-F]{64}$/.test(v)) return <span className="font-mono">{shortHex(v)}</span>;
-    if (key === "payableAfter" && /^\d{9,11}$/.test(v))
-      return `${new Date(Number(v) * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+    if (key === "payableAfter" && /^\d{9,11}$/.test(v)) return utc(new Date(Number(v) * 1000));
+    // ISO timestamps (round windows, schedules) in the app's one format.
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v) && !Number.isNaN(Date.parse(v)))
+      return utc(new Date(v));
     return v.length > 48 ? `${v.slice(0, 45)}…` : v;
   }
   if (typeof v === "number" || typeof v === "boolean") return String(v);
@@ -75,7 +81,7 @@ export function AuditDetails({
     <span className="flex flex-wrap gap-x-4 gap-y-0.5" title={JSON.stringify(data)}>
       {parts.map(([k, v]) => (
         <span key={k}>
-          <span className="text-muted-foreground">{LABELS[k] ?? k} </span>
+          <span className="text-muted-foreground">{label(k)} </span>
           {v}
         </span>
       ))}

@@ -64,7 +64,7 @@ describe("contributor timeline", () => {
       "2026-10-02T09:01:00.000Z",
     );
     expect(t.find((s) => s.key === "first-payout")!.detail).toMatch(
-      /0\.45 USDC approved, paid when round 1 closes/,
+      /0\.45 USDC approved, paid when Round 1 closes/,
     );
     expect(t.at(-1)).toMatchObject({ key: "round-close", state: "waiting" });
   });

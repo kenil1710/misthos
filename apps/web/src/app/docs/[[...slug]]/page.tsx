@@ -1,6 +1,8 @@
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/page";
+import { TOCPopover, TOCProvider } from "fumadocs-ui/layouts/docs/page/slots/toc";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { DocsToc } from "@/components/docs-toc";
 import { getMDXComponents } from "@/components/mdx";
 import { source } from "@/lib/source";
 
@@ -9,7 +11,11 @@ export default async function Page({ params }: PageProps<"/docs/[[...slug]]">) {
   if (!page) notFound();
   const MDX = page.data.body;
   return (
-    <DocsPage toc={page.data.toc} full={page.data.full}>
+    <DocsPage
+      toc={page.data.toc}
+      full={page.data.full}
+      slots={{ toc: { provider: TOCProvider, main: DocsToc, popover: TOCPopover } }}
+    >
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>
