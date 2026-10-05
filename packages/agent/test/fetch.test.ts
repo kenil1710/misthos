@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 import { parseArticle } from "../src/fetch/article";
 import { fetchGithubCommit, fetchGithubPr } from "../src/fetch/github";
 import { assertFetchableUrl, isPublicAddress } from "../src/fetch/safe-fetch";
-import { fetchXPost, xPostUrl } from "../src/fetch/x";
+import { buildSelfThread, fetchXPost, MAX_THREAD_POSTS, xPostUrl } from "../src/fetch/x";
 import { FetchError } from "../src/types";
 import { fixture, fixtureFetch, fixtureText } from "./helpers";
 
-const x = (name: string) => fixtureFetch({ "/2/tweets/": { json: fixture(`x/${name}.json`) } });
+const NO_REPLIES = { json: { meta: { result_count: 0 } } };
+const x = (name: string) =>
+  fixtureFetch({
+    "/2/tweets/search/recent": NO_REPLIES,
+    "/2/tweets/": { json: fixture(`x/${name}.json`) },
+  });
 
 describe("X fetcher", () => {
   it("requests only the documented fields for the one post", () => {
@@ -22,6 +27,13 @@ describe("X fetcher", () => {
     const r = await fetchXPost("1840000000000000001", { bearerToken: "t", fetch: f });
     expect(r.usage).toEqual([
       { provider: "x", endpoint: "GET /2/tweets/:id", units: 1, estCostUsd: 0.015 },
+      {
+        provider: "x",
+        endpoint: "GET /2/tweets/search/recent",
+        units: 0,
+        estCostUsd: 0,
+        meta: { purpose: "thread", conversationId: "1840000000000000001" },
+      },
     ]);
     if (r.outcome.status !== "ok") throw new Error("expected ok");
     const res = r.outcome.resource;
@@ -67,6 +79,160 @@ describe("X fetcher", () => {
     await expect(fetchXPost("1", { bearerToken: "t", fetch: auth })).rejects.toMatchObject({
       retryable: false,
     });
+  });
+});
+
+describe("X threads", () => {
+  // Recorded live on 2026-10-05: a real 4-post self-thread (opener + three replies by the same account).
+  const ROOT = "2107001684937543903";
+  const AUTHOR = "1489870982810861568";
+  type Body = { data: Record<string, unknown>[] | Record<string, unknown>; meta?: object };
+  const root = () =>
+    structuredClone(fixture<{ body: Body }>(`recorded/x-2-tweets-${ROOT}.json`).body);
+  const search = () =>
+    structuredClone(
+      fixture<{ body: { data: Record<string, unknown>[]; meta: Record<string, unknown> } }>(
+        `recorded/x-2-tweets-search-recent-conversation-${ROOT}.json`,
+      ).body,
+    );
+  const now = () => new Date("2026-10-05T07:00:00Z");
+  const stub = (searchJson: unknown, rootJson: unknown = root(), status = 200) =>
+    fixtureFetch({
+      "/2/tweets/search/recent": { json: searchJson, status },
+      "/2/tweets/": { json: rootJson },
+    });
+  const read = async (f: ReturnType<typeof stub>, opts: { thread?: boolean; at?: Date } = {}) => {
+    const r = await fetchXPost(ROOT, {
+      bearerToken: "t",
+      fetch: f,
+      now: () => opts.at ?? now(),
+      thread: opts.thread,
+    });
+    if (r.outcome.status !== "ok") throw new Error("expected ok");
+    return { ...r, resource: r.outcome.resource };
+  };
+  const REPLIES = ["2107001686963450333", "2107001689261875621", "2107001692223095074"];
+
+  it("reads a real self-thread in order, gives the judge every post with the count, and logs the cost", async () => {
+    const f = stub(search());
+    const { resource, usage } = await read(f);
+    expect(resource.x?.thread).toEqual({
+      postIds: [ROOT, ...REPLIES],
+      truncated: false,
+      note: null,
+    });
+    expect(resource.text).toMatch(/^\[Post 1 of 4\]\nBuilding on @arc this week/);
+    expect(resource.text).toContain("[Post 2 of 4]\n1/ USDC is the gas token on Arc.");
+    expect(resource.text).toContain("[Post 3 of 4]\n2/ Fees are paid in USDC");
+    expect(resource.text).toMatch(/\[Post 4 of 4\]\n3\/ If an AI agent moves money.*unique ID\.$/s);
+    expect(resource.author).toMatchObject({ id: AUTHOR, handle: "vekariya_kenil" });
+    expect(usage).toEqual([
+      { provider: "x", endpoint: "GET /2/tweets/:id", units: 1, estCostUsd: 0.015 },
+      {
+        provider: "x",
+        endpoint: "GET /2/tweets/search/recent",
+        units: 4,
+        estCostUsd: 0.02,
+        meta: { purpose: "thread", conversationId: ROOT },
+      },
+    ]);
+    const url = new URL(String(f.mock.calls[1]![0]));
+    expect(url.pathname).toBe("/2/tweets/search/recent");
+    expect(url.searchParams.get("query")).toBe(
+      `conversation_id:${ROOT} from:${AUTHOR} -is:retweet`,
+    );
+    expect(url.searchParams.get("max_results")).toBe(String(MAX_THREAD_POSTS));
+  });
+
+  it("treats a post nobody replied to as a single post and doesn't search", async () => {
+    const single = root();
+    (single.data as { public_metrics: { reply_count: number } }).public_metrics.reply_count = 0;
+    const f = stub(search(), single);
+    const { resource, usage } = await read(f);
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(usage).toHaveLength(1);
+    expect(resource.text).toBe(
+      "Building on @arc this week taught me a few things about stablecoin-native chains that I didn't expect. A short thread for builders 🧵",
+    );
+    expect(resource.x?.thread).toEqual({ postIds: [ROOT], truncated: false, note: null });
+  });
+
+  it("stops at the first post that isn't the author replying to themselves", async () => {
+    const s = search();
+    s.data.push(
+      // The author answering someone else's reply: not part of the thread.
+      {
+        id: "2107001700000000001",
+        author_id: AUTHOR,
+        in_reply_to_user_id: "42",
+        referenced_tweets: [{ type: "replied_to", id: "2107001699999999999" }],
+        text: "thanks!",
+      },
+      // Someone else replying to the last post (would never match from:, but must not link in either).
+      {
+        id: "2107001700000000002",
+        author_id: "42",
+        in_reply_to_user_id: AUTHOR,
+        referenced_tweets: [{ type: "replied_to", id: REPLIES[2]! }],
+        text: "4/ my words, not theirs",
+      },
+    );
+    const { resource } = await read(stub(s));
+    expect(resource.x?.thread?.postIds).toEqual([ROOT, ...REPLIES]);
+    expect(resource.text).not.toContain("thanks!");
+    expect(resource.text).not.toContain("my words");
+  });
+
+  it("ends at a deleted post and tells the judge the thread has a gap", async () => {
+    const s = search();
+    s.data = s.data.filter((p) => p.id !== REPLIES[0]); // "1/" deleted
+    const { resource } = await read(stub(s));
+    expect(resource.x?.thread).toMatchObject({ postIds: [ROOT], truncated: false });
+    expect(resource.x?.thread?.note).toMatch(/missing \(deleted or unavailable\)/);
+  });
+
+  it("caps long threads and marks them truncated", async () => {
+    const s = search();
+    s.meta.next_token = "more";
+    const { resource } = await read(stub(s));
+    expect(resource.x?.thread?.truncated).toBe(true);
+    expect(resource.x?.thread?.note).toMatch(/longer than 25 posts/);
+    const posts = (search().data as Parameters<typeof buildSelfThread>[1]).reverse();
+    const capped = buildSelfThread(posts[0]!, posts, { max: 2 });
+    expect(capped.posts.map((p) => p.id)).toEqual([ROOT, REPLIES[0]]);
+    expect(capped).toMatchObject({ truncated: true });
+  });
+
+  it("shows a quoted post as a link, never as the contributor's text", async () => {
+    const s = search();
+    const reply = s.data.find((p) => p.id === REPLIES[1])!;
+    reply.referenced_tweets = [
+      ...(reply.referenced_tweets as object[]),
+      { type: "quoted", id: "1999999999999999999" },
+    ];
+    const { resource } = await read(stub(s));
+    expect(resource.text).toContain(
+      "2/ Fees are paid in USDC, so users never need a second token. With Circle's Gas Station, an agent wallet can even send transactions with its gas sponsored, holding zero balance itself.\n[Quotes another post: https://x.com/i/web/status/1999999999999999999]",
+    );
+    expect(resource.x?.thread?.postIds).toHaveLength(4);
+  });
+
+  it("retries on rate limits, and falls back to the single post when the search fails otherwise", async () => {
+    await expect(read(stub({}, root(), 429))).rejects.toMatchObject({ retryable: true });
+    const { resource } = await read(stub({ title: "Invalid Request" }, root(), 400));
+    expect(resource.x?.thread).toMatchObject({ postIds: [ROOT] });
+    expect(resource.x?.thread?.note).toMatch(/replies couldn't be read/);
+  });
+
+  it("skips the search outside X's 7-day window and for payout re-checks", async () => {
+    const late = stub(search());
+    const old = await read(late, { at: new Date("2026-10-13T00:00:00Z") });
+    expect(late).toHaveBeenCalledTimes(1);
+    expect(old.resource.x?.thread?.note).toMatch(/last 7 days/);
+    const recheck = stub(search());
+    const r = await read(recheck, { thread: false });
+    expect(recheck).toHaveBeenCalledTimes(1);
+    expect(r.resource.x?.thread?.postIds).toEqual([ROOT]);
   });
 });
 

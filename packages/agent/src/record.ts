@@ -57,7 +57,10 @@ export interface DecisionRecord {
     amount: string;
     auto: boolean;
   };
-  decidedBy: { type: "agent" } | { type: "human"; userId: string; reason: string; supersedes: Hex };
+  /** A re-processed agent decision names the decision it replaces and why; first decisions carry neither. */
+  decidedBy:
+    | { type: "agent"; supersedes?: Hex; reason?: string }
+    | { type: "human"; userId: string; reason: string; supersedes: Hex };
   summary: string;
   decidedAt: string;
   signer: Address;

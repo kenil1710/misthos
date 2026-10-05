@@ -61,7 +61,7 @@ export const RubricCriterion = z.object({
   description: z.string().trim().min(5).max(400),
 });
 
-export const RubricCategory = z.object({
+const RubricCategoryFields = z.object({
   key: Key,
   name: z.string().trim().min(2).max(60),
   description: z.string().trim().min(5).max(600),
@@ -72,8 +72,21 @@ export const RubricCategory = z.object({
   /** Plain-language rules the agent applies, e.g. "Threads must be at least 4 posts." */
   rules: z.string().trim().max(2000).default(""),
   /** GitHub pull requests only: unmerged PRs are flagged NOT_MERGED. */
-  requireMerged: z.boolean().default(true),
+  requireMerged: z.boolean().optional(),
 });
+
+/**
+ * `requireMerged` only means something for a category that accepts pull requests: there it defaults to true, and on
+ * any other category (X posts, articles, commits) it's dropped, so stored rubrics never carry a setting that does
+ * nothing.
+ */
+export const RubricCategory = RubricCategoryFields.transform(
+  ({ requireMerged, ...c }): z.infer<typeof RubricCategoryFields> =>
+    c.sourceTypes.includes("github_pr") ? { ...c, requireMerged: requireMerged ?? true } : c,
+);
+
+/** Whether unmerged pull requests are refused in this category. Unset means yes (the safe default). */
+export const requiresMerged = (c: { requireMerged?: boolean }) => c.requireMerged !== false;
 
 export const Rubric = z
   .object({

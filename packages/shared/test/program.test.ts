@@ -3,6 +3,7 @@ import { GithubLogin } from "../src/identity";
 import {
   LimitsInput,
   ProgramBasics,
+  requiresMerged,
   Rubric,
   Slug,
   toStoredLimits,
@@ -50,8 +51,25 @@ describe("ProgramBasics", () => {
 describe("Rubric", () => {
   it("accepts a valid rubric and applies defaults", () => {
     const r = Rubric.parse({ categories: [category] });
-    expect(r.categories[0]!.requireMerged).toBe(true);
     expect(r.generalRules).toBe("");
+  });
+
+  it("keeps requireMerged only on pull-request categories (defaulting to true there)", () => {
+    const pr = { ...category, key: "prs", sourceTypes: ["github_pr", "github_commit"] };
+    const r = Rubric.parse({
+      categories: [
+        { ...category, sourceTypes: ["x_post"], requireMerged: true },
+        { ...category, key: "articles", sourceTypes: ["article"], requireMerged: false },
+        pr,
+        { ...pr, key: "prs_any", requireMerged: false },
+      ],
+    });
+    expect("requireMerged" in r.categories[0]!).toBe(false);
+    expect("requireMerged" in r.categories[1]!).toBe(false);
+    expect(r.categories[2]!.requireMerged).toBe(true);
+    expect(r.categories[3]!.requireMerged).toBe(false);
+    expect(requiresMerged({})).toBe(true);
+    expect(requiresMerged({ requireMerged: false })).toBe(false);
   });
 
   it("rejects duplicate category and criterion keys", () => {

@@ -200,7 +200,8 @@ function toPayload(f: Form, now: Date) {
           description: k.description,
         })),
         rules: c.rules,
-        requireMerged: c.requireMerged,
+        // Only pull requests can be unmerged; other categories don't carry the setting.
+        ...(c.sourceTypes.includes("github_pr") ? { requireMerged: c.requireMerged } : {}),
       })),
     },
     budget: {

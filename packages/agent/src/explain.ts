@@ -81,7 +81,7 @@ export function explain(p: {
     R4_CATEGORY_INVALID: "The agent couldn't match this to a rubric category.",
     R5_AGENT_RECOMMENDS_REVIEW:
       j?.recommended_action === "reject"
-        ? "The agent thinks this doesn't qualify and wants a reviewer to confirm."
+        ? "The agent recommends rejecting this (no payment) and wants a reviewer to confirm."
         : "The agent wants a reviewer's judgment on this one.",
     R6_SOFT_FLAGS: flags
       .filter((f) => f.severity === "soft")

@@ -128,7 +128,11 @@ async function recheck(
 ): Promise<Flag | "ok" | "unavailable"> {
   let result;
   try {
-    result = await fetcherFor(deps.fetchers, item.s.sourceType)(item.s.resourceId);
+    // Existence and ownership only: the post itself, not its thread (saves the search).
+    result =
+      item.s.sourceType === "x_post"
+        ? await deps.fetchers.x(item.s.resourceId, { thread: false })
+        : await fetcherFor(deps.fetchers, item.s.sourceType)(item.s.resourceId);
   } catch {
     // Upstream trouble (rate limit, outage): defer the item rather than fail the whole round.
     return "unavailable";

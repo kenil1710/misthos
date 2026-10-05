@@ -36,12 +36,13 @@ export interface StartOptions {
   name?: string;
 }
 
-/** Build the real dependencies (Circle or EOA agent, Claude judge, Postgres, Arc) and start consuming the queues. */
-export async function startWorker(opts: StartOptions = {}) {
-  const log = pino({ name: opts.name ?? "misthos-worker" });
+/** The real dependencies: Circle or EOA agent, Claude judge, Postgres, Arc. Shared by the worker and ops scripts. */
+export function buildDeps(opts: Pick<StartOptions, "wrapFetchers"> & { poolMax?: number } = {}) {
   const env = loadEnv();
   const chain = getChainConfig(env.NEXT_PUBLIC_CHAIN);
-  const { db, pool } = createDb(env.DATABASE_URL, { max: env.WORKER_CONCURRENCY + 1 });
+  const { db, pool } = createDb(env.DATABASE_URL, {
+    max: opts.poolMax ?? env.WORKER_CONCURRENCY + 1,
+  });
   const publicClient = createPublicClient({
     chain: chain.chain,
     transport: http(env.ARC_RPC_URL || undefined),
@@ -68,7 +69,7 @@ export async function startWorker(opts: StartOptions = {}) {
   }
   const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 2 });
   const real: Fetchers = {
-    x: (id) => fetchXPost(id, { bearerToken: env.X_BEARER_TOKEN }),
+    x: (id, o) => fetchXPost(id, { bearerToken: env.X_BEARER_TOKEN, thread: o?.thread }),
     githubPr: (rid) => fetchGithubPr(rid, { token: env.GITHUB_TOKEN }),
     githubCommit: (rid) => fetchGithubCommit(rid, { token: env.GITHUB_TOKEN }),
     article: (rid) => fetchArticle(rid),
@@ -84,6 +85,13 @@ export async function startWorker(opts: StartOptions = {}) {
     judge: createJudge({ client: anthropic.messages, model: env.AGENT_MODEL_JUDGE }),
     fetchers: realFetchers,
   };
+  return { env, chain, deps, pool, signer };
+}
+
+/** Build the real dependencies and start consuming the queues. */
+export async function startWorker(opts: StartOptions = {}) {
+  const log = pino({ name: opts.name ?? "misthos-worker" });
+  const { env, chain, deps, pool, signer } = buildDeps(opts);
 
   const boss = new PgBoss({
     connectionString: normalizeDatabaseUrl(directUrl(env)),

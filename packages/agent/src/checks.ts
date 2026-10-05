@@ -1,4 +1,4 @@
-import type { RubricCategory, SourceType } from "@misthos/shared";
+import { requiresMerged, type RubricCategory, type SourceType } from "@misthos/shared";
 import { detectInjection } from "./injection";
 import type { Flag, Resource } from "./types";
 
@@ -252,7 +252,7 @@ export function runChecks(ctx: CheckContext): Flag[] {
   // ── GitHub merge state ─────────────────────────────────────────────────
   if (r.sourceType === "github_pr" && r.github && !r.github.merged) {
     const prCats = ctx.program.categories.filter((c) => c.sourceTypes.includes("github_pr"));
-    if (prCats.length > 0 && prCats.every((c) => c.requireMerged)) flags.push(notMerged(r));
+    if (prCats.length > 0 && prCats.every(requiresMerged)) flags.push(notMerged(r));
   }
 
   // ── Wallet ─────────────────────────────────────────────────────────────

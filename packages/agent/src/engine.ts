@@ -1,10 +1,10 @@
-import type { RubricCategory } from "@misthos/shared";
+import { requiresMerged, type RubricCategory } from "@misthos/shared";
 import { notMerged } from "./checks";
 import type { JudgmentOutput } from "./judge";
 import type { Flag, Resource } from "./types";
 
 /** Bump whenever a rule below changes. Recorded in every decision. */
-export const RULE_VERSION = "rules-v2";
+export const RULE_VERSION = "rules-v3";
 
 /** Clear spam: the model is very sure the work doesn't qualify and every criterion scored 0 or 1. */
 export const SPAM_CONFIDENCE = 0.9;
@@ -48,7 +48,11 @@ export interface EngineDecision {
   cappedBy: "maxPerPayout" | null;
 }
 
-/** points = maxPoints × Σscores / (10 × n), kept exact as a rational, shown with 2 decimals. */
+/**
+ * The one points rule: points = maxPoints × Σscores / (10 × n), computed here from the judge's criterion scores and
+ * kept exact as a rational, shown with 2 decimals. The judge's own `total_points` is recorded but never used, and
+ * amount = points × rate always holds (before the per-payout cap). Work the judge recommends rejecting gets 0 points.
+ */
 export function computeAmount(cat: RubricCategory, scores: Record<string, number>, rate: bigint) {
   const n = BigInt(cat.criteria.length);
   const sum = BigInt(
@@ -92,10 +96,13 @@ export function decide(i: EngineInput): EngineDecision {
         i.resource &&
         c.sourceTypes.includes(i.resource.sourceType),
     );
-    if (cat) {
+    if (cat && i.judgment.recommended_action === "reject") {
+      // Never price work the judge says doesn't qualify: a reviewer who disagrees sets the amount themselves.
+      points = "0.00";
+    } else if (cat) {
       ({ amount, points } = computeAmount(cat, i.judgment.rubric_scores, i.ratePerPoint));
       if (
-        cat.requireMerged &&
+        requiresMerged(cat) &&
         i.resource?.sourceType === "github_pr" &&
         i.resource.github &&
         !i.resource.github.merged

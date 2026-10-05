@@ -55,6 +55,11 @@ export interface Resource {
     quotes: number;
     impressions: number | null;
     lang: string | null;
+    /**
+     * The author's self-reply chain read with the post, starting at the submitted post (just its own id for a single
+     * post). Missing on resources cached before threads were read; those are fetched again.
+     */
+    thread?: { postIds: string[]; truncated: boolean; note: string | null };
   };
   github?: {
     repo: string;

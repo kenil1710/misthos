@@ -1,0 +1,102 @@
+{
+  "status": 200,
+  "url": "https://api.x.com/2/tweets/search/recent?query=conversation_id%3A2107001684937543903+from%3A1489870982810861568+-is%3Aretweet&max_results=25&tweet.fields=author_id%2Ccreated_at%2Cconversation_id%2Cin_reply_to_user_id%2Creferenced_tweets%2Cpublic_metrics%2Cnote_tweet%2Clang%2Ctext",
+  "body": {
+    "data": [
+      {
+        "author_id": "1489870982810861568",
+        "conversation_id": "2107001684937543903",
+        "created_at": "2026-10-05T06:55:24.000Z",
+        "edit_history_tweet_ids": ["2107001692223095074"],
+        "id": "2107001692223095074",
+        "in_reply_to_user_id": "1489870982810861568",
+        "lang": "en",
+        "public_metrics": {
+          "bookmark_count": 0,
+          "impression_count": 11,
+          "like_count": 1,
+          "quote_count": 0,
+          "reply_count": 0,
+          "retweet_count": 0
+        },
+        "referenced_tweets": [
+          {
+            "id": "2107001689261875621",
+            "type": "replied_to"
+          }
+        ],
+        "text": "3/ If an AI agent moves money, put the limits in the contract, not the prompt: per-payout cap, daily cap, owner approval above a threshold.\n\nThe agent decides, the contract enforces. Retries can't pay twice when every payout has a unique ID."
+      },
+      {
+        "author_id": "1489870982810861568",
+        "conversation_id": "2107001684937543903",
+        "created_at": "2026-10-05T06:55:23.000Z",
+        "edit_history_tweet_ids": ["2107001689261875621"],
+        "id": "2107001689261875621",
+        "in_reply_to_user_id": "1489870982810861568",
+        "lang": "en",
+        "public_metrics": {
+          "bookmark_count": 0,
+          "impression_count": 7,
+          "like_count": 1,
+          "quote_count": 0,
+          "reply_count": 1,
+          "retweet_count": 0
+        },
+        "referenced_tweets": [
+          {
+            "id": "2107001686963450333",
+            "type": "replied_to"
+          }
+        ],
+        "text": "2/ Fees are paid in USDC, so users never need a second token. With Circle's Gas Station, an agent wallet can even send transactions with its gas sponsored, holding zero balance itself."
+      },
+      {
+        "author_id": "1489870982810861568",
+        "conversation_id": "2107001684937543903",
+        "created_at": "2026-10-05T06:55:23.000Z",
+        "edit_history_tweet_ids": ["2107001686963450333"],
+        "id": "2107001686963450333",
+        "in_reply_to_user_id": "1489870982810861568",
+        "lang": "en",
+        "public_metrics": {
+          "bookmark_count": 0,
+          "impression_count": 12,
+          "like_count": 1,
+          "quote_count": 0,
+          "reply_count": 1,
+          "retweet_count": 0
+        },
+        "referenced_tweets": [
+          {
+            "id": "2107001684937543903",
+            "type": "replied_to"
+          }
+        ],
+        "text": "1/ USDC is the gas token on Arc. Native balance uses 18 decimals, but the USDC ERC-20 interface uses 6, and both show the same balance.\n\nRule I follow: do all payout math on the 6-decimal side, never mix the two."
+      },
+      {
+        "author_id": "1489870982810861568",
+        "conversation_id": "2107001684937543903",
+        "created_at": "2026-10-05T06:55:22.000Z",
+        "edit_history_tweet_ids": ["2107001684937543903"],
+        "id": "2107001684937543903",
+        "lang": "en",
+        "public_metrics": {
+          "bookmark_count": 0,
+          "impression_count": 57,
+          "like_count": 3,
+          "quote_count": 0,
+          "reply_count": 2,
+          "retweet_count": 0
+        },
+        "text": "Building on @arc this week taught me a few things about stablecoin-native chains that I didn't expect. A short thread for builders 🧵"
+      }
+    ],
+    "meta": {
+      "newest_id": "2107001692223095074",
+      "oldest_id": "2107001684937543903",
+      "result_count": 4
+    }
+  }
+}

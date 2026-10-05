@@ -1,0 +1,42 @@
+{
+  "status": 200,
+  "url": "https://api.x.com/2/tweets/2107001684937543903?tweet.fields=author_id%2Ccreated_at%2Cpublic_metrics%2Ctext%2Creferenced_tweets%2Cconversation_id%2Clang%2Cnote_tweet&expansions=author_id&user.fields=created_at%2Cpublic_metrics%2Cverified%2Cusername%2Cname",
+  "body": {
+    "data": {
+      "author_id": "1489870982810861568",
+      "conversation_id": "2107001684937543903",
+      "created_at": "2026-10-05T06:55:22.000Z",
+      "edit_history_tweet_ids": ["2107001684937543903"],
+      "id": "2107001684937543903",
+      "lang": "en",
+      "public_metrics": {
+        "bookmark_count": 0,
+        "impression_count": 57,
+        "like_count": 3,
+        "quote_count": 0,
+        "reply_count": 2,
+        "retweet_count": 0
+      },
+      "text": "Building on @arc this week taught me a few things about stablecoin-native chains that I didn't expect. A short thread for builders 🧵"
+    },
+    "includes": {
+      "users": [
+        {
+          "created_at": "2022-02-05T07:58:39.000Z",
+          "id": "1489870982810861568",
+          "name": "Kenil.eth",
+          "public_metrics": {
+            "followers_count": 1740,
+            "following_count": 1285,
+            "like_count": 7995,
+            "listed_count": 7,
+            "media_count": 1676,
+            "tweet_count": 6648
+          },
+          "username": "vekariya_kenil",
+          "verified": false
+        }
+      ]
+    }
+  }
+}

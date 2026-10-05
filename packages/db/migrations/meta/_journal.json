@@ -43,6 +43,13 @@
       "when": 1790983419267,
       "tag": "0005_hot_path_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791186231801,
+      "tag": "0006_require_merged_pr_only",
+      "breakpoints": true
     }
   ]
 }

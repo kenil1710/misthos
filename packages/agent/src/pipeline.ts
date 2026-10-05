@@ -10,7 +10,7 @@ import {
   type DbLike,
 } from "@misthos/db";
 import { formatUsdc, hashCanonical, hashText, type OverrideDecisionJob } from "@misthos/shared";
-import { and, desc, eq, lt, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import type { Hex } from "viem";
 import { runChecks, type PriorMatch } from "./checks";
 import { decide, RULE_VERSION, type EngineDecision } from "./engine";
@@ -27,7 +27,8 @@ import {
 } from "./types";
 
 export interface Fetchers {
-  x(id: string): Promise<FetchResult>;
+  /** `thread: false` reads only the post itself (payout re-checks); by default the author's thread is read too. */
+  x(id: string, opts?: { thread?: boolean }): Promise<FetchResult>;
   githubPr(resourceId: string): Promise<FetchResult>;
   githubCommit(resourceId: string): Promise<FetchResult>;
   article(resourceId: string): Promise<FetchResult>;
@@ -93,12 +94,16 @@ async function logUsage(db: DbLike, programId: string, entries: ApiUsageEntry[])
   );
 }
 
-/** Cached resource, or fetch once and cache. Deleted/missing resources are never cached. */
+/**
+ * Cached resource, or fetch once and cache. Deleted/missing resources are never cached. X posts cached before
+ * threads were read (no `x.thread`) are fetched again; `refresh` always fetches and replaces the cached copy.
+ */
 async function getResource(
   deps: PipelineDeps,
   programId: string,
   sourceType: Resource["sourceType"],
   resourceId: string,
+  opts: { refresh?: boolean } = {},
 ): Promise<
   { resource: Resource; contentHash: Hex; simhash: bigint | null } | { notFound: string }
 > {
@@ -109,7 +114,10 @@ async function getResource(
       and(eq(fetchedResources.sourceType, sourceType), eq(fetchedResources.resourceId, resourceId)),
     )
     .limit(1);
-  if (cached) {
+  const stale =
+    opts.refresh ||
+    (sourceType === "x_post" && !(cached?.payloadJson as Resource | undefined)?.x?.thread);
+  if (cached && !stale) {
     return {
       resource: cached.payloadJson as Resource,
       contentHash: cached.contentHash as Hex,
@@ -138,45 +146,83 @@ async function getResource(
       contentHash,
       simhash: simhash === null ? null : toSigned64(simhash),
     })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      target: [fetchedResources.sourceType, fetchedResources.resourceId],
+      set: {
+        payloadJson: resource,
+        contentText: resource.text,
+        contentHash,
+        simhash: simhash === null ? null : toSigned64(simhash),
+        fetchedAt: new Date(),
+      },
+    });
   return { resource, contentHash, simhash };
 }
+
+/** Decided submissions that can be re-processed: anything not yet planned into a payout or paid. */
+const REPROCESSABLE = new Set(["approved", "partial", "rejected", "escalated"]);
 
 /**
  * Score one submission end to end and persist a signed decision. Idempotent: anything already decided is skipped.
  * Retryable upstream errors are rethrown (the queue retries); on the final attempt they become an escalation.
+ *
+ * `reprocess` runs a decided submission again (fresh fetch, current rules) and records a new signed agent decision
+ * that supersedes the latest one, with the reason, auditing both. Not allowed once the item is in a payout.
  */
 export async function processSubmission(
   deps: PipelineDeps,
   submissionId: string,
-  opts: { finalAttempt?: boolean } = {},
+  opts: { finalAttempt?: boolean; reprocess?: { reason: string; actor: string } } = {},
 ): Promise<ProcessResult> {
   const db = deps.db;
   const now = deps.now ?? (() => new Date());
   const ctx = await loadContext(db, submissionId);
   if (!ctx) return { status: "skipped", reason: "not_found" };
   const { submission: sub, program, contributor, round } = ctx;
-  if (sub.status !== "pending" && sub.status !== "processing")
+  const reprocess = opts.reprocess;
+  let previous: typeof decisions.$inferSelect | undefined;
+  if (reprocess) {
+    if (!REPROCESSABLE.has(sub.status) || sub.payoutId)
+      return {
+        status: "skipped",
+        reason: `not_reprocessable_${sub.payoutId ? "in_payout" : sub.status}`,
+      };
+    [previous] = await db
+      .select()
+      .from(decisions)
+      .where(eq(decisions.submissionId, sub.id))
+      .orderBy(desc(decisions.createdAt))
+      .limit(1);
+    if (!previous) return { status: "skipped", reason: "no_previous_decision" };
+  } else if (sub.status !== "pending" && sub.status !== "processing")
     return { status: "skipped", reason: `already_${sub.status}` };
   // Atomic claim: only one worker processes a submission. A "processing" row older than the lease is a crashed
-  // worker's and may be reclaimed.
+  // worker's and may be reclaimed. A re-process claims the row only in the decided state it was read in.
   const claimed = await db
     .update(submissions)
     .set({ status: "processing" })
     .where(
       and(
         eq(submissions.id, sub.id),
-        or(
-          eq(submissions.status, "pending"),
-          and(
-            eq(submissions.status, "processing"),
-            lt(submissions.updatedAt, new Date(now().getTime() - CLAIM_LEASE_MS)),
-          ),
-        ),
+        reprocess
+          ? and(eq(submissions.status, sub.status), isNull(submissions.payoutId))
+          : or(
+              eq(submissions.status, "pending"),
+              and(
+                eq(submissions.status, "processing"),
+                lt(submissions.updatedAt, new Date(now().getTime() - CLAIM_LEASE_MS)),
+              ),
+            ),
       ),
     )
     .returning({ id: submissions.id });
   if (!claimed.length) return { status: "skipped", reason: "in_progress" };
+  // Hand a retryable failure back: queued work goes back to pending, a re-process to its previous decided state.
+  const release = (lastError: string) =>
+    db
+      .update(submissions)
+      .set({ status: reprocess ? sub.status : "pending", lastError })
+      .where(eq(submissions.id, sub.id));
 
   // ── Fetch ────────────────────────────────────────────────────────────
   let resource: Resource | null = null;
@@ -185,16 +231,15 @@ export async function processSubmission(
   let notFound: string | undefined;
   let fetchError: string | undefined;
   try {
-    const got = await getResource(deps, program.id, sub.sourceType, sub.resourceId);
+    const got = await getResource(deps, program.id, sub.sourceType, sub.resourceId, {
+      refresh: !!reprocess,
+    });
     if ("notFound" in got) notFound = got.notFound;
     else ({ resource, contentHash, simhash } = got);
   } catch (e) {
     const fe = e instanceof FetchError ? e : new FetchError("Unexpected fetch failure", true);
     if (fe.retryable && !opts.finalAttempt) {
-      await db
-        .update(submissions)
-        .set({ status: "pending", lastError: fe.message })
-        .where(eq(submissions.id, sub.id));
+      await release(fe.message);
       throw fe;
     }
     fetchError = fe.message;
@@ -333,10 +378,7 @@ export async function processSubmission(
     } catch (e) {
       const je = e instanceof JudgeError ? e : new JudgeError("Judgment failed.", false);
       if (je.retryable && !opts.finalAttempt) {
-        await db
-          .update(submissions)
-          .set({ status: "pending", lastError: je.message })
-          .where(eq(submissions.id, sub.id));
+        await release(je.message);
         throw je;
       }
       judgeError = je.message;
@@ -425,7 +467,10 @@ export async function processSubmission(
         amount: decision.amount.toString(),
         auto: decision.auto,
       },
-      decidedBy: { type: "agent" },
+      decidedBy:
+        reprocess && previous
+          ? { type: "agent", supersedes: previous.decisionHash as Hex, reason: reprocess.reason }
+          : { type: "agent" },
       summary,
       decidedAt: now().toISOString(),
     },
@@ -444,7 +489,16 @@ export async function processSubmission(
     decidedBy: "agent",
     decidedByUserId: null,
     overrideReason: null,
-    auditAction: "decision.recorded",
+    auditAction: reprocess ? "decision.reprocessed" : "decision.recorded",
+    supersedes:
+      reprocess && previous
+        ? {
+            decisionId: previous.id,
+            decisionHash: previous.decisionHash,
+            actor: reprocess.actor,
+            reason: reprocess.reason,
+          }
+        : undefined,
     now: now(),
   });
   return { status: "decided", action: decision.action, decisionHash: signed.decisionHash, summary };
@@ -465,6 +519,8 @@ async function persist(
     decidedByUserId: string | null;
     overrideReason: string | null;
     auditAction: string;
+    /** For a re-process: the decision being replaced. Audited as `decision.superseded` next to the new decision. */
+    supersedes?: { decisionId: string; decisionHash: string; actor: string; reason: string };
     now: Date;
   },
 ) {
@@ -515,8 +571,27 @@ async function persist(
         amount: r.decision.amount,
         rule: r.rule,
         flags: r.flags.map((f) => f.code),
+        ...(p.supersedes
+          ? { supersedes: p.supersedes.decisionHash, reason: p.supersedes.reason }
+          : {}),
       },
     });
+    if (p.supersedes) {
+      await tx.insert(auditEvents).values({
+        programId: p.programId,
+        actor: p.supersedes.actor,
+        action: "decision.superseded",
+        entity: "decision",
+        entityId: p.supersedes.decisionId,
+        dataJson: {
+          submissionId: p.submissionId,
+          decisionHash: p.supersedes.decisionHash,
+          supersededBy: p.signed.decisionHash,
+          supersededById: d!.id,
+          reason: p.supersedes.reason,
+        },
+      });
+    }
   });
 }
 

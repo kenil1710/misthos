@@ -174,6 +174,38 @@ describe("decide", () => {
   });
 
   it.each([
+    { depth: 0, clarity: 5, originality: 5 }, // the real case: a thread judged on its opener only
+    { depth: 10, clarity: 10, originality: 10 },
+    { depth: 7, clarity: 6, originality: 8 },
+  ])("a judge reject never prices the work above 0 (scores %o)", (rubric_scores) => {
+    for (const confidence of [0.5, 0.85, 0.95]) {
+      const d = decide(
+        input({ judgment: J({ recommended_action: "reject", rubric_scores, confidence }) }),
+      );
+      expect(d.amount).toBe(0n);
+      expect(d.points).toBe("0.00");
+      expect(["reject", "escalate"]).toContain(d.action);
+    }
+  });
+
+  it("an escalate recommendation keeps its priced amount for the reviewer", () => {
+    expect(decide(input({ judgment: J({ recommended_action: "escalate" }) }))).toMatchObject({
+      action: "escalate",
+      amount: 16n * USDC,
+      points: "8.00",
+    });
+  });
+
+  it("points come from the criterion scores, never from the judge's own total", () => {
+    for (const total_points of [0, 3, 10, 99]) {
+      expect(decide(input({ judgment: J({ total_points }) }))).toMatchObject({
+        points: "8.00",
+        amount: 16n * USDC,
+      });
+    }
+  });
+
+  it.each([
     "NEW_ACCOUNT",
     "ENGAGEMENT_ANOMALY",
     "OWNERSHIP_UNVERIFIED",
@@ -303,6 +335,28 @@ describe("explain", () => {
     ).toBe(
       "Rejected automatically as clearly outside this program's rubric. A casual personal post with no educational content. Scored 0/10 on depth, 0/10 on clarity and 0/10 on originality. The program team can override this decision.",
     );
+  });
+
+  it("escalated judge reject: says no payment, never a positive recommendation", () => {
+    const j = J({
+      recommended_action: "reject",
+      confidence: 0.85,
+      rubric_scores: { depth: 0, clarity: 5, originality: 5 },
+      quality_summary: "Only the opening post is present.",
+    });
+    const d = decide(input({ judgment: j }));
+    const text = explain({
+      decision: d,
+      flags: [],
+      judgment: j,
+      categories: CATEGORIES,
+      resource: res,
+      priorCount: 0,
+    });
+    expect(text).toBe(
+      "Escalated for review. The agent recommends rejecting this (no payment) and wants a reviewer to confirm. Only the opening post is present. Scored 0/10 on depth, 5/10 on clarity and 5/10 on originality.",
+    );
+    expect(text).not.toMatch(/USDC/);
   });
 
   it("escalated injection: says why and pre-fills the recommendation", () => {

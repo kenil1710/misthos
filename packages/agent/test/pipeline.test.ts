@@ -58,7 +58,11 @@ function fixtureFetchers() {
     if (!name) throw new Error(`no fixture for ${id}`);
     return fetchXPost(id, {
       bearerToken: "t",
-      fetch: fixtureFetch({ "/2/tweets/": { json: fixture(`x/${name}.json`) } }),
+      fetch: fixtureFetch({
+        // Searched first (more specific): no self-replies, so each fixture post is a single post.
+        "/2/tweets/search/recent": { json: { meta: { result_count: 0 } } },
+        "/2/tweets/": { json: fixture(`x/${name}.json`) },
+      }),
     });
   });
   const fetchers: Fetchers = {
@@ -234,8 +238,8 @@ describe("processSubmission", () => {
       categoryKey: "threads",
       decidedBy: "agent",
       model: "claude-haiku-4-5-20251001",
-      promptVersion: "judge-v2",
-      ruleVersion: "rules-v2",
+      promptVersion: "judge-v3",
+      ruleVersion: "rules-v3",
     });
     expect(dec.summary).toMatch(
       /^Approved · 16\.00 USDC\. Posted inside the round by the linked account\. .* Scored 8\/10 on depth, 7\/10 on clarity and 9\/10 on originality\.$/,
@@ -246,7 +250,7 @@ describe("processSubmission", () => {
       schema: "misthos.decision/v1",
       rule: "R10_AUTO_APPROVE",
       decidedBy: { type: "agent" },
-      judgment: { promptVersion: "judge-v2" },
+      judgment: { promptVersion: "judge-v3" },
     });
     expect(record.contentHash).toMatch(/^0x[0-9a-f]{64}$/);
     expect(
@@ -263,9 +267,10 @@ describe("processSubmission", () => {
     expect(audit[0]!.dataJson).toMatchObject({ decisionHash: dec.decisionHash, action: "approve" });
 
     const usage = await db.select().from(apiUsage);
-    expect(usage.map((u) => [u.provider, u.estCostUsd])).toEqual([
-      ["x", "0.015000"],
-      ["anthropic", "0.003000"],
+    expect(usage.map((u) => [u.provider, u.endpoint, u.estCostUsd])).toEqual([
+      ["x", "GET /2/tweets/:id", "0.015000"],
+      ["x", "GET /2/tweets/search/recent", "0.000000"], // the thread search found no self-replies
+      ["anthropic", "POST /v1/messages", "0.003000"],
     ]);
   });
 
@@ -447,7 +452,9 @@ describe("processSubmission", () => {
       await submit("bob_copies", "https://x.com/alice_builds/status/1840000000000000001"),
     );
     expect(xFetch).toHaveBeenCalledTimes(1);
-    expect((await db.select().from(apiUsage)).filter((u) => u.provider === "x")).toHaveLength(1);
+    expect(
+      (await db.select().from(apiUsage)).filter((u) => u.provider === "x").map((u) => u.endpoint),
+    ).toEqual(["GET /2/tweets/:id", "GET /2/tweets/search/recent"]);
   });
 
   it("rethrows retryable fetch errors, then escalates on the final attempt", async () => {
@@ -543,5 +550,151 @@ describe("processOverride", () => {
         reason: "I am not a member here.",
       }),
     ).toEqual({ ok: false, error: "not_member" });
+  });
+});
+
+describe("re-processing", () => {
+  const POST = "https://x.com/alice_builds/status/1840000000000000001";
+  const REASON = "The agent now reads the author's whole thread.";
+
+  /** The same post, now read as a 2-post self-thread (what the improved fetcher returns). */
+  function threadFetchers() {
+    const base = fixtureFetchers();
+    const xFetch = vi.fn(async (id: string) => {
+      const r = await base.fetchers.x(id);
+      if (r.outcome.status !== "ok") return r;
+      const res = r.outcome.resource;
+      return {
+        ...r,
+        outcome: {
+          status: "ok" as const,
+          resource: {
+            ...res,
+            text: `[Post 1 of 2]\n${res.text}\n\n[Post 2 of 2]\nAnd the follow-up post.`,
+            x: {
+              ...res.x!,
+              thread: { postIds: [id, "1840000000000000099"], truncated: false, note: null },
+            },
+          },
+        },
+      };
+    });
+    return { fetchers: { ...base.fetchers, x: xFetch }, xFetch };
+  }
+
+  it("records a new signed agent decision that supersedes the old one, fetched fresh, and audits both", async () => {
+    const id = await submit("alice_builds", POST);
+    await processSubmission(deps(), id);
+    const before = await latestDecision(id);
+
+    const { fetchers, xFetch } = threadFetchers();
+    const res = await processSubmission(deps(fakeClaude("approve-thread"), fetchers), id, {
+      reprocess: { reason: REASON, actor: "system" },
+    });
+    expect(res).toMatchObject({ status: "decided" });
+    expect(xFetch).toHaveBeenCalledTimes(1); // the cache was bypassed
+
+    const after = await latestDecision(id);
+    expect(after.decisionHash).not.toBe(before.decisionHash);
+    expect(await db.select().from(decisions)).toHaveLength(2);
+    const record = JSON.parse(after.decisionJson);
+    expect(record.decidedBy).toEqual({
+      type: "agent",
+      supersedes: before.decisionHash,
+      reason: REASON,
+    });
+    expect(record.contentHash).not.toBe(JSON.parse(before.decisionJson).contentHash);
+    const [cached] = await db.select().from(fetchedResources);
+    expect(cached!.contentText).toContain("[Post 2 of 2]");
+
+    const audit = await db.select().from(auditEvents).orderBy(asc(auditEvents.createdAt));
+    expect(audit.map((a) => a.action).sort()).toEqual(
+      ["decision.recorded", "decision.reprocessed", "decision.superseded"].sort(),
+    );
+    const superseded = audit.find((a) => a.action === "decision.superseded")!;
+    expect(superseded).toMatchObject({ actor: "system", entity: "decision", entityId: before.id });
+    expect(superseded.dataJson).toMatchObject({
+      decisionHash: before.decisionHash,
+      supersededBy: after.decisionHash,
+      reason: REASON,
+    });
+    expect(audit.find((a) => a.action === "decision.reprocessed")!.dataJson).toMatchObject({
+      decisionHash: after.decisionHash,
+      supersedes: before.decisionHash,
+    });
+    // Both records stay verifiable.
+    for (const d of [before, after])
+      expect(
+        await verifyDecisionRecord(offline, {
+          decisionJson: d.decisionJson,
+          decisionHash: d.decisionHash as Hex,
+          signature: d.signature as Hex,
+          signerAddress: d.signerAddress as Hex,
+        }),
+      ).toEqual({ ok: true });
+  });
+
+  it("refuses work that's pending, in a payout or paid, and leaves it untouched", async () => {
+    const opts = { reprocess: { reason: REASON, actor: "system" } };
+    const pending = await submit("alice_builds", POST);
+    expect(await processSubmission(deps(), pending, opts)).toEqual({
+      status: "skipped",
+      reason: "not_reprocessable_pending",
+    });
+    await processSubmission(deps(), pending);
+    await db
+      .update(submissions)
+      .set({ payoutId: "00000000-0000-4000-8000-000000000001" })
+      .where(eq(submissions.id, pending));
+    expect(await processSubmission(deps(), pending, opts)).toEqual({
+      status: "skipped",
+      reason: "not_reprocessable_in_payout",
+    });
+    await db
+      .update(submissions)
+      .set({ payoutId: null, status: "paid" })
+      .where(eq(submissions.id, pending));
+    expect(await processSubmission(deps(), pending, opts)).toEqual({
+      status: "skipped",
+      reason: "not_reprocessable_paid",
+    });
+    expect(await db.select().from(decisions)).toHaveLength(1);
+  });
+
+  it("goes back to its decided state when a retryable error interrupts it", async () => {
+    const id = await submit("alice_builds", POST);
+    await processSubmission(deps(), id);
+    const { fetchers } = fixtureFetchers();
+    fetchers.x = async () => {
+      throw new FetchError("X API 503", true, 503);
+    };
+    await expect(
+      processSubmission(deps(fakeClaude("approve-thread"), fetchers), id, {
+        reprocess: { reason: REASON, actor: "system" },
+      }),
+    ).rejects.toBeInstanceOf(FetchError);
+    expect(await statusOf(id)).toMatchObject({ status: "approved" });
+    expect(await db.select().from(decisions)).toHaveLength(1);
+  });
+
+  it("re-reads X posts cached before threads were read", async () => {
+    const { fetchers, xFetch } = fixtureFetchers();
+    await processSubmission(
+      deps(fakeClaude("approve-thread"), fetchers),
+      await submit("alice_builds", POST),
+    );
+    const [row] = await db.select().from(fetchedResources);
+    const { thread: _, ...oldX } = (row!.payloadJson as { x: Record<string, unknown> }).x;
+    await db
+      .update(fetchedResources)
+      .set({ payloadJson: { ...(row!.payloadJson as object), x: oldX } })
+      .where(eq(fetchedResources.id, row!.id));
+    await processSubmission(
+      deps(fakeClaude("approve-thread"), fetchers),
+      await submit("bob_copies", POST),
+    );
+    expect(xFetch).toHaveBeenCalledTimes(2);
+    const [fresh] = await db.select().from(fetchedResources);
+    expect((fresh!.payloadJson as { x: { thread?: unknown } }).x.thread).toBeDefined();
   });
 });
