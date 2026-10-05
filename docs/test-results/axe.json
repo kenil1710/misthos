@@ -115,6 +115,26 @@
     "serious": []
   },
   {
+    "page": "Program ready",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Setup (deploy)",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Setup (live)",
+    "theme": "light",
+    "serious": []
+  },
+  {
+    "page": "Empty submissions",
+    "theme": "light",
+    "serious": []
+  },
+  {
     "page": "Landing",
     "theme": "dark",
     "serious": []
@@ -226,6 +246,26 @@
   },
   {
     "page": "Contributor program",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Program ready",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Setup (deploy)",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Setup (live)",
+    "theme": "dark",
+    "serious": []
+  },
+  {
+    "page": "Empty submissions",
     "theme": "dark",
     "serious": []
   }
