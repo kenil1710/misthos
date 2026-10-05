@@ -1,0 +1,16 @@
+# What `railway up` uploads: only what the worker image builds from (mirrors .dockerignore).
+.env
+.env.*
+!.env.example
+private
+.vercel
+.git
+**/node_modules
+**/.next
+**/.next-*
+**/.turbo
+**/dist
+**/coverage
+docs
+apps/web
+packages/contracts
