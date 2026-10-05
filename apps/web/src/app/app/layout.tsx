@@ -29,34 +29,60 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
           </header>
           <main
             id="main"
-            className="flex flex-1 flex-col items-center justify-start px-4 pt-[8vh] pb-16"
+            className="mx-auto grid w-full max-w-[1080px] flex-1 content-start items-start gap-10 px-4 pt-[6vh] pb-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:gap-16 lg:pt-[10vh]"
           >
-            <section className="bg-card w-full max-w-[26rem] rounded-xl border p-6 sm:p-8">
-              <h1 className="text-xl font-medium tracking-tight">Sign in to Misthos</h1>
-              <p className="text-muted-foreground mt-1.5 mb-7 text-sm leading-relaxed">
-                Run contributor programs: the agent reviews submitted work and pays it from a vault
-                you own.
-              </p>
-              <OwnerSignIn />
-            </section>
-            {contributorOnly ? (
-              <section
-                aria-label="Signed in as a contributor"
-                className="bg-card/60 mt-4 w-full max-w-[26rem] rounded-xl p-5 text-sm"
+            <section className="order-2 lg:order-1" aria-labelledby="owner-pitch">
+              <p className="text-brand text-sm font-medium">For program owners</p>
+              <h2
+                id="owner-pitch"
+                className="display mt-2 text-[2.25rem] leading-[1.05] sm:text-[2.75rem]"
               >
-                <p>
-                  You&apos;re signed in with X as{" "}
-                  <span className="font-medium">@{contributorOnly.xh}</span>. This is the app for
-                  program owners; your contributions are on your own page.
+                Pay contributors for <em>real</em> work, automatically.
+              </h2>
+              <ul className="text-soft mt-6 grid gap-3 text-[15px] leading-relaxed">
+                {[
+                  "Write the rules once: what counts, what it pays, the limits.",
+                  "The agent reviews every post, PR or article and signs each decision.",
+                  "Approved work is paid in USDC from a vault only you control.",
+                ].map((t) => (
+                  <li key={t} className="flex gap-3">
+                    <span className="bg-brand mt-2.5 size-1.5 shrink-0 rounded-full" aria-hidden />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <DecisionPreview />
+            </section>
+            <div className="order-1 grid gap-4 lg:order-2">
+              <section className="bg-card shadow-soft rounded-2xl border p-6 sm:p-8">
+                <h1 className="text-xl font-medium tracking-tight">Sign in to Misthos</h1>
+                <p className="text-muted-foreground mt-1.5 mb-7 text-sm leading-relaxed">
+                  With the wallet that owns your programs. Nothing opens until you click.
                 </p>
-                <Link
-                  href="/c"
-                  className="text-brand mt-2 inline-block font-medium underline-offset-4 hover:underline"
-                >
-                  Go to the programs you joined
-                </Link>
+                <OwnerSignIn />
               </section>
-            ) : null}
+              {contributorOnly ? (
+                <section
+                  aria-label="Signed in as a contributor"
+                  className="bg-card/60 rounded-xl p-5 text-sm"
+                >
+                  <p>
+                    You&apos;re signed in with X as{" "}
+                    <span className="font-medium">@{contributorOnly.xh}</span>.
+                  </p>
+                  <Link
+                    href="/c"
+                    className="text-brand mt-2 inline-block font-medium underline-offset-4 hover:underline"
+                  >
+                    Go to the programs you joined
+                  </Link>
+                </section>
+              ) : (
+                <p className="text-muted-foreground px-1 text-sm leading-relaxed">
+                  Contributor? Open your program&apos;s join link and sign in with X.
+                </p>
+              )}
+            </div>
           </main>
         </div>
       </>
@@ -96,5 +122,31 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
     >
       {children}
     </AppShell>
+  );
+}
+
+/** A small, static picture of what the agent produces: a signed decision and the payout that followed. */
+function DecisionPreview() {
+  return (
+    <figure
+      aria-label="Example: a decision and its payout"
+      className="bg-card shadow-soft mt-10 max-w-md rounded-2xl border p-5 text-sm"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium">@alice_builds · thread</span>
+        <span className="bg-success-subtle text-success rounded-full px-2.5 py-0.5 text-xs font-medium">
+          Approved
+        </span>
+      </div>
+      <p className="text-soft mt-2 leading-relaxed">
+        Explains how Arc quotes gas in USDC, with a working example. Depth 8/10, clarity 9/10.
+      </p>
+      <div className="text-muted-foreground mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs">
+        <span>
+          Signed by the agent · <span className="font-mono">0x2f44…3bb6</span>
+        </span>
+        <span className="text-foreground font-medium tabular-nums">Paid 8.00 USDC</span>
+      </div>
+    </figure>
   );
 }

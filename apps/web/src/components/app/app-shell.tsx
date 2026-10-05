@@ -79,7 +79,7 @@ export function AppShell({
               />
             </SheetContent>
           </Sheet>
-          <Link href="/app" aria-label="Misthos app home" className="rounded-md">
+          <Link href="/" aria-label="Misthos home" className="rounded-md">
             <Wordmark />
           </Link>
         </div>

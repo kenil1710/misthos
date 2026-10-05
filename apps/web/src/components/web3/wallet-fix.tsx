@@ -4,7 +4,7 @@ import { getChainConfig } from "@misthos/shared/chains";
 import { shortHex } from "@misthos/shared/money";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useDisconnect, useSwitchChain } from "wagmi";
+import { useSwitchChain } from "wagmi";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,8 +23,8 @@ import { useWalletUi } from "./web3-provider";
 const chain = getChainConfig().chain;
 
 /**
- * The compact "your wallet needs one thing" dialog. Opened only when an action needs the wallet (or from the
- * wallet chip), never on its own. Every wallet prompt inside starts from a button.
+ * The compact "your wallet needs one thing" dialog. Opened only when an action needs the owner wallet, never from
+ * browsing. Every wallet prompt inside starts from a button; disconnecting lives in the account menu.
  */
 export function WalletFixDialog({
   owner,
@@ -37,7 +37,6 @@ export function WalletFixDialog({
 }) {
   const problem = useWalletProblem(owner);
   const { address, connector } = useWalletAccount();
-  const { disconnect } = useDisconnect();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
   const { openConnect } = useWalletUi();
   const router = useRouter();
@@ -46,30 +45,31 @@ export function WalletFixDialog({
   const content =
     problem === "wrong_account" && address
       ? {
-          title: "Your wallet is on another account",
+          title: "Switch to your owner wallet",
           body: (
             <>
-              It&apos;s on <span className="font-mono">{shortHex(address)}</span>; you&apos;re
-              signed in as <span className="font-mono">{shortHex(owner)}</span>, and transactions
-              here need that account.
+              This action needs <span className="text-foreground font-mono">{shortHex(owner)}</span>
+              .
             </>
           ),
           actions: (
             <>
-              <Button onClick={() => chooseAccount(connector)}>Choose account in wallet</Button>
-              <Button variant="outline" disabled={busy} onClick={signIn}>
-                {busy ? "Waiting for signature…" : `Sign in as ${shortHex(address)}`}
-              </Button>
-              <Button variant="ghost" onClick={() => disconnect()}>
-                Disconnect
-              </Button>
+              <Button onClick={() => chooseAccount(connector)}>Open wallet</Button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={signIn}
+                className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline disabled:opacity-50"
+              >
+                {busy ? "Waiting for signature…" : `Use ${shortHex(address.toLowerCase())} instead`}
+              </button>
             </>
           ),
         }
       : problem === "wrong_network"
         ? {
             title: `Switch to ${chain.name}`,
-            body: "Your wallet is on another network. One click switches, and adds the network if it's missing.",
+            body: <>This action needs your wallet on {chain.name}.</>,
             actions: (
               <Button
                 disabled={switching}
@@ -79,17 +79,17 @@ export function WalletFixDialog({
                     .catch((e) => toast.error(classifyWalletError(e).message))
                 }
               >
-                {switching ? "Switching…" : `Switch to ${chain.name}`}
+                {switching ? "Switching…" : "Switch network"}
               </Button>
             ),
           }
         : problem === "disconnected"
           ? {
-              title: "Connect your wallet",
+              title: "Connect your owner wallet",
               body: (
                 <>
-                  Transactions are signed by <span className="font-mono">{shortHex(owner)}</span>,
-                  the wallet you signed in with.
+                  This action needs{" "}
+                  <span className="text-foreground font-mono">{shortHex(owner)}</span>.
                 </>
               ),
               actions: (
@@ -114,7 +114,7 @@ export function WalletFixDialog({
               <DialogTitle>{content.title}</DialogTitle>
               <DialogDescription>{content.body}</DialogDescription>
             </DialogHeader>
-            <div className="flex flex-wrap gap-2">{content.actions}</div>
+            <div className="flex flex-wrap items-center gap-4">{content.actions}</div>
             {error ? (
               <p role="alert" className="text-danger text-sm">
                 {error}

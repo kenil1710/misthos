@@ -25,8 +25,9 @@ function afterLoadIdle(): Promise<void> {
  */
 export function walletIsland<P extends object>(
   load: () => Promise<ComponentType<P>>,
-  placeholder: ReactNode = null,
+  placeholder: ReactNode | ((props: P) => ReactNode) = null,
 ): ComponentType<P> {
+  const hold = (props: P) => (typeof placeholder === "function" ? placeholder(props) : placeholder);
   const Loaded = dynamic(
     async () => {
       await afterLoadIdle();
@@ -40,9 +41,11 @@ export function walletIsland<P extends object>(
       }
       return Island;
     },
-    { ssr: false, loading: () => <>{placeholder}</> },
+    { ssr: false, loading: () => <>{hold(lastProps as P)}</> },
   );
+  let lastProps: P | undefined;
   function Gate(props: P) {
+    lastProps = props;
     const ref = useRef<HTMLSpanElement>(null);
     const [near, setNear] = useState(false);
     useEffect(() => {
@@ -64,7 +67,7 @@ export function walletIsland<P extends object>(
     return (
       <>
         <span ref={ref} hidden />
-        {placeholder}
+        {hold(props)}
       </>
     );
   }

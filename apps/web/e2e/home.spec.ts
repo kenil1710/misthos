@@ -59,12 +59,12 @@ test("owner with several programs: cards, what needs them, and what they joined"
   await expect(page.getByRole("heading", { name: "Programs you joined" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Programs you joined" })).toBeVisible(); // sidebar
 
-  // The landing page knows who's signed in (static page, hint cookie).
+  // The landing page knows someone is signed in (static page, hint cookie) but shows no address: just "Open app".
   await page.goto("/");
   const header = page.getByRole("banner");
   await expect(header.getByRole("link", { name: "Open app" })).toBeVisible();
   await expect(header.getByRole("link", { name: "Start a program" })).toHaveCount(0);
-  await expect(header).toContainText(wallet.address.slice(0, 6).toLowerCase());
+  await expect(header).not.toContainText(wallet.address.slice(0, 6).toLowerCase());
   expect(errors).toEqual([]);
 });
 
@@ -179,7 +179,7 @@ test("non-members get a friendly no-access page for someone else's program; expi
   await cp.goto(`/c/${slug}`);
   await c.clearCookies();
   await cp.getByLabel("Submit your work").fill("https://x.com/expiring/status/123456789");
-  await cp.getByRole("button", { name: "Submit" }).click();
+  await cp.getByRole("button", { name: "Submit", exact: true }).click();
   await expect(cp.getByText("Your session expired. Sign in with X again")).toBeVisible();
   await expect(cp.getByLabel("Submit your work")).toHaveValue(
     "https://x.com/expiring/status/123456789",
@@ -203,7 +203,7 @@ test("submitting is instant (optimistic) and a double click creates one submissi
   const { page, errors } = await newPage(ctx);
   await page.goto(`/c/${slug}`);
   await page.getByLabel("Submit your work").fill("https://x.com/fastsubmit/status/987654321");
-  const submit = page.getByRole("button", { name: "Submit" });
+  const submit = page.getByRole("button", { name: "Submit", exact: true });
   await submit.dblclick();
   await expect(page.getByText(/status\/987654321/)).toBeVisible();
   await expect(page.getByText("Queued").first()).toBeVisible();
@@ -212,7 +212,7 @@ test("submitting is instant (optimistic) and a double click creates one submissi
   expect(rows).toHaveLength(1);
   // Invalid input is caught before anything is sent.
   await page.getByLabel("Submit your work").fill("not a link");
-  await expect(page.getByRole("button", { name: "Submit" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
   expect(errors).toEqual([]);
 });
 
@@ -234,8 +234,8 @@ test("focus rings only for keyboard: clicks on the logo, nav and switcher leave 
   await expect(page).toHaveURL(/treasury/);
   expect(await noRing()).toBe(true);
 
-  await page.getByRole("link", { name: "Misthos app home" }).first().click();
-  await expect(page).toHaveURL(/\/app$/);
+  await page.getByRole("link", { name: "All programs" }).first().click();
+  await expect(page).toHaveURL(/\/app\/programs$/);
   expect(await noRing()).toBe(true);
 
   await page.getByRole("button", { name: /switch program/i }).click();

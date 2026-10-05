@@ -1,12 +1,10 @@
 "use client";
 
-import { shortHex } from "@misthos/shared/money";
 import {
   BarChart3,
   BookOpen,
   Check,
   ChevronsUpDown,
-  Home,
   Inbox,
   Landmark,
   Layers,
@@ -22,7 +20,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
 import { Wordmark } from "@/components/brand/wordmark";
-import { SignOutButton } from "@/components/app/sign-out-button";
+import { AccountChip } from "@/components/app/account-chip";
 import { WalletChipStatus } from "@/components/web3/islands";
 import {
   DropdownMenu,
@@ -80,8 +78,8 @@ export function AppSidebar({
     <div className="flex h-full flex-col gap-7 px-4 py-5">
       <div className="px-2">
         <Link
-          href="/app"
-          aria-label="Misthos app home"
+          href="/"
+          aria-label="Misthos home"
           className="rounded-md"
           onClick={(e) => {
             if (e.detail > 0) e.currentTarget.blur();
@@ -193,30 +191,14 @@ export function AppSidebar({
           />
         ) : null}
         <NavItem href="/docs" icon={BookOpen} label="Docs" path={path} onNavigate={onNavigate} />
-        <NavItem href="/" icon={Home} label="Back to site" path={path} onNavigate={onNavigate} />
       </div>
 
-      <div className="bg-card shadow-soft mt-auto rounded-2xl p-3">
-        <div className="flex items-center gap-2.5">
-          <WalletAvatar address={address} />
-          <div className="min-w-0 flex-1">
-            <p className="text-muted-foreground text-xs leading-tight">Signed in</p>
-            <p className="truncate font-mono text-[13px] leading-tight" title={address}>
-              {shortHex(address)}
-            </p>
-          </div>
-        </div>
-        <div className="mt-2.5 flex items-center justify-between gap-2 border-t pt-2.5">
-          {wallet ? (
-            <WalletChipStatus owner={address} />
-          ) : (
-            <span className="block h-4" aria-hidden="true" />
-          )}
-          <SignOutButton
-            kind="owner"
-            className="text-muted-foreground hover:text-foreground h-7 px-2 text-xs"
-          />
-        </div>
+      <div className="mt-auto">
+        {wallet ? (
+          <WalletChipStatus owner={address} className="w-full" />
+        ) : (
+          <AccountChip kind="owner" address={address} className="w-full" />
+        )}
       </div>
     </div>
   );
@@ -288,22 +270,6 @@ function ProgramSwitcher({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-/** A small deterministic identicon from the wallet address: two stone tones, no colour noise. */
-function WalletAvatar({ address }: { address: string }) {
-  const bits = parseInt(address.slice(2, 10), 16);
-  const cells = Array.from({ length: 9 }, (_, i) => (bits >> i) & 1);
-  return (
-    <span
-      aria-hidden="true"
-      className="bg-muted grid size-7 shrink-0 grid-cols-3 gap-px overflow-hidden rounded-full border p-1.5"
-    >
-      {cells.map((on, i) => (
-        <span key={i} className={on ? "bg-foreground/55 rounded-[1px]" : ""} />
-      ))}
-    </span>
   );
 }
 

@@ -2,8 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import { formatUsdc, Slug } from "@misthos/shared";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { SignOutButton } from "@/components/app/sign-out-button";
+import { ContributorAccount } from "@/components/contributor/contributor-account";
 import { SiteHeader } from "@/components/app/site-header";
 import { ChangeWallet, PayoutWalletNote } from "@/components/contributor/wallet-islands";
 import { GithubConnect } from "@/components/contributor/github-connect";
@@ -93,10 +92,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
       <SiteHeader
         right={
           <>
-            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-              <Link href="/c">Your programs</Link>
-            </Button>
-            <SignOutButton kind="contributor" />
+            <ContributorAccount handle={session.xh} />
           </>
         }
       />
@@ -112,9 +108,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
             <ArrowLeft className="size-3.5" aria-hidden="true" />
             Programs you joined
           </Link>
-          <p className="text-muted-foreground text-sm">
-            {program.name} · @{me.xHandle}
-          </p>
+          <p className="text-muted-foreground text-sm">{program.name}</p>
           <h1 className="display mt-1 text-[2.5rem] leading-[1.05] sm:text-[3.25rem]">
             Your <em>contributions</em>
           </h1>

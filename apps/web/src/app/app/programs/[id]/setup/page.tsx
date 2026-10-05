@@ -69,7 +69,9 @@ export default async function ProgramSetupPage({ params }: PageProps<"/app/progr
   return (
     <>
       <FocusHeader
-        status={current === "live" ? undefined : <WalletChipStatus owner={session.addr} />}
+        status={
+          current === "live" ? undefined : <WalletChipStatus owner={session.addr} side="bottom" />
+        }
         progress={
           <span className="text-muted-foreground truncate text-xs sm:text-sm">
             <span className="hidden sm:inline">{program.name} · </span>

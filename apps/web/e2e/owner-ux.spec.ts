@@ -111,13 +111,10 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
     expect(Math.abs(rows[0]!.starts.getTime() - Date.now())).toBeLessThan(5 * 60_000);
 
     // ── OF-4: after a reload the wallet reconnects by itself ──
-    await expect(page.getByRole("button", { name: "Wallet ready", exact: true })).toBeVisible({
-      timeout: 15_000,
-    });
+    const ready = page.getByRole("button", { name: /^Account 0x.*Wallet ready$/ });
+    await expect(ready).toBeVisible({ timeout: 15_000 });
     await page.reload();
-    await expect(page.getByRole("button", { name: "Wallet ready", exact: true })).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(ready).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: /^connect/i })).toHaveCount(0);
 
     // ── OF-6: a mouse click leaves no focus ring; keyboard focus still shows one ──
@@ -127,9 +124,8 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
       await page.evaluate(() => document.activeElement?.matches("a:focus-visible") ?? false),
     ).toBe(false);
 
-    // ── OF-5: the sidebar footer shows the account without anything on top of it ──
-    await expect(page.getByText("Signed in", { exact: true })).toBeVisible();
-    const signOut = page.getByRole("button", { name: "Sign out" });
+    // ── OF-5: the sidebar footer shows the account chip without anything on top of it ──
+    const signOut = page.getByRole("button", { name: /^Account 0x/ });
     await expect(signOut).toBeVisible();
     // Nothing (e.g. the Next dev badge) sits on top of the footer: the button is the topmost element at its centre.
     expect(

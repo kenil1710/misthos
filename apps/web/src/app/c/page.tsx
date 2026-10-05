@@ -1,7 +1,7 @@
 import { formatUsdc } from "@misthos/shared/money";
 import Link from "next/link";
 import { LinkArt } from "@/components/brand/illustrations";
-import { SignOutButton } from "@/components/app/sign-out-button";
+import { ContributorAccount } from "@/components/contributor/contributor-account";
 import { SiteHeader } from "@/components/app/site-header";
 import { JoinedCard } from "@/components/contributor/joined-card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ export default async function ContributorHomeIndex() {
                 <Link href="/app">Your programs</Link>
               </Button>
             ) : null}
-            {session ? <SignOutButton kind="contributor" /> : null}
+            {session ? <ContributorAccount handle={session.xh} /> : null}
           </>
         }
       />
@@ -40,7 +40,7 @@ export default async function ContributorHomeIndex() {
             </h1>
             <p className="text-soft mt-2 text-[15px]">
               {session
-                ? `Signed in with X as @${session.xh}.`
+                ? "What you've earned and what's in review, across every program."
                 : "Sign in with X to see the programs you joined."}
             </p>
           </div>

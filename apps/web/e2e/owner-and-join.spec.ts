@@ -131,7 +131,8 @@ test("owner creates and publishes a program; contributor joins and switches wall
 
     await cp.goto(`/join/${SLUG}`);
     await expect(cp.getByRole("heading", { name: "E2E Builders" })).toBeVisible();
-    await expect(cp.getByText(`@${X.handle}`)).toBeVisible();
+    await expect(cp.getByRole("main").getByText(`@${X.handle}`)).toBeVisible();
+    await expect(cp.getByRole("button", { name: `Account @${X.handle}` })).toBeVisible();
     await connectWallet(cp);
     await cp.getByRole("button", { name: "Sign and join" }).click();
     await expect(cp).toHaveURL(new RegExp(`/c/${SLUG}$`));

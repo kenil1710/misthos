@@ -63,17 +63,18 @@ test("logos, back links, the active nav item and tab titles", async ({ browser }
   await seedProgram(db, { ownerId, slug: `${slug}-2`, name: "Nav Program Two" });
   const base = `/app/programs/${programId}`;
 
-  // In the app, the logo goes to the app home; "Back to site" goes to the landing page.
+  // In the app, "All programs" is the app home and the logo goes to the landing page (no separate "Back to site").
   await page.goto(`${base}/treasury`);
   await expect(page).toHaveTitle("Treasury · Misthos");
   await expect(page.getByRole("link", { name: "Treasury" })).toHaveAttribute(
     "aria-current",
     "page",
   );
-  await page.getByRole("link", { name: "Misthos app home" }).first().click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page.getByRole("link", { name: "Back to site" })).toHaveCount(0);
+  await page.getByRole("link", { name: "All programs" }).first().click();
+  await expect(page).toHaveURL(/\/app\/programs$/);
   await expect(page).toHaveTitle("Your programs · Misthos");
-  await page.getByRole("link", { name: "Back to site" }).click();
+  await page.getByRole("link", { name: "Misthos home" }).first().click();
   await expect(page).toHaveURL(`${E2E.baseURL}/`);
 
   // On public pages, the logo goes to the landing page.
@@ -151,11 +152,8 @@ test("mobile: the menu closes with Back, and its links navigate with a clean his
   await expect(page).toHaveURL(new RegExp(`${base}$`));
   await expect(menu).toBeHidden();
 
-  // The mobile header logo also goes to the app home (which, with one program, opens that program).
-  await expect(page.getByRole("link", { name: "Misthos app home" })).toHaveAttribute(
-    "href",
-    "/app",
-  );
+  // The mobile header logo also goes to the landing page.
+  await expect(page.getByRole("link", { name: "Misthos home" })).toHaveAttribute("href", "/");
   expect(errors).toEqual([]);
 });
 
@@ -186,7 +184,7 @@ test("wizard steps follow Back and Forward without losing what was typed", async
   // The in-page Back button and "Save and exit" lead out of the wizard; the draft stays on the device.
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL(/step=2/);
-  await expect(page.getByRole("link", { name: "Back to site" })).toHaveCount(0); // full screen, no rail
+  await expect(page.getByRole("link", { name: "Docs" })).toHaveCount(0); // full screen, no rail
   await page.getByRole("link", { name: "Save and exit" }).click();
   await expect(page).toHaveURL(/\/app$/);
   await page.goto("/app/programs/new");
@@ -227,9 +225,9 @@ test("guided setup: ready screen → setup → finish later, with the way back",
   // The overview's setup track opens the same guided flow.
   await page.getByRole("link", { name: "Deploy the vault" }).click();
   await expect(page).toHaveURL(new RegExp(`${base}/setup$`));
-  // The logo leaves the flow for the app home.
-  await page.getByRole("link", { name: "Misthos app home" }).click();
-  await expect(page).toHaveURL(/\/app(\/programs\/[0-9a-f-]{36})?$/);
+  // The logo leaves the flow for the landing page.
+  await page.getByRole("link", { name: "Misthos home" }).click();
+  await expect(page).toHaveURL(`${E2E.baseURL}/`);
   expect(errors).toEqual([]);
 });
 
@@ -252,7 +250,11 @@ test("owner: a protected page signs in in place and stays there; sign-out lands 
   expect(path(page)).toBe(`/app/programs/${programId}/treasury`);
 
   // Sign out: the landing page says so, and the app asks to sign in again (no blank or error page).
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page
+    .getByRole("button", { name: /^Account 0x/ })
+    .first()
+    .click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(`${E2E.baseURL}/`);
   await expect(page.getByRole("status").filter({ hasText: "You're signed out." })).toBeVisible();
   await expect(
@@ -334,6 +336,11 @@ test("contributors: dashboard links, X and GitHub return paths, the owner app an
   // Signed in: the dashboard opens, with a way back to all joined programs.
   await page.goto(`/c/${slug}`);
   await expect(page).toHaveTitle("Your contributions · Misthos");
+  // The header shows a compact account chip (X handle, no wallet); sign out lives in its menu.
+  await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Account @nav_contrib" }).click();
+  await expect(page.getByRole("menuitem", { name: "Sign out" })).toBeVisible();
+  await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Programs you joined" }).first().click();
   await expect(page).toHaveURL(/\/c$/);
 
@@ -350,5 +357,7 @@ test("contributors: dashboard links, X and GitHub return paths, the owner app an
     "href",
     "/c",
   );
+  // …and nothing else: no handle or address chip on the public site.
+  await expect(page.getByRole("banner")).not.toContainText("nav_contrib");
   expect(errors).toEqual([]);
 });

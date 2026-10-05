@@ -378,7 +378,9 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
         </p>
       </div>
 
-      {i.decision ? <p className="mt-3 text-sm leading-relaxed">{i.decision.summary}</p> : null}
+      {i.decision ? (
+        <p className="mt-3 text-sm leading-relaxed">{keepDatesTogether(i.decision.summary)}</p>
+      ) : null}
       {fixes.length ? (
         <div className="bg-muted/60 mt-3 rounded-xl px-3.5 py-2.5 text-sm">
           <p className="font-medium">
@@ -430,4 +432,9 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
       ) : null}
     </li>
   );
+}
+
+/** Dates like 2026-10-12 shouldn't wrap at their hyphens: use non-breaking hyphens for display. */
+function keepDatesTogether(text: string) {
+  return text.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, "$1\u2011$2\u2011$3");
 }

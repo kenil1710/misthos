@@ -35,7 +35,7 @@ export function FocusHeader({
   return (
     <header className="bg-background/85 supports-[backdrop-filter]:bg-background/75 sticky top-0 z-30 border-b supports-[backdrop-filter]:backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-[1240px] items-center gap-4 px-4 sm:px-8">
-        <Link href="/app" aria-label="Misthos app home" className="shrink-0 rounded-md">
+        <Link href="/" aria-label="Misthos home" className="shrink-0 rounded-md">
           <Wordmark />
         </Link>
         <div className="flex min-w-0 flex-1 justify-center">{progress}</div>

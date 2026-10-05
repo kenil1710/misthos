@@ -44,7 +44,8 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   const { metrics, showMetrics, featured, examples } = await landingData();
-  const auditHref = featured ? `/p/${featured.slug}` : null;
+  // Always offer the live showcase, so visitors can see it working without signing in.
+  const auditHref = `/p/${featured?.slug ?? "kency-arc-creators"}`;
   const verifyHref = featured
     ? `/p/${featured.slug}#verify${examples.approved ? `?d=${examples.approved.hash}` : ""}`
     : null;
@@ -81,7 +82,7 @@ export default async function Home() {
                   className="bg-card/70 hover:bg-card h-12 rounded-xl px-6 text-base"
                 >
                   <Link href={auditHref} prefetch={false}>
-                    See a live audit
+                    See it live
                     <ArrowUpRight className="size-4" strokeWidth={1.5} aria-hidden="true" />
                   </Link>
                 </Button>

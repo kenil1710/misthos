@@ -1,50 +1,84 @@
 "use client";
 
+import { getChainConfig } from "@misthos/shared/chains";
 import { shortHex } from "@misthos/shared/money";
-import { useState } from "react";
+import { ArrowLeftRight, Network, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import { useSwitchChain } from "wagmi";
+import { AccountChip, type AccountTone } from "@/components/app/account-chip";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useWalletProblem } from "@/components/vault/owner-wallet";
-import { cn } from "@/lib/utils";
-import { WalletFixDialog } from "./wallet-fix";
+import { classifyWalletError } from "@/lib/wallet-errors";
+import { chooseAccount } from "./choose-account";
+import { useWalletAccount } from "./use-wallet-account";
 import { useWalletUi } from "./web3-provider";
 
-const STATE = {
-  ok: { dot: "bg-success", text: "Wallet ready" },
-  reconnecting: { dot: "bg-muted-foreground animate-pulse", text: "Reconnecting…" },
-  disconnected: { dot: "bg-muted-foreground/60", text: "Connect wallet" },
-  wrong_account: { dot: "bg-warning", text: "Other account in wallet" },
-  wrong_network: { dot: "bg-warning", text: "Wrong network" },
-} as const;
+const chain = getChainConfig().chain;
 
 /**
- * The owner's account at the bottom of the rail, with the wallet's state as one quiet line. A mismatch is a dot
- * and a word here; the fix opens in a compact dialog when clicked (or when an action needs the wallet).
+ * The owner's account chip with the wallet's state as a dot: green ready, amber another account or network, grey
+ * not connected. Nothing here prompts the wallet on its own; every wallet request starts from a menu item.
  */
-export function WalletChipStatus({ owner }: { owner: string }) {
+export function WalletChipStatus({
+  owner,
+  className,
+  side,
+}: {
+  owner: string;
+  className?: string;
+  side?: "top" | "bottom";
+}) {
   const problem = useWalletProblem(owner);
+  const { address, connector } = useWalletAccount();
   const { openConnect } = useWalletUi();
-  const [open, setOpen] = useState(false);
-  const s = STATE[problem ?? "ok"];
-  const actionable =
-    problem === "wrong_account" || problem === "wrong_network" || problem === "disconnected";
+  const { switchChainAsync } = useSwitchChain();
+  const status: { tone: AccountTone; text: string } =
+    problem === null
+      ? { tone: "ready", text: "Wallet ready" }
+      : problem === "reconnecting"
+        ? { tone: "busy", text: "Reconnecting your wallet…" }
+        : problem === "disconnected"
+          ? { tone: "off", text: "Wallet not connected" }
+          : problem === "wrong_account"
+            ? {
+                tone: "warning",
+                text: `Wallet is on ${address ? shortHex(address.toLowerCase()) : "another account"}`,
+              }
+            : { tone: "warning", text: `Wallet is on another network` };
   return (
-    <>
-      <button
-        type="button"
-        disabled={!actionable}
-        onClick={() => (problem === "disconnected" ? openConnect() : setOpen(true))}
-        className={cn(
-          "text-muted-foreground inline-flex items-center gap-1.5 rounded-md text-xs leading-tight",
-          actionable && "hover:text-foreground underline-offset-4 hover:underline",
-          (problem === "wrong_account" || problem === "wrong_network") && "text-warning",
-        )}
-        aria-label={`${s.text}${actionable ? " (fix)" : ""}`}
-        title={actionable ? `${s.text}: click to fix` : s.text}
-      >
-        <span className={cn("size-1.5 shrink-0 rounded-full", s.dot)} aria-hidden="true" />
-        {s.text}
-      </button>
-      <WalletFixDialog owner={owner} open={open} onOpenChange={setOpen} />
-      <span className="sr-only">{shortHex(owner)}</span>
-    </>
+    <AccountChip
+      kind="owner"
+      address={owner}
+      status={status}
+      className={className}
+      side={side}
+      walletItems={
+        problem === "disconnected" ? (
+          <DropdownMenuItem onSelect={openConnect}>
+            <Wallet className="size-4" strokeWidth={1.5} />
+            Connect wallet
+          </DropdownMenuItem>
+        ) : (
+          <>
+            {problem === "wrong_network" ? (
+              <DropdownMenuItem
+                onSelect={() =>
+                  void switchChainAsync({ chainId: chain.id }).catch((e) =>
+                    toast.error(classifyWalletError(e).message),
+                  )
+                }
+              >
+                <Network className="size-4" strokeWidth={1.5} />
+                Switch to {chain.name}
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem onSelect={() => void chooseAccount(connector)}>
+              <ArrowLeftRight className="size-4" strokeWidth={1.5} />
+              Switch account
+            </DropdownMenuItem>
+          </>
+        )
+      }
+    />
   );
 }

@@ -18,9 +18,8 @@ function parseHint(cookie: string): Hint | null {
 }
 
 /**
- * The landing header's account area. Signed out: "Sign in" and "Start a program". Signed in: who you are and
- * "Open app", which goes to your programs (owner) or the programs you joined (contributor). Same width either
- * way, so swapping after load doesn't shift the header.
+ * The landing header's account area. Signed out: "Sign in" and "Start a program". Signed in: just "Open app", which
+ * goes to your programs (owner) or the programs you joined (contributor). No wallet code loads here.
  */
 export function AccountNav() {
   // The cookie string is the snapshot (stable while unchanged); the server renders the signed-out state.
@@ -45,21 +44,9 @@ export function AccountNav() {
         </Button>
       </>
     );
-  const who = hint.o ?? `@${hint.c}`;
+  // Signed in: just "Open app" (no address or avatar on the public site).
   return (
     <>
-      <span
-        className="text-muted-foreground hidden items-center gap-2 px-2 text-sm sm:inline-flex"
-        title={hint.o && hint.c ? `${hint.o} · @${hint.c}` : who}
-      >
-        <span
-          aria-hidden="true"
-          className="bg-muted text-foreground flex size-6 items-center justify-center rounded-full border text-[11px] font-medium"
-        >
-          {(hint.c ?? hint.o!.slice(2, 3)).slice(0, 1).toUpperCase()}
-        </span>
-        <span className={hint.o ? "font-mono text-[13px]" : ""}>{who}</span>
-      </span>
       <Button asChild size="sm" className="ml-1">
         <Link href={hint.o ? "/app" : "/c"} prefetch={false}>
           Open app

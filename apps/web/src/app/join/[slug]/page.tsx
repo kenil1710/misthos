@@ -5,7 +5,7 @@ import { and, desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { SignOutButton } from "@/components/app/sign-out-button";
+import { ContributorAccount } from "@/components/contributor/contributor-account";
 import { SiteHeader } from "@/components/app/site-header";
 import { JoinWallet } from "@/components/contributor/wallet-islands";
 import { PreviewBanner } from "@/components/app/preview-banner";
@@ -82,7 +82,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   return (
     <>
       {preview ? <PreviewBanner programId={program.id} what="join page" /> : null}
-      <SiteHeader right={session ? <SignOutButton kind="contributor" /> : null} />
+      <SiteHeader right={session ? <ContributorAccount handle={session.xh} /> : null} />
       <main
         id="main"
         className="mx-auto grid w-full max-w-6xl flex-1 content-start grid-cols-[minmax(0,1fr)] gap-12 px-4 py-8 sm:px-6 sm:py-14 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-16"

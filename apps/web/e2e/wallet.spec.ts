@@ -48,17 +48,21 @@ test("owner: account and network switches show quietly in the wallet chip, the f
   // The guided setup's first step deploys the vault; its header carries the wallet chip.
   // Opened directly: two wallet islands (header chip + deploy) resolve together, and the wallet still reconnects.
   await page.goto(`/app/programs/${programId}/setup`);
-  const chip = (name: string) => page.getByRole("button", { name, exact: true });
-  await expect(chip("Wallet ready")).toBeVisible();
+  // The account chip: identicon, address and a status dot; its accessible name carries the wallet state.
+  const chip = (state: RegExp) => page.getByRole("button", { name: state });
+  await expect(chip(/^Account 0x.*Wallet ready$/)).toBeVisible();
 
-  // Switch to another account in the extension: a quiet indicator, no dialog until an action needs the wallet.
+  // Switch to another account in the extension: only the dot changes; no dialog until an action needs the wallet.
   await wallet.switchAccount(page, 1);
-  await expect(chip("Other account in wallet (fix)")).toBeVisible();
+  await expect(chip(/Wallet is on 0x/)).toBeVisible();
+  await page.waitForTimeout(500);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Deploy vault" }).click();
-  const fix = page.getByRole("dialog", { name: "Your wallet is on another account" });
-  await expect(fix).toContainText("transactions here need that account");
-  await expect(fix.getByRole("button", { name: "Choose account in wallet" })).toBeVisible();
+  const fix = page.getByRole("dialog", { name: "Switch to your owner wallet" });
+  await expect(fix).toContainText(`This action needs ${wallet.address.slice(0, 6).toLowerCase()}`);
+  await expect(fix.getByRole("button", { name: "Open wallet" })).toBeVisible();
+  await expect(fix.getByRole("button", { name: /^Use 0x.+ instead$/ })).toBeVisible();
+  await expect(fix.getByRole("button", { name: "Disconnect" })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(fix).toBeHidden();
   await page.waitForTimeout(500);
@@ -66,27 +70,54 @@ test("owner: account and network switches show quietly in the wallet chip, the f
 
   // Switch back: the chip is ready again by itself.
   await wallet.switchAccount(page, 0);
-  await expect(chip("Wallet ready")).toBeVisible();
+  await expect(chip(/Wallet ready$/)).toBeVisible();
 
-  // Wrong network: the chip opens a one-click switch (adding Arc Testnet if needed).
+  // Wrong network: the account menu offers a one-click switch (adding Arc Testnet if needed).
   await wallet.setChain(page, 1);
-  await chip("Wrong network (fix)").click();
-  const network = page.getByRole("dialog", { name: /Switch to Arc/ });
-  await network.getByRole("button", { name: /Switch to Arc/ }).click();
-  await expect(network).toBeHidden();
-  await expect(chip("Wallet ready")).toBeVisible();
+  await chip(/another network/).click();
+  await page.getByRole("menuitem", { name: /Switch to Arc/ }).click();
+  await expect(chip(/Wallet ready$/)).toBeVisible();
 
   // A reload reconnects silently.
   await page.reload();
-  await expect(chip("Wallet ready")).toBeVisible({ timeout: 15_000 });
+  await expect(chip(/Wallet ready$/)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: /^connect/i })).toHaveCount(0);
 
-  // Disconnect in the extension: the chip offers to connect; an action explains what it needs. Still no signature.
+  // Disconnect in the extension: grey dot; an action explains what it needs. Still no signature.
   await wallet.revoke(page);
-  await expect(chip("Connect wallet (fix)")).toBeVisible();
+  await expect(chip(/Wallet not connected$/)).toBeVisible();
   await page.getByRole("button", { name: "Deploy vault" }).click();
-  await expect(page.getByRole("dialog", { name: "Connect your wallet" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Connect your owner wallet" })).toBeVisible();
   expect(wallet.signRequests).toHaveLength(1);
+  expect(errors).toEqual([]);
+});
+
+test("owner: Start a program / Open app never opens a wallet by itself; the account menu has the wallet actions", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext();
+  const wallet = await injectWallet(ctx, generatePrivateKey());
+  const { page, errors } = await newPage(ctx);
+  await page.goto("/");
+  await page.getByRole("link", { name: "Start a program" }).first().click();
+  await expect(page.getByRole("heading", { name: "Sign in to Misthos" })).toBeVisible();
+  await page.waitForTimeout(2_000);
+  // Nothing popped up: no dialog, no wallet request; the picker opens only from "Connect wallet".
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(wallet.signRequests).toHaveLength(0);
+  await page.getByRole("button", { name: "Connect wallet" }).click();
+  await expect(page.getByRole("dialog", { name: "Connect a wallet" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // Signed in: the account menu offers copy, explorer, switch account and sign out.
+  await ownerSignIn(page);
+  await page
+    .getByRole("button", { name: /^Account 0x.*Wallet ready$/ })
+    .first()
+    .click();
+  for (const item of ["Copy address", "View on explorer", "Switch account", "Sign out"])
+    await expect(page.getByRole("menuitem", { name: item })).toBeVisible();
+  await page.keyboard.press("Escape");
   expect(errors).toEqual([]);
 });
 

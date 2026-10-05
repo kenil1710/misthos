@@ -10,11 +10,23 @@ Every rule below is covered by `apps/web/e2e/navigation.spec.ts` (plus the flows
 | --------------- | -------------------------------------------------------------------------- | ----------------------- | ------------ |
 | Public site     | `/`, `/docs/**`, `/join/[slug]`, `/p/[slug]`, `/p/[slug]/rounds/[roundId]` | Everyone                | `/`          |
 | Contributor app | `/c`, `/c/[slug]`                                                          | Signed in with X        | `/`          |
-| Owner app       | `/app`, `/app/programs/**`, `/app/admin/metrics`                           | Signed in with a wallet | `/app`       |
+| Owner app       | `/app`, `/app/programs/**`, `/app/admin/metrics`                           | Signed in with a wallet | `/`          |
 
-The owner app's rail (and the mobile menu) also has **Back to site** (`/`) and **Docs**. Guided flows (the new
-program wizard, "Your program is ready" and the vault setup) are full screen: no rail, a header with the logo
-(→ `/app`), the flow's progress and one way out ("Save and exit", "Go to overview" or "Finish later"). `/app` is the app home:
+The logo always goes to the landing page; inside the owner app, **All programs** (`/app/programs`) is the way home,
+and the rail (and the mobile menu) also has **Docs**. The rail ends with the **account chip**: identicon, short
+address and a wallet dot (green ready, amber another account or network, grey not connected; the tooltip says
+which). Its menu has Copy address, View on explorer, Switch account (or Connect wallet / Switch network) and Sign
+out. Contributor pages use the same chip with the X handle (menu: View on X, Programs you joined, Sign out) and load
+no wallet code. The public site's header shows no account details: signed out "Sign in" and "Start a program",
+signed in just "Open app".
+
+The wallet never opens by itself: "Start a program", "Sign in" and "Open app" lead to the sign-in page, and the
+wallet picker opens only from "Connect wallet". The "Switch to your owner wallet" dialog opens only when an action
+needs the owner wallet, never from browsing.
+
+Guided flows (the new program wizard, "Your program is ready" and the vault setup) are full screen: no rail, a
+header with the logo, the flow's progress and one way out ("Save and exit", "Go to overview" or "Finish later").
+`/app` is the app home:
 the list of your programs, or that program directly when you own exactly one, or the welcome screen when you
 own none.
 
@@ -65,16 +77,16 @@ Misthos`, with the program name on program-level pages).
 
 ## Sign-in and sign-out
 
-| Situation                                          | What happens                                                                                                    |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Owner opens any `/app/**` page signed out          | Sign-in shows in place on that URL; after signing, the same page renders.                                       |
-| Owner clicks Sign in / Start a program on the site | `/app` → sign-in → app home.                                                                                    |
-| Contributor joins                                  | `/join/[slug]` → X → back to `/join/[slug]` for the wallet step → `/c/[slug]`.                                  |
-| Contributor opens `/c/[slug]` signed out           | `/join/[slug]?return=dashboard`; its Sign in with X returns to `/c/[slug]` (non-members are sent back to join). |
-| Contributor opens `/c` signed out                  | Sign in with X → back to `/c`.                                                                                  |
-| Connect GitHub                                     | `/api/auth/github/start?next=/c/[slug]` → GitHub → back to `/c/[slug]` (errors as `?github_error=`).            |
-| X or GitHub cancelled / failed                     | Back to the same `next` page with `?x_error=` / `?github_error=` explained inline.                              |
-| Sign out (owner or contributor)                    | Session ends, then a full load of `/` with "You're signed out." The app then shows sign-in again.               |
+| Situation                                              | What happens                                                                                                    |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Owner opens any `/app/**` page signed out              | Sign-in shows in place on that URL; after signing, the same page renders.                                       |
+| Owner clicks Sign in / Start a program on the site     | `/app` → sign-in → app home.                                                                                    |
+| Contributor joins                                      | `/join/[slug]` → X → back to `/join/[slug]` for the wallet step → `/c/[slug]`.                                  |
+| Contributor opens `/c/[slug]` signed out               | `/join/[slug]?return=dashboard`; its Sign in with X returns to `/c/[slug]` (non-members are sent back to join). |
+| Contributor opens `/c` signed out                      | Sign in with X → back to `/c`.                                                                                  |
+| Connect GitHub                                         | `/api/auth/github/start?next=/c/[slug]` → GitHub → back to `/c/[slug]` (errors as `?github_error=`).            |
+| X or GitHub cancelled / failed                         | Back to the same `next` page with `?x_error=` / `?github_error=` explained inline.                              |
+| Sign out (owner or contributor, from the account menu) | Session ends, then a full load of `/` with "You're signed out." The app then shows sign-in again.               |
 
 `next` is always a same-origin path: `safeNextPath` rejects absolute URLs, `//host`, backslashes and control
 characters (unit-tested in `test/x-oauth.test.ts`), and the value travels inside the signed OAuth flow cookie.
