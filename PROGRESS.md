@@ -42,7 +42,9 @@ Railway, Neon). Repository public. No mainnet without the owner's explicit OK.
 - **Neon free tier:** the worker no longer polls. It drains the queues on wake (web app `POST /wake` with
   `WORKER_WAKE_SECRET` after each enqueue), every 15 min (`WORKER_TICK_MINUTES`) and for due retries, closing its
   connections in between so Neon can suspend. Worker `GET /health` answers from memory; `/api/health/worker` relays
-  it without touching the database. Before: ~369 transactions/min, compute never suspended.
+  it without touching the database. Measured on Neon: before ~369 transactions/min with 5 pg-boss
+  connections always open (compute up continuously); after ~2.4/min, no worker connections between drains, and the
+  compute suspended and restarted on its own after the deploy. Expected ~2 CU-h/day (awake ~5 min per 15-min tick).
 
 ## Done (UX and bug sweep before submission, 2026-10-05)
 
