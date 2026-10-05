@@ -1,6 +1,9 @@
 import Link from "next/link";
 import type { Address } from "viem";
+import { emptyContextDraft, toDraftUnderstanding } from "@/lib/context-draft";
+import { ContextSettings } from "@/components/app/context-settings";
 import { ProgramStatus } from "@/components/app/program-status";
+import { SubmissionRules } from "@/components/app/submission-rules";
 import { HexValue } from "@/components/hex-value";
 import { Card, EmptyState, Notice, PageHeader } from "@/components/ui-kit";
 import { CopyField } from "@/components/ui-kit/copy-field";
@@ -8,7 +11,7 @@ import { Term } from "@/components/ui-kit/term";
 import { LimitsForm } from "@/components/vault/islands";
 import { unitsToInput } from "@/lib/units";
 import { appOrigin } from "@/lib/server/env";
-import { getProgramForMember, getRounds } from "@/lib/server/queries";
+import { currentContext, getProgramForMember, getRounds } from "@/lib/server/queries";
 import { RoundSchedule } from "@/components/app/round-schedule";
 import { getOwnerSession } from "@/lib/server/session";
 import { explorerAddress, readVault } from "@/lib/server/vault";
@@ -45,6 +48,7 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
   const joinUrl = `${appOrigin()}/join/${row.program.slug}`;
   const latest = (await getRounds(id)).at(-1) ?? null;
   const l = state?.limits;
+  const ctx = await currentContext(id, row.program.contextVersion);
   return (
     <div className="grid gap-6">
       <PageHeader
@@ -58,6 +62,8 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
             {(
               [
                 ["#join", "Join page"],
+                ["#context", "Context for the agent"],
+                ["#rules", "Submission rules"],
                 ["#schedule", "Round schedule"],
                 ["#vault", "Vault"],
                 ["#limits", "Limits"],
@@ -105,6 +111,43 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
                 ) : null}
               </div>
             </div>
+          </Card>
+
+          <Card
+            id="context"
+            title="Context for the agent"
+            description="What the project is and what counts. The agent checks every submission against it."
+          >
+            <ContextSettings
+              programId={id}
+              version={row.program.contextVersion}
+              initial={
+                ctx
+                  ? {
+                      about: ctx.about,
+                      links: ctx.linksJson.join("\n"),
+                      mustInclude: ctx.mustIncludeJson.join(", "),
+                      readId: null,
+                      understanding: ctx.understandingJson
+                        ? toDraftUnderstanding(ctx.understandingJson)
+                        : null,
+                      sources: ctx.sourcesJson,
+                    }
+                  : emptyContextDraft()
+              }
+            />
+          </Card>
+
+          <Card
+            id="rules"
+            title="Submission rules"
+            description="Shown to contributors on the join page."
+          >
+            <SubmissionRules
+              programId={id}
+              maxSubmissionsPerRound={row.program.maxSubmissionsPerRound}
+              minXFollowers={row.program.minXFollowers}
+            />
           </Card>
 
           <Card

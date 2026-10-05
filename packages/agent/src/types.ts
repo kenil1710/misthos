@@ -14,6 +14,10 @@ export const FLAG_CODES = [
   "WALLET_CHANGED_RECENTLY",
   "PROMPT_INJECTION_ATTEMPT",
   "FETCH_FAILED",
+  "MISSING_REQUIRED",
+  "LOW_FOLLOWERS",
+  "OFF_TOPIC",
+  "CONTRADICTS_BRIEF",
 ] as const;
 export type FlagCode = (typeof FLAG_CODES)[number];
 
@@ -55,6 +59,8 @@ export interface Resource {
     quotes: number;
     impressions: number | null;
     lang: string | null;
+    /** Expanded links in the post (or thread); missing on resources cached before this existed. */
+    urls?: string[];
     /**
      * The author's self-reply chain read with the post, starting at the submitted post (just its own id for a single
      * post). Missing on resources cached before threads were read; those are fetched again.

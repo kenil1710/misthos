@@ -1,5 +1,12 @@
 import { formatUsdc } from "@misthos/shared/money";
-import { AlertTriangle, CheckCircle2, Inbox, Stamp, Wallet } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Inbox,
+  MessageSquareQuote,
+  Stamp,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { NeedItem, ProgramSummary } from "@/lib/server/program-summary";
@@ -21,6 +28,7 @@ const NEED_ICON: Record<NeedItem["kind"], typeof Inbox> = {
   approval: Stamp,
   payee: AlertTriangle,
   low_balance: Wallet,
+  appeal: MessageSquareQuote,
 };
 
 /** What the owner has to act on, first thing on the page, as cards; a calm "all caught up" when there's nothing. */
@@ -76,7 +84,7 @@ const NEEDS_SHOWN = 6;
 
 function NeedCard({ n, label }: { n: NeedItem; label?: string }) {
   const Icon = NEED_ICON[n.kind];
-  const strong = n.kind === "review" || n.kind === "approval";
+  const strong = n.kind === "review" || n.kind === "approval" || n.kind === "appeal";
   return (
     <li className="bg-card shadow-soft flex flex-col justify-between gap-4 rounded-[1.25rem] p-5">
       <div className="flex gap-3">

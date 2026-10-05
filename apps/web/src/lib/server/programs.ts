@@ -2,6 +2,7 @@ import { programMembers, programs, rounds, type DbLike } from "@misthos/db";
 import { toStoredLimits, type ProgramInput } from "@misthos/shared";
 import { and, eq } from "drizzle-orm";
 import { audit } from "./audit";
+import { saveContext } from "./context";
 
 export type CreateProgramResult =
   { ok: true; programId: string; slug: string } | { ok: false; error: "slug_taken" };
@@ -39,6 +40,8 @@ export async function createProgram(
         limitsJson: toStoredLimits(limits, budget),
         autoApproveConfidence: budget.autoApproveConfidence,
         minAccountAgeDays: budget.minAccountAgeDays,
+        minXFollowers: budget.minXFollowers,
+        maxSubmissionsPerRound: budget.maxSubmissionsPerRound,
         roundLengthDays: budget.roundLengthDays,
         firstRoundStartsAt: budget.firstRoundStartsAt,
       })
@@ -65,6 +68,7 @@ export async function createProgram(
         ratePerPoint: budget.ratePerPoint.toString(),
       },
     });
+    await saveContext(tx, { programId, ownerUserId: p.ownerUserId, input: p.input.context });
     return { ok: true as const, programId, slug: basics.slug };
   });
 }

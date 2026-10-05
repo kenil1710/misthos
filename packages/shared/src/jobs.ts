@@ -11,6 +11,8 @@ export const QUEUES = {
    */
   runRound: "round-run-once",
   syncPayee: "payee-sync",
+  /** Read a program's context (owner text + links) and draft the agent's understanding. */
+  readContext: "context-read",
 } as const;
 
 export const RunRoundJob = z.object({ roundId: z.uuid(), force: z.boolean().default(false) });
@@ -52,3 +54,6 @@ export const LEGACY_RUN_ROUND_QUEUE = "round-run";
 
 /** The single dedupe key for a round's job, whoever sends it (scheduler, recovery, owner close or approval). */
 export const roundJobKey = (roundId: string) => `round:${roundId}`;
+
+export const ReadContextJob = z.object({ contextId: z.uuid() });
+export type ReadContextJob = z.infer<typeof ReadContextJob>;

@@ -12,7 +12,12 @@ import { PreviewBanner } from "@/components/app/preview-banner";
 import { perfectLine } from "@/lib/program-math";
 import { draftPreviewFor } from "@/lib/server/preview";
 import { Button } from "@/components/ui/button";
-import { getContributorMembership, getProgramBySlug, getRounds } from "@/lib/server/queries";
+import {
+  currentContext,
+  getContributorMembership,
+  getProgramBySlug,
+  getRounds,
+} from "@/lib/server/queries";
 import { currentRound, isScheduled } from "@/lib/rounds";
 import { getContributorSession } from "@/lib/server/session";
 import { utcDay } from "@/lib/time";
@@ -56,6 +61,8 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   const program = (await load(slug)) ?? (await draftPreviewFor(slug));
   if (!program) notFound();
   const preview = program.status !== "active" && program.status !== "paused";
+  const ctx = await currentContext(program.id, program.contextVersion);
+  const brief = ctx ? { about: ctx.about, mustInclude: ctx.mustIncludeJson } : null;
   const sp = await searchParams;
   const xError = sp.x_error;
   // Sent here from a signed-out dashboard link: come back to the dashboard after signing in (it sends
@@ -113,6 +120,17 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
             <li className="bg-card shadow-soft rounded-full px-3.5 py-1.5">Paid in USDC on Arc</li>
           </ul>
 
+          {brief ? (
+            <section aria-labelledby="about-h" className="mt-14">
+              <h2 id="about-h" className="display text-[1.875rem] leading-tight">
+                About
+              </h2>
+              <p className="text-soft mt-3 max-w-[65ch] leading-relaxed whitespace-pre-line">
+                {brief.about}
+              </p>
+            </section>
+          ) : null}
+
           <h2 className="display mt-14 text-[1.875rem] leading-tight">What it pays for</h2>
           <ul className="mt-5 grid gap-4 sm:grid-cols-2">
             {program.rubricJson.categories.map((c) => (
@@ -143,13 +161,35 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
               </li>
             ))}
           </ul>
+          <h2 className="mt-12 text-base font-medium">Rules</h2>
+          <ul className="text-soft mt-3 grid gap-2 text-sm leading-relaxed">
+            {brief?.mustInclude.length ? (
+              <li>
+                Every post must include{" "}
+                <span className="text-foreground font-medium">{brief.mustInclude.join(", ")}</span>.
+              </li>
+            ) : null}
+            <li>
+              Up to {program.maxSubmissionsPerRound} submission
+              {program.maxSubmissionsPerRound === 1 ? "" : "s"} per round.
+            </li>
+            {program.minXFollowers > 0 ? (
+              <li>
+                X posts from accounts with fewer than {program.minXFollowers.toLocaleString("en")}{" "}
+                followers are reviewed by the team before payment.
+              </li>
+            ) : null}
+            {program.minAccountAgeDays > 0 ? (
+              <li>
+                X accounts younger than {program.minAccountAgeDays} days are reviewed by the team.
+              </li>
+            ) : null}
+            <li>Disagree with a decision? You can ask for a second look once per submission.</li>
+          </ul>
           {program.rubricJson.generalRules ? (
-            <>
-              <h2 className="mt-12 text-base font-medium">Rules</h2>
-              <p className="text-soft mt-2 text-sm leading-relaxed whitespace-pre-line">
-                {program.rubricJson.generalRules}
-              </p>
-            </>
+            <p className="text-soft mt-3 text-sm leading-relaxed whitespace-pre-line">
+              {program.rubricJson.generalRules}
+            </p>
           ) : null}
 
           <h2 className="display mt-14 text-[1.875rem] leading-tight">How it works</h2>

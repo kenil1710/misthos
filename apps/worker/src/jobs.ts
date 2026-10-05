@@ -3,6 +3,7 @@ import {
   dueRounds,
   processOverride,
   processSubmission,
+  readProgramContext,
   runRound,
   syncPayee,
   type RoundDeps,
@@ -13,6 +14,7 @@ import {
   OverrideDecisionJob,
   ProcessSubmissionJob,
   QUEUES,
+  ReadContextJob,
   roundJobKey,
   RunRoundJob,
   SyncPayeeJob,
@@ -48,6 +50,7 @@ export async function createQueues(boss: PgBoss, opts: JobOptions) {
   await boss.createQueue(QUEUES.runRound, { ...roundQueue, policy: "stately" });
   await boss.createQueue(LEGACY_RUN_ROUND_QUEUE, roundQueue);
   await boss.createQueue(QUEUES.syncPayee, { ...retry, retryLimit: 8 });
+  await boss.createQueue(QUEUES.readContext, { ...retry, retryLimit: 3 });
 }
 
 function handlers(deps: RoundDeps, log: Logger): Record<string, Handler> {
@@ -76,6 +79,14 @@ function handlers(deps: RoundDeps, log: Logger): Record<string, Handler> {
       const { contributorId } = SyncPayeeJob.parse(job.data);
       const res = await syncPayee(deps, contributorId);
       log.info({ contributorId, ...res }, "payee synced");
+    },
+    [QUEUES.readContext]: async (job) => {
+      const { contextId } = ReadContextJob.parse(job.data);
+      const res = await readProgramContext(
+        { db: deps.db, fetchArticle: deps.fetchers.article, understand: deps.understand ?? null },
+        contextId,
+      );
+      log.info({ contextId, ...res }, "program context read");
     },
     [QUEUES.runRound]: runRoundHandler,
     [LEGACY_RUN_ROUND_QUEUE]: runRoundHandler,
@@ -197,6 +208,7 @@ export async function runDrain(
     QUEUES.processSubmission,
     QUEUES.overrideDecision,
     QUEUES.syncPayee,
+    QUEUES.readContext,
     QUEUES.runRound,
     LEGACY_RUN_ROUND_QUEUE,
   ];

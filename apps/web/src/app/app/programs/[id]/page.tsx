@@ -280,6 +280,23 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
 
       <SetupChecklist steps={steps} />
 
+      {program.contextVersion === null && program.status !== "archived" ? (
+        <p className="bg-card shadow-soft flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] px-5 py-3.5 text-sm">
+          <span>
+            <span className="font-medium">Brief the agent.</span>{" "}
+            <span className="text-soft">
+              Tell it what the project is and what counts; it checks every submission against it.
+            </span>
+          </span>
+          <Link
+            href={`/app/programs/${program.id}/settings#context`}
+            className="text-brand font-medium underline-offset-4 hover:underline"
+          >
+            Add context
+          </Link>
+        </p>
+      ) : null}
+
       {setupDone || summary.needs.length ? <NeedsYou items={summary.needs} /> : null}
 
       {total > 0 ? (

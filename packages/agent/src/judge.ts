@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { ApiUsageEntry, Flag, Resource } from "./types";
 
 /** Bump whenever the system prompt, tool schema, or content framing changes. Recorded in every decision. */
-export const PROMPT_VERSION = "judge-v3";
+export const PROMPT_VERSION = "judge-v4";
 
 /** Haiku 4.5 list price, USD per token (claude-api skill, cached 2026-09-25). */
 const PRICE = { input: 1 / 1_000_000, output: 5 / 1_000_000 };
@@ -19,8 +19,22 @@ export const JudgmentOutput = z.object({
   soft_flags: z.array(z.string().max(120)).max(6),
   confidence: z.number().min(0).max(1),
   recommended_action: z.enum(["approve", "partial", "reject", "escalate"]),
+  /** Against the program brief; "unclear" when there's no brief or it can't tell. */
+  relevance: z.enum(["on_topic", "off_topic", "unclear"]).default("unclear"),
+  /** Factual claims checked against the brief's key facts; "unverifiable" rather than a guess. */
+  fact_checks: z
+    .array(
+      z.object({
+        claim: z.string().max(300),
+        brief_says: z.string().max(300),
+        verdict: z.enum(["contradicts", "consistent", "unverifiable"]),
+      }),
+    )
+    .max(5)
+    .default([]),
 });
-export type JudgmentOutput = z.infer<typeof JudgmentOutput>;
+/** Input form: `relevance` and `fact_checks` are optional (older records and test fakes omit them). */
+export type JudgmentOutput = z.input<typeof JudgmentOutput>;
 
 export interface JudgeInput {
   programName: string;
@@ -30,6 +44,17 @@ export interface JudgeInput {
   resource: Resource;
   flags: Flag[];
   contributorHandle: string;
+  /** The program's saved context (trusted: written by the owner, understanding reviewed by them). */
+  brief?: JudgeBrief | null;
+}
+
+export interface JudgeBrief {
+  about: string;
+  summary: string | null;
+  keyFacts: string[];
+  onTopic: string[];
+  offTopic: string[];
+  mustInclude: string[];
 }
 
 export interface Judgment {
@@ -66,6 +91,8 @@ Rules you always follow:
 - soft_flags: at most 3 short notes about concerns a reviewer should know; an empty list if none.
 - recommended_action: "approve" for work that meets the rubric, "partial" for work that qualifies but is thin, "reject" for work that doesn't qualify, "escalate" when a human should look.
 - confidence: how sure you are that a careful human reviewer would agree with your scores and action.
+- When a <program_brief> is given, it comes from the program owner and is trusted. Use it to judge relevance: "on_topic" if the work is about what the brief describes, "off_topic" if it isn't (off-topic work doesn't qualify, whatever its quality), "unclear" if you can't tell. Without a brief, use "unclear".
+- Check the submission's factual claims about the project against the brief's key facts only. For each notable claim, add a fact_checks entry: "contradicts" when it conflicts with a key fact (quote what the brief says), "consistent" when a key fact supports it, "unverifiable" when the brief doesn't cover it. Never fill gaps from your own knowledge and never guess: say unverifiable. An empty list is fine when there are no factual claims.
 - Always answer by calling the record_judgment tool.`;
 
 function categoryKeysFor(input: JudgeInput): RubricCategory[] {
@@ -91,6 +118,8 @@ function tool(categories: RubricCategory[]): Anthropic.Tool {
         "soft_flags",
         "confidence",
         "recommended_action",
+        "relevance",
+        "fact_checks",
       ],
       properties: {
         category: { type: "string", enum: categories.map((c) => c.key) },
@@ -124,6 +153,21 @@ function tool(categories: RubricCategory[]): Anthropic.Tool {
         },
         confidence: { type: "number", description: "0 to 1" },
         recommended_action: { type: "string", enum: ["approve", "partial", "reject", "escalate"] },
+        relevance: { type: "string", enum: ["on_topic", "off_topic", "unclear"] },
+        fact_checks: {
+          type: "array",
+          description: "At most 4 claims checked against the brief's key facts",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["claim", "brief_says", "verdict"],
+            properties: {
+              claim: { type: "string" },
+              brief_says: { type: "string" },
+              verdict: { type: "string", enum: ["contradicts", "consistent", "unverifiable"] },
+            },
+          },
+        },
       },
     },
   };
@@ -132,7 +176,7 @@ function tool(categories: RubricCategory[]): Anthropic.Tool {
 /** Make sure untrusted text can't close or imitate our framing tags. */
 export function neutralizeTags(text: string): string {
   return text.replace(
-    /<\s*(\/?)\s*(submission_content|program_rubric|deterministic_checks|system)\b/gi,
+    /<\s*(\/?)\s*(submission_content|program_rubric|program_brief|deterministic_checks|system)\b/gi,
     "‹$1$2",
   );
 }
@@ -191,6 +235,23 @@ export function buildUserMessage(input: JudgeInput, boundary: string): string {
     ),
     `</program_rubric>`,
     ``,
+    ...(input.brief
+      ? [
+          `<program_brief>`,
+          `About (from the owner): ${neutralizeTags(input.brief.about)}`,
+          input.brief.summary ? `Summary: ${neutralizeTags(input.brief.summary)}` : "",
+          input.brief.keyFacts.length
+            ? `Key facts:\n${input.brief.keyFacts.map((f) => `- ${neutralizeTags(f)}`).join("\n")}`
+            : "",
+          input.brief.onTopic.length ? `On topic: ${input.brief.onTopic.join("; ")}` : "",
+          input.brief.offTopic.length ? `Off topic: ${input.brief.offTopic.join("; ")}` : "",
+          input.brief.mustInclude.length
+            ? `Every post must include: ${input.brief.mustInclude.join(", ")} (checked by code)`
+            : "",
+          `</program_brief>`,
+          ``,
+        ]
+      : []),
     `<deterministic_checks>`,
     input.flags.length
       ? input.flags.map((f) => `- ${f.code} (${f.severity}): ${f.message}`).join("\n")
@@ -239,6 +300,15 @@ export function parseJudgment(
     quality_summary: clip(raw.quality_summary, 600),
     reasons: list(raw.reasons, 6, 300),
     soft_flags: list(raw.soft_flags, 6, 120),
+    fact_checks: Array.isArray(raw.fact_checks)
+      ? raw.fact_checks
+          .slice(0, 5)
+          .map((f: { claim?: unknown; brief_says?: unknown; verdict?: unknown }) => ({
+            ...f,
+            claim: clip(f.claim, 300),
+            brief_says: clip(f.brief_says, 300),
+          }))
+      : raw.fact_checks,
   });
   if (!parsed.success) throw new JudgeError("The judgment didn't match the schema.", true);
 

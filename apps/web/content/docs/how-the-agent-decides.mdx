@@ -10,9 +10,9 @@ A submission goes through four stages. Only the third uses a model.
    own thread (see [Threads on X](#threads-on-x)). Nothing else is crawled.
 2. **Deterministic checks.** Code compares the resource with the contributor, the round and every earlier submission
    in the program, and raises flags.
-3. **Judge.** Claude Haiku 4.5 scores the work against your rubric through a strict tool schema (`judge-v3`). It
+3. **Judge.** Claude Haiku 4.5 scores the work against your rubric through a strict tool schema (`judge-v4`). It
    returns a category, a score per criterion, a confidence, a recommendation and its reasons. It doesn't set amounts.
-4. **Decision engine.** Plain TypeScript rules (`rules-v5`) combine the flags and the judgment into an action and an
+4. **Decision engine.** Plain TypeScript rules (`rules-v6`) combine the flags and the judgment into an action and an
    amount, and write the explanation the contributor sees.
 
 ## Threads on X
@@ -45,6 +45,10 @@ person's eyes; they send the submission to review.
 | `DELETED` | hard, rejects | The content no longer exists. Also checked again before payout. |
 | `PROMPT_INJECTION_ATTEMPT` | hard, escalates | The content tries to instruct the grader, including in hidden article text. Always goes to a person, even if the model wasn't fooled. |
 | `OWNERSHIP_UNVERIFIED` | soft | An article's structured author metadata (`twitter:creator`, author meta tags, `<link rel="author">`, JSON-LD author links) doesn't name the contributor's X handle. Bylines, comments, replies, display names and body text don't count. |
+| `MISSING_REQUIRED` | soft | The work doesn't include a link, @mention or #hashtag the program requires (expanded links count). |
+| `LOW_FOLLOWERS` | soft | The X account has fewer followers than the program's minimum. |
+| `OFF_TOPIC` | soft (rejects when the judge is sure) | Not about what the program's brief describes. |
+| `CONTRADICTS_BRIEF` | soft | A claim conflicts with a key fact in the brief; the flag quotes both ("says X, but the brief says Y"). |
 | `DATE_UNVERIFIED` | soft | No publication date was found, so the round window can't be confirmed. |
 | `NEW_ACCOUNT` | soft | The X account is younger than the program's minimum account age. |
 | `ENGAGEMENT_ANOMALY` | soft | Likes and reposts far beyond the account's reach (more than 5× followers and over 200), or more than half of impressions. |
@@ -63,6 +67,7 @@ The engine applies these in order and stops at the first match. The rule that de
 | `R2B_JUDGE_INJECTION` | The judge itself noted an attempt to influence or instruct it (asking for full marks, claiming pre-approval, gaming the rubric, addressing the AI reviewer, …) → **review**, even if the code-level screen saw nothing. |
 | `R4_CATEGORY_INVALID` | The judged category doesn't exist or doesn't accept this source type → **review**. |
 | `R5A_CLEAR_SPAM` | The judge recommends rejecting with confidence ≥ 0.9 and every criterion scores ≤ 1 → **reject** (you can override). |
+| `R5B_OFF_TOPIC` | The judge is confident the work is off topic for the brief → **reject**. |
 | `R5_AGENT_RECOMMENDS_REVIEW` | The judge recommends rejecting or reviewing → **review**. |
 | `R6_SOFT_FLAGS` | Any soft flag → **review**. |
 | `R7_LOW_CONFIDENCE` | Confidence below the program's auto-approve confidence → **review**. |
@@ -95,3 +100,20 @@ When the agent itself improves (say, it learns to read whole threads), a decided
 yet can be re-processed: the content is fetched fresh, and the new signed agent decision names the one it
 supersedes and why. The audit trail records both, `decision.superseded` on the old decision and
 `decision.reprocessed` on the new one, and the old record stays verifiable.
+
+## The program's brief
+
+Each program can give the agent context: what the project is, what to post about and what to avoid, up to three
+links, and anything every post must include. The agent reads the links once (through the same guarded fetcher as
+articles; a page that contains instructions for the agent is left out) and drafts a summary, key facts and on/off
+topic themes, which the owner checks and edits. The saved brief is versioned.
+
+When judging, the brief is a separate, trusted section; the submission stays untrusted data. The judge rates
+relevance, checks the work's factual claims against the key facts only, and marks a claim "unverifiable" rather
+than guessing. Every decision records the brief's version and hash in its signed record, so it's always clear what
+the work was judged against.
+
+## Second looks
+
+A contributor can ask for a second look at a rejected or partly paid decision, once per submission, with a short
+note. It goes to the owner under "Needs you"; their answer is a signed human decision, recorded in the audit log.

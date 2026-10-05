@@ -6,7 +6,7 @@ export const FLAG_COPY: Record<string, { label: string; fix: string }> = {
   },
   OWNERSHIP_UNVERIFIED: {
     label: "Authorship couldn't be confirmed",
-    fix: "For articles, mention or link your X handle in the article so it can be matched to you.",
+    fix: "For articles, put your X handle in the page's author details (author tag, twitter:creator) so it can be matched to you.",
   },
   OUT_OF_WINDOW: {
     label: "Outside the round",
@@ -51,6 +51,22 @@ export const FLAG_COPY: Record<string, { label: string; fix: string }> = {
   FETCH_FAILED: {
     label: "Couldn't open the link",
     fix: "Check the link is public and opens without signing in.",
+  },
+  MISSING_REQUIRED: {
+    label: "Missing a required mention",
+    fix: "Include what the program asks every post to include (see the join page), then submit it again.",
+  },
+  LOW_FOLLOWERS: {
+    label: "Below the follower minimum",
+    fix: "This program reviews posts from smaller accounts by hand; nothing to change.",
+  },
+  OFF_TOPIC: {
+    label: "Off topic",
+    fix: "Submit work about what the program's About section describes.",
+  },
+  CONTRADICTS_BRIEF: {
+    label: "Conflicts with the program's facts",
+    fix: "Check your claims against the project's own docs; the team reviews conflicting ones.",
   },
 };
 

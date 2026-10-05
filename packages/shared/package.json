@@ -13,7 +13,8 @@
     "./canonical": "./src/canonical.ts",
     "./signatures": "./src/signatures.ts",
     "./ids": "./src/ids.ts",
-    "./deployments": "./src/deployments.ts"
+    "./deployments": "./src/deployments.ts",
+    "./context": "./src/context.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

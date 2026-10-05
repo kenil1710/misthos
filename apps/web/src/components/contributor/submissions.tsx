@@ -129,6 +129,7 @@ export function Submissions({
         decision: null,
         round: null,
         payout: null,
+        appeal: null,
       },
       ...(prev ?? []),
     ]);
@@ -430,7 +431,95 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
           <JourneyStepper steps={steps} audience="contributor" />
         </div>
       ) : null}
+      <SecondLook i={i} />
     </li>
+  );
+}
+
+/**
+ * "Ask for a second look" at a rejected or partly paid decision: once per submission, a short note for the team.
+ * The answer is the team's own signed decision.
+ */
+function SecondLook({ i }: { i: Item }) {
+  const [asked, setAsked] = useState(i.appeal);
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const eligible =
+    !!i.decision &&
+    (i.decision.action === "reject" || i.decision.action === "partial") &&
+    !i.payout;
+  if (asked)
+    return (
+      <p className="text-muted-foreground mt-3 text-xs">
+        {asked.resolvedAt
+          ? "The team took a second look; the decision above is theirs."
+          : "Second look requested. The team will review it and sign their decision."}
+      </p>
+    );
+  if (!eligible) return null;
+  async function send() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/contributor/submissions/${i.id}/appeal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !out.ok) return setError(out.error ?? "Couldn't send it. Try again.");
+      setAsked({ createdAt: new Date().toISOString(), resolvedAt: null });
+      toast.success("Sent. The team will take a second look.");
+    } catch {
+      setError("Couldn't reach Misthos. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (!open)
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-foreground mt-3 text-xs font-medium underline underline-offset-4"
+      >
+        Ask for a second look
+      </button>
+    );
+  const id = `appeal-${i.id}`;
+  return (
+    <div className="mt-3 grid gap-2">
+      <label htmlFor={id} className="text-xs font-medium">
+        Why should the team look again? (once per submission)
+      </label>
+      <textarea
+        id={id}
+        maxLength={280}
+        rows={3}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        className="border-input focus-visible:border-ring focus-visible:ring-ring/50 rounded-lg border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-3"
+        placeholder="It's my own thread from the round; the second post links the repo."
+      />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground text-xs tabular-nums">{note.length}/280</span>
+        <div className="flex gap-2">
+          <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button type="button" size="sm" disabled={busy || !note.trim()} onClick={send}>
+            {busy ? "Sending…" : "Send"}
+          </Button>
+        </div>
+      </div>
+      {error ? (
+        <p role="alert" className="text-danger text-xs">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

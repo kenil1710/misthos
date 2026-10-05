@@ -2,12 +2,25 @@
 
 import { formatUsdc } from "@misthos/shared/money";
 import { SOURCE_LABELS, SOURCE_TYPES, type SourceType } from "@misthos/shared/sources";
-import { BudgetInput, LimitsInput, ProgramBasics, Rubric } from "@misthos/shared";
+import {
+  BudgetInput,
+  ContextReadInput,
+  LimitsInput,
+  parseMustInclude,
+  ProgramBasics,
+  Rubric,
+} from "@misthos/shared";
 import { ArrowLeft, ArrowRight, Check, Eye, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import type { z } from "zod";
+import {
+  ContextEditor,
+  contextPayload,
+  emptyContextDraft,
+  type ContextDraft,
+} from "@/components/app/context-editor";
 import { FocusHeader, FocusMain } from "@/components/app/focus-frame";
 import { VaultArt } from "@/components/brand/illustrations";
 import { Button } from "@/components/ui/button";
@@ -50,6 +63,7 @@ type Limits = {
 };
 type Form = {
   basics: { name: string; slug: string; description: string; logoUrl: string };
+  context: ContextDraft;
   rubric: { categories: Category[]; generalRules: string };
   budget: {
     ratePerPoint: string;
@@ -60,6 +74,8 @@ type Form = {
     autoApproveConfidence: string;
     maxAutoApproveItem: string;
     minAccountAgeDays: string;
+    minXFollowers: string;
+    maxSubmissionsPerRound: string;
   };
   limits: Limits;
   /** Until the owner edits a limit, limits follow the rubric (see deriveDefaultLimits). */
@@ -101,6 +117,7 @@ const STARTER_CATEGORIES: Category[] = [
 
 const initialForm = (): Form => ({
   basics: { name: "", slug: "", description: "", logoUrl: "" },
+  context: emptyContextDraft(),
   rubric: { categories: STARTER_CATEGORIES, generalRules: "" },
   budget: {
     ratePerPoint: "0.5",
@@ -110,6 +127,8 @@ const initialForm = (): Form => ({
     autoApproveConfidence: "0.8",
     maxAutoApproveItem: "",
     minAccountAgeDays: "30",
+    minXFollowers: "0",
+    maxSubmissionsPerRound: "5",
   },
   limits: {
     maxPerPayout: "",
@@ -129,7 +148,17 @@ function loadDraft(): { form: Form; savedAt: string } | null {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
     const d = JSON.parse(raw) as { form: Form; savedAt: string };
-    return d?.form?.basics && d.form.rubric?.categories ? d : null;
+    if (!d?.form?.basics || !d.form.rubric?.categories) return null;
+    // Drafts saved before the context step and the submission rules: fill in what's new.
+    const init = initialForm();
+    return {
+      ...d,
+      form: {
+        ...d.form,
+        context: { ...init.context, ...d.form.context },
+        budget: { ...init.budget, ...d.form.budget },
+      },
+    };
   } catch {
     return null;
   }
@@ -186,6 +215,7 @@ function toPayload(f: Form, now: Date) {
   const start = startDate(f, now);
   return {
     basics: f.basics,
+    context: contextPayload(f.context),
     rubric: {
       generalRules: f.rubric.generalRules,
       categories: f.rubric.categories.map((c, i) => ({
@@ -211,6 +241,8 @@ function toPayload(f: Form, now: Date) {
       autoApproveConfidence: f.budget.autoApproveConfidence,
       maxAutoApproveItem: e.maxAutoApproveItem,
       minAccountAgeDays: f.budget.minAccountAgeDays,
+      minXFollowers: f.budget.minXFollowers,
+      maxSubmissionsPerRound: f.budget.maxSubmissionsPerRound,
     },
     limits: e.limits,
   };
@@ -267,6 +299,8 @@ const ID_KEYS: Record<string, string> = {
   len: "budget.roundLengthDays",
   start: "budget.firstRoundStartsAt",
   age: "budget.minAccountAgeDays",
+  followers: "budget.minXFollowers",
+  maxsubs: "budget.maxSubmissionsPerRound",
   conf: "budget.autoApproveConfidence",
   autoitem: "budget.maxAutoApproveItem",
   perpayout: "limits.maxPerPayout",
@@ -375,8 +409,18 @@ export function ProgramWizard() {
 
   function validate(s: number): Record<string, string> {
     if (s === 0) return issues(ProgramBasics, payload.basics, "basics");
-    if (s === 1) return issues(Rubric, payload.rubric, "rubric");
-    if (s === 2) {
+    if (s === 1)
+      return issues(
+        ContextReadInput,
+        {
+          about: payload.context.about,
+          links: payload.context.links,
+          mustInclude: payload.context.mustInclude,
+        },
+        "context",
+      );
+    if (s === 2) return issues(Rubric, payload.rubric, "rubric");
+    if (s === 3) {
       const out = {
         ...issues(BudgetInput, payload.budget, "budget"),
         ...issues(LimitsInput, payload.limits, "limits"),
@@ -392,7 +436,7 @@ export function ProgramWizard() {
     return {};
   }
   // A link straight to a later step only works once the earlier steps are complete.
-  const firstInvalid = [0, 1, 2].find((s) => Object.keys(validate(s)).length > 0) ?? 3;
+  const firstInvalid = [0, 1, 2, 3].find((s) => Object.keys(validate(s)).length > 0) ?? 4;
   const step = Math.min(requested, firstInvalid);
 
   // Keep a draft so a refresh or a browser Back doesn't lose anything. Saved on every change (not debounced): a
@@ -496,7 +540,7 @@ export function ProgramWizard() {
           ),
         );
         const keys = Object.keys(res.fieldErrors);
-        const first = ["basics", "rubric", "budget"].findIndex((p) =>
+        const first = ["basics", "context", "rubric", "budget"].findIndex((p) =>
           keys.some((k) => k.startsWith(p) || (p === "budget" && k.startsWith("limits"))),
         );
         if (first >= 0) goTo(first);
@@ -659,6 +703,22 @@ export function ProgramWizard() {
               ) : null}
 
               {step === 1 ? (
+                <ContextEditor
+                  value={form.context}
+                  onChange={(patch) =>
+                    setForm((f) => ({ ...f, context: { ...f.context, ...patch } }))
+                  }
+                  errors={{
+                    about: e["context.about"],
+                    links: Object.entries(e).find(([k]) => k.startsWith("context.links"))?.[1],
+                    mustInclude: Object.entries(e).find(([k]) =>
+                      k.startsWith("context.mustInclude"),
+                    )?.[1],
+                  }}
+                />
+              ) : null}
+
+              {step === 2 ? (
                 <>
                   <ScoringExplainer rate={eff.rate} />
                   {form.rubric.categories.map((c, i) => (
@@ -915,7 +975,7 @@ export function ProgramWizard() {
                 </>
               ) : null}
 
-              {step === 2 ? (
+              {step === 3 ? (
                 <>
                   <section
                     className="bg-card shadow-soft grid gap-4 rounded-[1.25rem] p-5 sm:p-6"
@@ -1095,6 +1155,34 @@ export function ProgramWizard() {
                           onChange={(v) => update("budget", { minAccountAgeDays: v })}
                         />
                       </Field>
+                      <Field
+                        id="followers"
+                        label="Minimum X followers"
+                        hint="Posts from smaller accounts go to your review. 0 means no minimum."
+                        error={e["budget.minXFollowers"]}
+                      >
+                        <UnitInput
+                          id="followers"
+                          unit="followers"
+                          placeholder="0"
+                          value={form.budget.minXFollowers}
+                          onChange={(v) => update("budget", { minXFollowers: v })}
+                        />
+                      </Field>
+                      <Field
+                        id="maxsubs"
+                        label="Submissions per contributor per round"
+                        hint="More are refused politely, before any review cost."
+                        error={e["budget.maxSubmissionsPerRound"]}
+                      >
+                        <UnitInput
+                          id="maxsubs"
+                          unit="per round"
+                          placeholder="5"
+                          value={form.budget.maxSubmissionsPerRound}
+                          onChange={(v) => update("budget", { maxSubmissionsPerRound: v })}
+                        />
+                      </Field>
                     </div>
                   </section>
 
@@ -1164,7 +1252,7 @@ export function ProgramWizard() {
                 </>
               ) : null}
 
-              {step === 3 ? (
+              {step === 4 ? (
                 <div className="grid gap-4">
                   <ReviewBlock title="Program" onEdit={() => goTo(0)}>
                     <p className="font-medium">{form.basics.name}</p>
@@ -1172,7 +1260,25 @@ export function ProgramWizard() {
                       {APP_HOST}/join/{form.basics.slug}
                     </p>
                   </ReviewBlock>
-                  <ReviewBlock title="Pays for" onEdit={() => goTo(1)}>
+                  <ReviewBlock title="Context for the agent" onEdit={() => goTo(1)}>
+                    <p className="line-clamp-3">{form.context.about}</p>
+                    {form.context.understanding ? (
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        Summary reviewed ·{" "}
+                        {contextPayload(form.context).understanding?.keyFacts.length ?? 0} key facts
+                      </p>
+                    ) : (
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        No summary yet: the agent uses your text as written.
+                      </p>
+                    )}
+                    {form.context.mustInclude.trim() ? (
+                      <p className="text-muted-foreground mt-1 text-xs">
+                        Posts must include {parseMustInclude(form.context.mustInclude).join(", ")}
+                      </p>
+                    ) : null}
+                  </ReviewBlock>
+                  <ReviewBlock title="Pays for" onEdit={() => goTo(2)}>
                     <ul className="grid gap-1.5">
                       {form.rubric.categories.map((c, i) => (
                         <li key={i} className="flex items-baseline justify-between gap-4">
@@ -1187,7 +1293,7 @@ export function ProgramWizard() {
                       ))}
                     </ul>
                   </ReviewBlock>
-                  <ReviewBlock title="Round 1" onEdit={() => goTo(2)}>
+                  <ReviewBlock title="Round 1" onEdit={() => goTo(3)}>
                     <p>
                       {form.budget.startMode === "now"
                         ? "Starts when you create the program"
@@ -1199,13 +1305,21 @@ export function ProgramWizard() {
                       Every {form.budget.roundLengthDays} days after that
                     </p>
                   </ReviewBlock>
-                  <ReviewBlock title="Without your review" onEdit={() => goTo(2)}>
+                  <ReviewBlock title="Without your review" onEdit={() => goTo(3)}>
                     <p>
                       Items up to {eff.maxAutoApproveItem} USDC with confidence ≥{" "}
                       {form.budget.autoApproveConfidence}
                     </p>
                   </ReviewBlock>
-                  <ReviewBlock title="Vault limits" onEdit={() => goTo(2)}>
+                  <ReviewBlock title="Submissions" onEdit={() => goTo(3)}>
+                    <p>Up to {form.budget.maxSubmissionsPerRound} per contributor per round</p>
+                    {Number(form.budget.minXFollowers) > 0 ? (
+                      <p className="text-muted-foreground mt-0.5">
+                        X accounts under {form.budget.minXFollowers} followers go to your review
+                      </p>
+                    ) : null}
+                  </ReviewBlock>
+                  <ReviewBlock title="Vault limits" onEdit={() => goTo(3)}>
                     <ul className="grid gap-0.5">
                       <li>{eff.limits.maxPerPayout} USDC per contributor per round</li>
                       <li>
@@ -1449,6 +1563,22 @@ function PreviewContent({
           <p className="text-soft mt-2 line-clamp-4 text-sm leading-relaxed">
             {form.basics.description || "Your description appears here."}
           </p>
+          {form.context.about.trim() ? (
+            <div className="bg-background/60 mt-4 rounded-xl border px-3.5 py-2.5 text-xs">
+              <p className="font-medium">About</p>
+              <p className="text-soft mt-1 line-clamp-5 leading-relaxed whitespace-pre-line">
+                {form.context.about}
+              </p>
+            </div>
+          ) : null}
+          {form.context.mustInclude.trim() ? (
+            <p className="text-soft mt-3 text-xs">
+              Every post must include{" "}
+              <span className="text-foreground font-medium">
+                {parseMustInclude(form.context.mustInclude).join(", ")}
+              </span>
+            </p>
+          ) : null}
           <p className="text-muted-foreground mt-5 text-xs font-medium">Pays for</p>
           <ul className="mt-2 grid gap-2">
             {form.rubric.categories.map((c, i) => (
@@ -1477,7 +1607,7 @@ function PreviewContent({
         </div>
       </div>
 
-      {step === 2 ? (
+      {step === 3 ? (
         <div className="bg-card shadow-soft relative overflow-hidden rounded-[1.25rem] p-5 text-sm">
           <VaultArt className="pointer-events-none absolute top-4 right-4 size-16" />
           <p className="font-medium">Your vault enforces</p>
@@ -1500,7 +1630,7 @@ function PreviewContent({
             Whatever the agent decides, the contract won&apos;t pay past these.
           </p>
         </div>
-      ) : step === 3 ? (
+      ) : step === 4 ? (
         <div className="bg-card shadow-soft rounded-[1.25rem] p-5 text-sm">
           <p className="font-medium">After you create it</p>
           <ol className="text-soft mt-3 grid gap-2">

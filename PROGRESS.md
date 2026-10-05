@@ -23,6 +23,24 @@ Railway, Neon). Repository public. No mainnet without the owner's explicit OK.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
 
+## Done (UI polish + agent context + small features, 2026-10-06)
+
+- **UI polish:** landing header shows no account details ("Open app" only) and a "See it live" hero CTA; split
+  sign-in page; the wallet never opens by itself; compact account chip (blockies identicon, status dot, menu) for
+  owners and contributors; "Back to site" removed (logo → landing); compact "Switch to your owner wallet" dialog.
+  Before/after in `docs/screenshots/polish/`.
+- **Context for the agent:** wizard step 2 and Settings; the worker reads the owner's text and up to 3 links once
+  (guarded fetch, pages with instructions for the agent left out, identical reads cached a day) and drafts a
+  summary, key facts and on/off-topic themes the owner edits; saved versions (`program_contexts`). The judge
+  (`judge-v4`) gets it as a trusted `<program_brief>`, rates relevance and checks claims against key facts
+  ("unverifiable" instead of guessing); engine `rules-v6` (OFF_TOPIC, CONTRADICTS_BRIEF, MISSING_REQUIRED). Each
+  signed decision records the context version and hash. Join page and wizard preview show About and "must include".
+- **Second looks** (once per submission, 280 chars, 5 a day) → owner "Needs you" + drawer; the owner's signed
+  decision resolves it (audited). **Per-round submission cap** (default 5, refused before any API cost).
+  **Minimum X followers** (default 0 → review). Rules shown on the join page.
+- Migration `0009` applied to Neon. Live checks: real context read (Circle blog) and real judge with a brief
+  (contradiction → review quoting both sides; off-topic → rejected).
+
 ## Done (fix-verification findings N-1…N-13, 2026-10-05) — main frozen after this
 
 - **N-1** one worker run per round (database lease, renewed before every transaction); payouts carry their on-chain

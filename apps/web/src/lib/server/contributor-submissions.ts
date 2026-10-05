@@ -1,5 +1,5 @@
 import "server-only";
-import { decisions, getDb, payouts, rounds, submissions } from "@misthos/db";
+import { appeals, decisions, getDb, payouts, rounds, submissions } from "@misthos/db";
 import type { SourceType } from "@misthos/shared/sources";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
@@ -25,6 +25,8 @@ export interface SubmissionItem {
   /** For the journey's last steps: the round it counts in and, once paid, the payout. */
   round: { number: number; status: string; endsAt: string } | null;
   payout: { status: string; txHash: string | null } | null;
+  /** "Ask for a second look": when it was asked and, once the owner decided, when. */
+  appeal: { createdAt: string; resolvedAt: string | null } | null;
 }
 
 /**
@@ -69,7 +71,7 @@ export async function contributorSubmissionItems(
   for (const d of decs) if (!latest.has(d.submissionId)) latest.set(d.submissionId, d);
   const roundIds = [...new Set(rows.map((r) => r.roundId))];
   const payoutIds = [...new Set(rows.map((r) => r.payoutId).filter((x): x is string => !!x))];
-  const [rs, ps] = await Promise.all([
+  const [rs, ps, aps] = await Promise.all([
     roundIds.length
       ? db
           .select({
@@ -87,7 +89,18 @@ export async function contributorSubmissionItems(
           .from(payouts)
           .where(inArray(payouts.id, payoutIds))
       : Promise.resolve([]),
+    found.length
+      ? db
+          .select({
+            submissionId: appeals.submissionId,
+            createdAt: appeals.createdAt,
+            resolvedAt: appeals.resolvedAt,
+          })
+          .from(appeals)
+          .where(inArray(appeals.submissionId, found))
+      : Promise.resolve([]),
   ]);
+  const appealBy = new Map(aps.map((a) => [a.submissionId, a]));
   const roundById = new Map(rs.map((x) => [x.id, x]));
   const payoutById = new Map(ps.map((x) => [x.id, x]));
   return rows.map((r) => {
@@ -121,6 +134,15 @@ export async function contributorSubmissionItems(
         ? { number: round.number, status: round.status, endsAt: round.endsAt.toISOString() }
         : null,
       payout: payout ? { status: payout.status, txHash: payout.txHash } : null,
+      appeal: (() => {
+        const a = appealBy.get(r.id);
+        return a
+          ? {
+              createdAt: a.createdAt.toISOString(),
+              resolvedAt: a.resolvedAt?.toISOString() ?? null,
+            }
+          : null;
+      })(),
     };
   });
 }

@@ -19,6 +19,9 @@ afterEach(async () => {
 
 const input = () =>
   ProgramInput.parse({
+    context: {
+      about: "A test program for builders on Arc: posts and pull requests about USDC gas.",
+    },
     basics: {
       name: "Arc Builders",
       slug: "arc-builders",
@@ -102,7 +105,7 @@ describe("createProgram", () => {
     const [r] = await db.select().from(rounds).where(eq(rounds.programId, programId));
     expect(r!.endsAt.getTime() - r!.startsAt.getTime()).toBe(14 * 24 * 3600 * 1000);
     const events = await db.select().from(auditEvents);
-    expect(events.map((e) => e.action)).toEqual(["program.created"]);
+    expect(events.map((e) => e.action)).toEqual(["program.created", "program.context_saved"]);
   });
 
   it("refuses a taken slug", async () => {

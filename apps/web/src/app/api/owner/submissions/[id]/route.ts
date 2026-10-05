@@ -1,4 +1,5 @@
 import {
+  appeals,
   contributors,
   decisions,
   fetchedResources,
@@ -60,6 +61,11 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/owner/submissio
       ),
     )
     .limit(1);
+  const [appeal] = await db
+    .select({ note: appeals.note, createdAt: appeals.createdAt, resolvedAt: appeals.resolvedAt })
+    .from(appeals)
+    .where(eq(appeals.submissionId, id))
+    .limit(1);
   const history = await db
     .select()
     .from(decisions)
@@ -87,6 +93,13 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/owner/submissio
           }
         : null,
       round: round ? { ...round, endsAt: round.endsAt.toISOString() } : null,
+      appeal: appeal
+        ? {
+            note: appeal.note,
+            createdAt: appeal.createdAt.toISOString(),
+            resolvedAt: appeal.resolvedAt?.toISOString() ?? null,
+          }
+        : null,
       payout: payout ?? null,
       categories: (program?.rubric.categories ?? []).map((c) => ({
         key: c.key,

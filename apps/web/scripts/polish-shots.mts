@@ -139,6 +139,36 @@ try {
     await shot(page, "owner-other-account-action");
     await c.close();
   }
+  // New in this pass: the wizard's context step, Settings → context and rules, the nudge on the overview.
+  if (process.env.SHOTS_FEATURES) {
+    const { c, page } = await ctx(browser, 1440, owner);
+    await page.goto("/app/programs/new", { waitUntil: "networkidle" });
+    await page.getByLabel("Program name").fill("Arc Creators");
+    await page.getByLabel("Description").fill("Pays builders for original threads and guides about Arc.");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page
+      .getByLabel("About this program")
+      .fill(
+        "Arc is Circle's stablecoin-native Layer 1: gas is paid in USDC and blocks are final in under a second. We pay for tutorials, threads that explain how something works, and pull requests.\n\nPost about: building on Arc, USDC gas, Circle wallets.\nAvoid: token price talk, airdrop farming, memes.",
+      );
+    await page.getByLabel("Links (optional)").fill("https://www.circle.com/blog\n@arc");
+    await page.getByLabel("Posts must include (optional)").fill("@arc, #BuildOnArc");
+    await shot(page, "wizard-context-step", true);
+    await page.goto(`${P}/settings#context`, { waitUntil: "networkidle" });
+    await shot(page, "settings-context");
+    await page.goto(P, { waitUntil: "networkidle" });
+    await shot(page, "overview-context-nudge");
+    await c.close();
+    const cc = await ctx(browser, 1440, contributor);
+    await cc.page.goto("/join/kency-arc-creators", { waitUntil: "networkidle" });
+    await cc.page.getByRole("heading", { name: "Rules" }).scrollIntoViewIfNeeded();
+    await shot(cc.page, "join-rules");
+    await cc.page.goto("/c/kency-arc-creators", { waitUntil: "networkidle" });
+    await cc.page.getByRole("button", { name: "Ask for a second look" }).first().scrollIntoViewIfNeeded();
+    await cc.page.getByRole("button", { name: "Ask for a second look" }).first().click();
+    await shot(cc.page, "contributor-second-look");
+    await cc.c.close();
+  }
 } finally {
   await browser.close();
 }

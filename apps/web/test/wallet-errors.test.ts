@@ -11,7 +11,8 @@ describe("classifyWalletError (calm messages for every connector failure)", () =
   it("user rejected (EIP-1193 4001, viem's wrapped error, plain text)", () => {
     expect(classifyWalletError({ code: 4001, message: "nope" }).kind).toBe("rejected");
     expect(
-      classifyWalletError({ shortMessage: "User rejected the request.", cause: { code: 4001 } }).kind,
+      classifyWalletError({ shortMessage: "User rejected the request.", cause: { code: 4001 } })
+        .kind,
     ).toBe("rejected");
     expect(classifyWalletError("User denied account authorization").kind).toBe("rejected");
   });

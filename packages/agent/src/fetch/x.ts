@@ -39,6 +39,11 @@ const Post = z.object({
   public_metrics: Metrics.optional(),
   note_tweet: z.object({ text: z.string() }).optional(),
   referenced_tweets: z.array(z.object({ type: z.string(), id: z.string() })).optional(),
+  /** Links in the text are t.co-shortened; the expanded URLs come here (checked against "must include"). */
+  entities: z
+    .object({ urls: z.array(z.object({ expanded_url: z.string().optional() })).optional() })
+    .partial()
+    .optional(),
 });
 type Post = z.infer<typeof Post>;
 
@@ -81,7 +86,7 @@ export function xPostUrl(id: string): string {
   const url = new URL(`/2/tweets/${id}`, X_API_BASE);
   url.searchParams.set(
     "tweet.fields",
-    "author_id,created_at,public_metrics,text,referenced_tweets,conversation_id,lang,note_tweet",
+    "author_id,created_at,public_metrics,text,referenced_tweets,conversation_id,lang,note_tweet,entities",
   );
   url.searchParams.set("expansions", "author_id");
   url.searchParams.set("user.fields", "created_at,public_metrics,verified,username,name");
@@ -94,7 +99,7 @@ export function xThreadSearchUrl(conversationId: string, authorId: string): stri
   url.searchParams.set("max_results", String(MAX_THREAD_POSTS));
   url.searchParams.set(
     "tweet.fields",
-    "author_id,created_at,conversation_id,in_reply_to_user_id,referenced_tweets,note_tweet,text",
+    "author_id,created_at,conversation_id,in_reply_to_user_id,referenced_tweets,note_tweet,text,entities",
   );
   return url.toString();
 }
@@ -279,6 +284,13 @@ export async function fetchXPost(
           quotes: m.quote_count ?? 0,
           impressions: m.impression_count ?? null,
           lang: data.lang ?? null,
+          urls: [
+            ...new Set(
+              threadPosts.flatMap((p) =>
+                (p.entities?.urls ?? []).flatMap((u) => (u.expanded_url ? [u.expanded_url] : [])),
+              ),
+            ),
+          ].slice(0, 50),
           thread: {
             postIds: threadPosts.map((p) => p.id),
             truncated: thread.truncated,

@@ -92,6 +92,8 @@ export function explain(p: {
     R7_LOW_CONFIDENCE: `The agent's confidence (${j ? Math.round(j.confidence * 100) : 0}%) is below this program's auto-approval threshold.`,
     R8_ZERO_AMOUNT: "The work scored zero points.",
     R9_ABOVE_AUTO_CAP: "The amount is above what this program approves without review.",
+    R5B_OFF_TOPIC:
+      "The agent is confident this isn't about what the program pays for (see the program's brief).",
     R9B_ARTICLE_REVIEW:
       "Articles are always reviewed by a person: their author and date come from the page itself, not a platform.",
   };

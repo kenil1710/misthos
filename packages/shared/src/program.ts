@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ContextSaveInput } from "./context";
 import { parseUsdc } from "./money";
 
 /**
@@ -168,11 +169,17 @@ export const BudgetInput = z.object({
   /** Items paying more than this always go to review, even when confident. */
   maxAutoApproveItem: UsdcInput,
   minAccountAgeDays: z.coerce.number().int().min(0).max(3650),
+  /** X posts from accounts with fewer followers go to review (0: no minimum). */
+  minXFollowers: z.coerce.number().int().min(0).max(10_000_000).default(0),
+  /** Submissions per contributor per round; more are refused before any API cost. */
+  maxSubmissionsPerRound: z.coerce.number().int().min(1).max(100).default(5),
 });
 export type BudgetInput = z.infer<typeof BudgetInput>;
 
 export const ProgramInput = z.object({
   basics: ProgramBasics,
+  /** Context for the agent (required for new programs). */
+  context: ContextSaveInput,
   rubric: Rubric,
   budget: BudgetInput,
   limits: LimitsInput,

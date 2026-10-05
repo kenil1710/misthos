@@ -67,6 +67,13 @@ test("owner flow: wizard keeps its state, starts Round 1 now, and the app shell 
     await expect(page.getByLabel("Program name")).toHaveValue("Kency Arc Creators");
     await expect(page.getByText(/Draft saved on this device/)).toBeVisible();
     await page.getByRole("button", { name: "Continue" }).click();
+    // Context for the agent (step 2).
+    await page
+      .getByLabel("About this program")
+      .fill(
+        "Kency pays creators for original threads that help people build on Arc and Circle. Avoid price talk.",
+      );
+    await page.getByRole("button", { name: "Continue" }).click();
 
     // ── OF-9: how scores become USDC, live per category ──
     await expect(page.getByText("How a score becomes USDC")).toBeVisible();

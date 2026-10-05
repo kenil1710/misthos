@@ -2,7 +2,9 @@ import "server-only";
 import {
   contributors,
   decisions,
+  appeals,
   getDb,
+  programContexts,
   programMembers,
   programs,
   rounds,
@@ -76,7 +78,11 @@ export const isReviewStatus = (s: unknown): s is ReviewStatus =>
   REVIEW_STATUSES.includes(s as ReviewStatus);
 
 /** Submissions for the owner table, newest first, with the latest decision's summary. */
-export async function listSubmissionsForReview(programId: string, status?: ReviewStatus) {
+export async function listSubmissionsForReview(
+  programId: string,
+  status?: ReviewStatus,
+  opts: { openAppeal?: boolean } = {},
+) {
   const db = getDb();
   const rows = await db
     .select({
@@ -91,9 +97,13 @@ export async function listSubmissionsForReview(programId: string, status?: Revie
     .from(submissions)
     .innerJoin(contributors, eq(contributors.id, submissions.contributorId))
     .where(
-      status
-        ? and(eq(submissions.programId, programId), eq(submissions.status, status))
-        : eq(submissions.programId, programId),
+      and(
+        eq(submissions.programId, programId),
+        status ? eq(submissions.status, status) : undefined,
+        opts.openAppeal
+          ? sql`${submissions.id} in (select ${appeals.submissionId} from ${appeals} where ${appeals.programId} = ${programId} and ${appeals.resolvedAt} is null)`
+          : undefined,
+      ),
     )
     .orderBy(desc(submissions.createdAt))
     .limit(200);
@@ -171,4 +181,24 @@ export async function hasPaidRound(programId: string) {
     .where(and(eq(rounds.programId, programId), eq(rounds.status, "executed")))
     .limit(1);
   return !!r;
+}
+
+/** The program's saved context for the agent (its current version), or null. */
+export async function currentContext(programId: string, version: number | null) {
+  if (version === null) return null;
+  const [c] = await getDb()
+    .select()
+    .from(programContexts)
+    .where(and(eq(programContexts.programId, programId), eq(programContexts.version, version)))
+    .limit(1);
+  return c ?? null;
+}
+
+/** Second-look requests the owner hasn't answered yet. */
+export async function openAppealCount(programId: string) {
+  const [r] = await getDb()
+    .select({ n: sql<number>`count(*)::int` })
+    .from(appeals)
+    .where(and(eq(appeals.programId, programId), sql`${appeals.resolvedAt} is null`));
+  return Number(r?.n ?? 0);
 }

@@ -1,9 +1,11 @@
 import {
   apiUsage,
+  appeals,
   auditEvents,
   contributors,
   decisions,
   fetchedResources,
+  programContexts,
   programs,
   rounds,
   submissions,
@@ -15,7 +17,8 @@ import type { Hex } from "viem";
 import { NEAR_DUPLICATE_HARD, runChecks, TRUSTED_TIME, type PriorMatch } from "./checks";
 import { decide, RULE_VERSION, type EngineDecision } from "./engine";
 import { explain } from "./explain";
-import { JudgeError, type Judge, type Judgment } from "./judge";
+import type { Understander } from "./context";
+import { JudgeError, type Judge, type JudgeBrief, type Judgment } from "./judge";
 import { signRecord, type AgentSigner, type DecisionRecord } from "./record";
 import { fromSigned64, hamming, simhash64, toSigned64 } from "./simhash";
 import {
@@ -38,6 +41,8 @@ export interface PipelineDeps {
   db: DbLike;
   fetchers: Fetchers;
   judge: Judge | null;
+  /** Drafts "Here's what I understood" from a program's context (null: owners write it themselves). */
+  understand?: Understander | null;
   signer: AgentSigner;
   chainId: number;
   now?: () => Date;
@@ -342,6 +347,9 @@ export async function processSubmission(
     priorCount = Number(counted[0]?.n ?? 0);
   }
 
+  // ── The program's context for the agent (trusted; its version and hash go into the record) ──
+  const brief = await programBrief(db, program);
+
   // ── Deterministic checks ─────────────────────────────────────────────
   const limits = program.limitsJson;
   const categories = program.rubricJson.categories;
@@ -373,6 +381,8 @@ export async function processSubmission(
         minAccountAgeDays: program.minAccountAgeDays,
         payeeCooldownSeconds: limits.payeeCooldownSeconds,
         categories,
+        minXFollowers: program.minXFollowers,
+        mustInclude: brief?.judge.mustInclude ?? [],
       },
       sameResource,
       similar,
@@ -396,6 +406,7 @@ export async function processSubmission(
         resource,
         flags,
         contributorHandle: contributor.xHandle,
+        brief: brief?.judge ?? null,
       });
       await logUsage(db, program.id, [judgment.usage]);
     } catch (e) {
@@ -447,6 +458,8 @@ export async function processSubmission(
       limits,
       autoApproveConfidence: program.autoApproveConfidence,
       minAccountAgeDays: program.minAccountAgeDays,
+      minXFollowers: program.minXFollowers,
+      context: brief?.hash ?? null,
     },
   });
 
@@ -477,6 +490,7 @@ export async function processSubmission(
       },
       inputHash,
       contentHash,
+      context: brief ? { version: brief.version, hash: brief.hash } : null,
       flags: allFlags,
       judgment: judgment
         ? { model: judgment.model, promptVersion: judgment.promptVersion, output: judgment.output }
@@ -757,6 +771,21 @@ export async function processOverride(
     if (e instanceof InPayoutError) return { ok: false, error: "in_payout" };
     throw e;
   }
+  // A contributor's "second look" is answered by this signed decision.
+  const answered = await db
+    .update(appeals)
+    .set({ resolvedAt: now(), resolutionHash: signed.decisionHash })
+    .where(and(eq(appeals.submissionId, sub.id), isNull(appeals.resolvedAt)))
+    .returning({ id: appeals.id });
+  if (answered.length)
+    await db.insert(auditEvents).values({
+      programId: program.id,
+      actor: `user:${job.userId}`,
+      action: "appeal.resolved",
+      entity: "submission",
+      entityId: sub.id,
+      dataJson: { decisionHash: signed.decisionHash, action: job.action },
+    });
   return { ok: true, decisionHash: signed.decisionHash };
 }
 
@@ -907,4 +936,36 @@ export function fetcherFor(fetchers: Fetchers, sourceType: Resource["sourceType"
     github_commit: fetchers.githubCommit,
     article: fetchers.article,
   }[sourceType];
+}
+
+/** The program's current saved context, as the judge and checks use it. Null before the owner adds one. */
+export async function programBrief(
+  db: DbLike,
+  program: { id: string; contextVersion: number | null },
+): Promise<{ version: number; hash: Hex; judge: JudgeBrief } | null> {
+  if (program.contextVersion === null) return null;
+  const [c] = await db
+    .select()
+    .from(programContexts)
+    .where(
+      and(
+        eq(programContexts.programId, program.id),
+        eq(programContexts.version, program.contextVersion),
+      ),
+    )
+    .limit(1);
+  if (!c?.contextHash) return null;
+  const u = c.understandingJson;
+  return {
+    version: program.contextVersion,
+    hash: c.contextHash as Hex,
+    judge: {
+      about: c.about,
+      summary: u?.summary ?? null,
+      keyFacts: u?.keyFacts ?? [],
+      onTopic: u?.onTopic ?? [],
+      offTopic: u?.offTopic ?? [],
+      mustInclude: c.mustIncludeJson,
+    },
+  };
 }

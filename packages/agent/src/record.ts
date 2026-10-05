@@ -46,6 +46,8 @@ export interface DecisionRecord {
   inputHash: Hex;
   /** keccak256 of the exact content text that was evaluated (null if it couldn't be fetched). */
   contentHash: Hex | null;
+  /** The program context (version and hash) the work was judged against; null if the program had none. */
+  context?: { version: number; hash: Hex } | null;
   flags: Flag[];
   judgment: { model: string; promptVersion: string; output: unknown } | null;
   ruleVersion: string;

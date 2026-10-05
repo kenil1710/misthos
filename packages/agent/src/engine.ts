@@ -4,7 +4,7 @@ import type { JudgmentOutput } from "./judge";
 import type { Flag, Resource } from "./types";
 
 /** Bump whenever a rule below changes. Recorded in every decision. */
-export const RULE_VERSION = "rules-v5";
+export const RULE_VERSION = "rules-v6";
 
 /** Clear spam: the model is very sure the work doesn't qualify and every criterion scored 0 or 1. */
 export const SPAM_CONFIDENCE = 0.9;
@@ -162,13 +162,33 @@ export function decide(i: EngineInput): EngineDecision {
     cappedBy,
   });
 
-  if (addedFlags.length) return out("reject", "R1_REJECT_FLAG");
+  if (addedFlags.some((f) => f.severity === "hard")) return out("reject", "R1_REJECT_FLAG");
   if (i.flags.some((f) => f.code === "PROMPT_INJECTION_ATTEMPT"))
     return out("escalate", "R2_INJECTION");
   if (!i.judgment) return out("escalate", "R3_NO_JUDGMENT");
   if (i.judgment.soft_flags.some((f) => JUDGE_INJECTION_NOTE.test(f)))
     return out("escalate", "R2B_JUDGE_INJECTION");
   if (!cat) return out("escalate", "R4_CATEGORY_INVALID");
+  // Against the program's brief (trusted context): off-topic work and claims that contradict its key facts.
+  const offTopic = i.judgment.relevance === "off_topic";
+  if (offTopic)
+    addedFlags.push({
+      code: "OFF_TOPIC",
+      severity: "soft",
+      message: "Not about what this program pays for, according to the program's brief.",
+      evidence: { relevance: "off_topic" },
+    });
+  for (const f of (i.judgment.fact_checks ?? [])
+    .filter((x) => x.verdict === "contradicts")
+    .slice(0, 3))
+    addedFlags.push({
+      code: "CONTRADICTS_BRIEF",
+      severity: "soft",
+      message: `Says "${f.claim}", but the brief says "${f.brief_says}".`,
+      evidence: { claim: f.claim, briefSays: f.brief_says },
+    });
+  // R5b: clearly off topic is rejected automatically (owners can override; contributors can ask for a second look).
+  if (offTopic && i.judgment.confidence >= SPAM_CONFIDENCE) return out("reject", "R5B_OFF_TOPIC");
   // R5a: clear spam is rejected automatically (injection was already routed to a human by R2). Owners can override.
   const scores = cat.criteria.map((k) => i.judgment!.rubric_scores[k.key] ?? 0);
   if (
@@ -181,7 +201,8 @@ export function decide(i: EngineInput): EngineDecision {
   if (i.judgment.recommended_action === "reject" || i.judgment.recommended_action === "escalate") {
     return out("escalate", "R5_AGENT_RECOMMENDS_REVIEW");
   }
-  if (i.flags.some((f) => f.severity === "soft")) return out("escalate", "R6_SOFT_FLAGS");
+  if ([...i.flags, ...addedFlags].some((f) => f.severity === "soft"))
+    return out("escalate", "R6_SOFT_FLAGS");
   if (i.judgment.confidence < i.autoApproveConfidence) return out("escalate", "R7_LOW_CONFIDENCE");
   if (amount === 0n) return out("escalate", "R8_ZERO_AMOUNT");
   if (amount > i.maxAutoApproveItem) return out("escalate", "R9_ABOVE_AUTO_CAP");

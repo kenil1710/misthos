@@ -16,6 +16,9 @@ const NOW = new Date("2026-10-02T14:30:00Z");
 async function setup(firstRoundStartsAt: Date) {
   const owner = await upsertWalletUser(db, "0x00000000000000000000000000000000000000aa");
   const input = ProgramInput.parse({
+    context: {
+      about: "A test program for builders on Arc: posts and pull requests about USDC gas.",
+    },
     basics: {
       name: "Kency Arc Creators",
       slug: "kency-arc-creators",

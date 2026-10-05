@@ -21,6 +21,9 @@ beforeEach(async () => {
   enqueue.mockClear();
   const owner = await upsertWalletUser(db, "0x00000000000000000000000000000000000000aa");
   const input = ProgramInput.parse({
+    context: {
+      about: "A test program for builders on Arc: posts and pull requests about USDC gas.",
+    },
     basics: {
       name: "Arc Builders",
       slug: "arc-builders",
@@ -161,7 +164,27 @@ describe("createSubmission", () => {
     expect((await submit("https://x.com/alice/status/1840000000000000001")).ok).toBe(true);
   });
 
+  it("refuses more than the program's submissions per round, before anything is queued", async () => {
+    const queued: string[] = [];
+    const sub = (u: string) =>
+      createSubmission(
+        db,
+        { programSlug: "arc-builders", xUserId: alice.xUserId, userId: alice.id, url: u, now: NOW },
+        async (q) => {
+          queued.push(q);
+        },
+      );
+    for (let i = 0; i < 5; i++)
+      expect((await sub(`https://x.com/a/status/${300 + i}`)).ok).toBe(true);
+    expect(await sub("https://x.com/a/status/399")).toMatchObject({
+      ok: false,
+      error: /limit of 5 submissions for round 1/,
+    });
+    expect(queued).toHaveLength(5); // the refused one never reached the queue (no fetch, no model call)
+  });
+
   it("enforces the daily limit", async () => {
+    await db.update(programs).set({ maxSubmissionsPerRound: 100 });
     for (let i = 0; i < DAILY_SUBMISSION_LIMIT; i++)
       expect((await submit(`https://x.com/a/status/${100 + i}`)).ok).toBe(true);
     expect(await submit("https://x.com/a/status/999")).toMatchObject({

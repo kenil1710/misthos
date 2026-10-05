@@ -130,6 +130,12 @@ export const programs = pgTable(
     limitsJson: jsonb("limits_json").$type<StoredLimits>().notNull(),
     autoApproveConfidence: real("auto_approve_confidence").notNull(),
     minAccountAgeDays: integer("min_account_age_days").notNull().default(0),
+    /** X posts from accounts with fewer followers go to review (0 = no minimum). */
+    minXFollowers: integer("min_x_followers").notNull().default(0),
+    /** Submissions a contributor may make per round; more are refused before any fetch or model call. */
+    maxSubmissionsPerRound: integer("max_submissions_per_round").notNull().default(5),
+    /** The current version of the agent's context (program_contexts.version); null before the owner adds one. */
+    contextVersion: integer("context_version"),
     roundLengthDays: integer("round_length_days").notNull(),
     firstRoundStartsAt: timestamp("first_round_starts_at", { withTimezone: true }).notNull(),
     status: programStatus("status").notNull().default("draft"),
@@ -138,6 +144,56 @@ export const programs = pgTable(
     ...timestamps,
   },
   (t) => [index("programs_owner_idx").on(t.ownerUserId)],
+);
+
+/** What the agent's understanding of a program says (owner-reviewed): see packages/shared/src/context.ts. */
+export interface ContextUnderstanding {
+  summary: string;
+  keyFacts: string[];
+  onTopic: string[];
+  offTopic: string[];
+}
+export interface ContextSource {
+  url: string;
+  ok: boolean;
+  title?: string | null;
+  /** Why it wasn't used (unreachable, not a page, or it contained instructions for the agent). */
+  note?: string | null;
+}
+
+/**
+ * The program's brief for the agent, versioned. A row starts as a read request (`status` reading → ready/failed,
+ * no version) from the wizard or Settings; saving it gives it the program and the next version. Decisions record
+ * the version and hash they were judged against.
+ */
+export const programContexts = pgTable(
+  "program_contexts",
+  {
+    id: id(),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id),
+    programId: uuid("program_id").references(() => programs.id, { onDelete: "cascade" }),
+    version: integer("version"),
+    about: text("about").notNull(),
+    linksJson: jsonb("links_json").$type<string[]>().notNull().default([]),
+    mustIncludeJson: jsonb("must_include_json").$type<string[]>().notNull().default([]),
+    status: text("status").$type<"reading" | "ready" | "failed">().notNull().default("reading"),
+    understandingJson: jsonb("understanding_json").$type<ContextUnderstanding>(),
+    sourcesJson: jsonb("sources_json").$type<ContextSource[]>().notNull().default([]),
+    /** keccak256 of the canonical saved context: what a decision commits to. */
+    contextHash: text("context_hash"),
+    /** keccak256 of the read inputs: an identical read is answered from cache. */
+    inputHash: text("input_hash").notNull(),
+    error: text("error"),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex("program_contexts_program_version_uq")
+      .on(t.programId, t.version)
+      .where(sql`${t.version} is not null`),
+    index("program_contexts_input_idx").on(t.inputHash),
+  ],
 );
 
 export const programMembers = pgTable(
@@ -402,4 +458,30 @@ export const apiUsage = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("api_usage_provider_created_idx").on(t.provider, t.createdAt)],
+);
+
+/** "Ask for a second look": one per submission, resolved by the owner's signed decision. */
+export const appeals = pgTable(
+  "appeals",
+  {
+    id: id(),
+    submissionId: uuid("submission_id")
+      .notNull()
+      .unique()
+      .references(() => submissions.id, { onDelete: "cascade" }),
+    contributorId: uuid("contributor_id")
+      .notNull()
+      .references(() => contributors.id),
+    programId: uuid("program_id")
+      .notNull()
+      .references(() => programs.id, { onDelete: "cascade" }),
+    note: text("note").notNull(),
+    /** The decision hash the contributor asked about. */
+    decisionHash: text("decision_hash").notNull(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    /** The owner's signed decision that answered it. */
+    resolutionHash: text("resolution_hash"),
+    ...timestamps,
+  },
+  (t) => [index("appeals_program_open_idx").on(t.programId, t.resolvedAt)],
 );

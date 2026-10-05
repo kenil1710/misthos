@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   createJudge,
+  createUnderstander,
   eoaExecutor,
   eoaSigner,
   fetchArticle,
@@ -85,6 +86,7 @@ export function buildDeps(opts: Pick<StartOptions, "wrapFetchers"> & { poolMax?:
     chainId: chain.chain.id,
     signer,
     judge: createJudge({ client: anthropic.messages, model: env.AGENT_MODEL_JUDGE }),
+    understand: createUnderstander({ client: anthropic.messages, model: env.AGENT_MODEL_JUDGE }),
     fetchers: realFetchers,
   };
   return { env, chain, deps, pool, signer };

@@ -169,21 +169,30 @@ test("wizard steps follow Back and Forward without losing what was typed", async
     .fill("Pays builders for clear guides about building on Arc.");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/step=2/);
+  await page
+    .getByLabel("About this program")
+    .fill("Back Button Builders pays for clear guides about building on Arc, not price talk.");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page).toHaveURL(/step=3/);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page).toHaveURL(/step=4/);
 
   await page.goBack();
-  await expect(page).toHaveURL(/step=2/);
+  await expect(page).toHaveURL(/step=3/);
   await expect(page.getByText("How a score becomes USDC")).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/step=2/);
+  await expect(page.getByLabel("About this program")).toHaveValue(/Back Button Builders pays/);
   await page.goBack();
   await expect(page).toHaveURL(/step=1|\/new$/);
   await expect(page.getByLabel("Program name")).toHaveValue("Back Button Builders");
   await page.goForward();
   await page.goForward();
-  await expect(page).toHaveURL(/step=3/);
+  await page.goForward();
+  await expect(page).toHaveURL(/step=4/);
   // The in-page Back button and "Save and exit" lead out of the wizard; the draft stays on the device.
   await page.getByRole("button", { name: "Back" }).click();
-  await expect(page).toHaveURL(/step=2/);
+  await expect(page).toHaveURL(/step=3/);
   await expect(page.getByRole("link", { name: "Docs" })).toHaveCount(0); // full screen, no rail
   await page.getByRole("link", { name: "Save and exit" }).click();
   await expect(page).toHaveURL(/\/app$/);

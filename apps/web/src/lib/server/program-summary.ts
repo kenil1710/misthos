@@ -1,5 +1,13 @@
 import "server-only";
-import { contributors, getDb, programMembers, programs, rounds, submissions } from "@misthos/db";
+import {
+  appeals,
+  contributors,
+  getDb,
+  programMembers,
+  programs,
+  rounds,
+  submissions,
+} from "@misthos/db";
 import { formatUsdc } from "@misthos/shared/money";
 import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import type { Address } from "viem";
@@ -9,7 +17,7 @@ import { readVault, readVaultShared, type VaultState } from "./vault";
 /** Vault reads for lists and cards: shared for 15s, so an owner with many programs isn't one RPC per program per view. */
 const readVaultCached = (address: string) => readVaultShared(address as Address);
 
-export type NeedKind = "review" | "approval" | "payee" | "low_balance";
+export type NeedKind = "review" | "approval" | "payee" | "low_balance" | "appeal";
 export interface NeedItem {
   kind: NeedKind;
   text: string;
@@ -61,7 +69,7 @@ export async function programSummaries(
   const ids = mine.map((m) => m.p.id);
   if (!ids.length) return [];
 
-  const [counts, ready, roundRows, people, changes, vaults] = await Promise.all([
+  const [counts, ready, roundRows, people, changes, vaults, openAppeals] = await Promise.all([
     db
       .select({
         programId: submissions.programId,
@@ -116,6 +124,11 @@ export async function programSummaries(
           : Promise.resolve(null),
       ),
     ),
+    db
+      .select({ programId: appeals.programId, n: sql<number>`count(*)::int` })
+      .from(appeals)
+      .where(and(inArray(appeals.programId, ids), isNull(appeals.resolvedAt)))
+      .groupBy(appeals.programId),
   ]);
 
   return mine.map(({ p, role }, i) => {
@@ -159,6 +172,14 @@ export async function programSummaries(
           href: `${base}/contributors/${c.id}`,
           action: "Check",
         });
+    const asked = openAppeals.find((a) => a.programId === p.id)?.n ?? 0;
+    if (asked)
+      needs.push({
+        kind: "appeal",
+        text: `${asked} contributor${asked === 1 ? "" : "s"} asked for a second look`,
+        href: `${base}/submissions?status=appeal`,
+        action: "Review",
+      });
     if (vault && p.status !== "archived" && readyToPay > vault.balance)
       needs.push({
         kind: "low_balance",

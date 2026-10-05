@@ -82,6 +82,16 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await expect(op.getByLabel("Join link")).toHaveValue(SLUG);
     await op.getByLabel("Description").fill("End-to-end test program that pays for Arc content.");
     await op.getByRole("button", { name: "Continue" }).click();
+    // Context for the agent: required; the summary is optional (no worker reads it in this environment).
+    await expect(op.getByRole("heading", { name: "Here's what I understood" })).toBeVisible();
+    await op.getByRole("button", { name: "Continue" }).click();
+    await expect(op.getByText(/at least 40 characters/)).toBeVisible();
+    await op
+      .getByLabel("About this program")
+      .fill(
+        "E2E Builders pays for clear posts and pull requests about building payment apps on Arc. Avoid price talk and memes.",
+      );
+    await op.getByRole("button", { name: "Continue" }).click();
     await expect(op.getByText("Category 1")).toBeVisible();
     await op.getByRole("button", { name: "Continue" }).click();
     await expect(op.getByRole("heading", { name: "Vault limits" })).toBeVisible();
@@ -131,6 +141,13 @@ test("owner creates and publishes a program; contributor joins and switches wall
 
     await cp.goto(`/join/${SLUG}`);
     await expect(cp.getByRole("heading", { name: "E2E Builders" })).toBeVisible();
+    // The owner's context and the submission rules are on the join page.
+    await expect(cp.getByRole("heading", { name: "About" })).toBeVisible();
+    await expect(
+      cp.getByText(/pays for clear posts and pull requests about building payment apps/),
+    ).toBeVisible();
+    await expect(cp.getByText("Up to 5 submissions per round.")).toBeVisible();
+    await expect(cp.getByText(/ask for a second look once per submission/)).toBeVisible();
     await expect(cp.getByRole("main").getByText(`@${X.handle}`)).toBeVisible();
     await expect(cp.getByRole("button", { name: `Account @${X.handle}` })).toBeVisible();
     await connectWallet(cp);
@@ -197,6 +214,7 @@ test("owner creates and publishes a program; contributor joins and switches wall
     );
     expect(audit.rows.map((r) => r.action)).toEqual([
       "program.created",
+      "program.context_saved",
       "program.published",
       "contributor.joined",
       "contributor.wallet_changed",

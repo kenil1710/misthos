@@ -79,6 +79,19 @@ export async function createSubmission(
   if (n >= DAILY_SUBMISSION_LIMIT)
     return { ok: false, error: `You can submit up to ${DAILY_SUBMISSION_LIMIT} links per day.` };
 
+  // The program's per-round cap, checked before anything is fetched or judged (no API cost for refused work).
+  const [{ inRound }] = (await db
+    .select({ inRound: sql<number>`count(*)::int` })
+    .from(submissions)
+    .where(and(eq(submissions.contributorId, me.id), eq(submissions.roundId, round.id)))) as [
+    { inRound: number },
+  ];
+  if (inRound >= program.maxSubmissionsPerRound)
+    return {
+      ok: false,
+      error: `You've reached this program's limit of ${program.maxSubmissionsPerRound} submission${program.maxSubmissionsPerRound === 1 ? "" : "s"} for round ${round.number}. You can submit again when the next round opens (${utc(round.endsAt)}).`,
+    };
+
   const [live] = await db
     .select({ id: submissions.id })
     .from(submissions)

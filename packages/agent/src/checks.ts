@@ -1,4 +1,9 @@
-import { requiresMerged, type RubricCategory, type SourceType } from "@misthos/shared";
+import {
+  includesToken,
+  requiresMerged,
+  type RubricCategory,
+  type SourceType,
+} from "@misthos/shared";
 import { detectInjection } from "./injection";
 import type { Flag, Resource } from "./types";
 
@@ -51,6 +56,10 @@ export interface CheckContext {
     minAccountAgeDays: number;
     payeeCooldownSeconds: number;
     categories: RubricCategory[];
+    /** X posts from accounts with fewer followers go to review (0 or unset: no minimum). */
+    minXFollowers?: number;
+    /** Links, @mentions or #hashtags every submission must include (from the program's context). */
+    mustInclude?: string[];
   };
   /**
    * Other contributors' earlier submissions of the exact same resource that passed the ownership check (one rejected
@@ -247,6 +256,35 @@ export function runChecks(ctx: CheckContext): Flag[] {
         },
       });
     }
+  }
+
+  // ── What every submission must include (program context) ──────────────
+  const missing = (ctx.program.mustInclude ?? []).filter(
+    (t) => !includesToken(r.text, r.x?.urls ?? [], t),
+  );
+  if (missing.length) {
+    flags.push({
+      code: "MISSING_REQUIRED",
+      severity: "soft",
+      message: `Missing what every submission in this program must include: ${missing.join(", ")}.`,
+      evidence: { missing: missing.join(", ") },
+    });
+  }
+
+  // ── Minimum followers (X) ──────────────────────────────────────────────
+  const minFollowers = ctx.program.minXFollowers ?? 0;
+  if (
+    r.sourceType === "x_post" &&
+    minFollowers > 0 &&
+    r.author.followers !== null &&
+    r.author.followers < minFollowers
+  ) {
+    flags.push({
+      code: "LOW_FOLLOWERS",
+      severity: "soft",
+      message: `The account has ${r.author.followers} followers; this program reviews posts from accounts under ${minFollowers}.`,
+      evidence: { followers: r.author.followers, minimum: minFollowers },
+    });
   }
 
   // ── Account and engagement (X) ─────────────────────────────────────────

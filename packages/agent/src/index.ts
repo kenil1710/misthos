@@ -7,6 +7,7 @@ export * from "./judge";
 export * from "./record";
 export * from "./simhash";
 export * from "./pipeline";
+export * from "./context";
 export { fetchXPost, X_LOOKUP_COST_USD } from "./fetch/x";
 export { fetchGithubPr, fetchGithubCommit } from "./fetch/github";
 export { fetchArticle, parseArticle } from "./fetch/article";

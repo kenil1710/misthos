@@ -44,6 +44,7 @@ interface Detail {
   program: { slug: string; published: boolean } | null;
   round: { number: number; status: string; endsAt: string } | null;
   payout: { status: string; txHash: string | null } | null;
+  appeal: { note: string; createdAt: string; resolvedAt: string | null } | null;
   categories: { key: string; name: string; criteria: { key: string; name: string }[] }[];
   content: {
     title: string | null;
@@ -256,6 +257,19 @@ function DrawerBody({
             </div>
             <StatusBadge status={detail.submission.status} />
           </div>
+
+          {detail.appeal && !detail.appeal.resolvedAt ? (
+            <section
+              aria-label="Second look requested"
+              className="bg-warning-subtle rounded-xl px-4 py-3 text-sm"
+            >
+              <p className="font-medium">@{detail.contributor.xHandle} asked for a second look</p>
+              <p className="text-soft mt-1 leading-relaxed">&ldquo;{detail.appeal.note}&rdquo;</p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Your decision below answers it, signed and recorded in the audit log.
+              </p>
+            </section>
+          ) : null}
 
           <section aria-labelledby="journey-h">
             <h3 id="journey-h" className="mb-3 font-medium">

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 /** The wizard's steps, shared by the wizard and its server-rendered first paint (so both show the same headline). */
-export const STEPS = ["Basics", "Rubric", "Budget and schedule", "Review"] as const;
+export const STEPS = ["Basics", "Context", "Rubric", "Budget and schedule", "Review"] as const;
 
 /** Each step's headline (one italic word, the display style) and the one sentence under it. */
 export const STEP_META: { title: ReactNode; intro: string }[] = [
@@ -13,6 +13,15 @@ export const STEP_META: { title: ReactNode; intro: string }[] = [
     ),
     intro:
       "What contributors see first on the join page. You can change the name and description later.",
+  },
+  {
+    title: (
+      <>
+        Brief the <em>agent</em>
+      </>
+    ),
+    intro:
+      "What the project is and what you want contributors to make. The agent reads it, and your links, once, and checks every submission against it.",
   },
   {
     title: (

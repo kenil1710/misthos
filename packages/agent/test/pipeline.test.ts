@@ -1,9 +1,11 @@
 import {
   apiUsage,
+  appeals,
   auditEvents,
   contributors,
   decisions,
   fetchedResources,
+  programContexts,
   programMembers,
   programs,
   rounds,
@@ -238,8 +240,8 @@ describe("processSubmission", () => {
       categoryKey: "threads",
       decidedBy: "agent",
       model: "claude-haiku-4-5-20251001",
-      promptVersion: "judge-v3",
-      ruleVersion: "rules-v5",
+      promptVersion: "judge-v4",
+      ruleVersion: "rules-v6",
     });
     expect(dec.summary).toMatch(
       /^Approved · 16\.00 USDC\. Posted inside the round by the linked account\. .* Scored 8\/10 on depth, 7\/10 on clarity and 9\/10 on originality\.$/,
@@ -250,7 +252,7 @@ describe("processSubmission", () => {
       schema: "misthos.decision/v1",
       rule: "R10_AUTO_APPROVE",
       decidedBy: { type: "agent" },
-      judgment: { promptVersion: "judge-v3" },
+      judgment: { promptVersion: "judge-v4" },
     });
     expect(record.contentHash).toMatch(/^0x[0-9a-f]{64}$/);
     expect(
@@ -319,6 +321,41 @@ describe("processSubmission", () => {
     expect(
       (await db.select().from(auditEvents)).filter((a) => a.action === "copy.held_for_review"),
     ).toHaveLength(1);
+  });
+
+  it("judges against the program's saved context and records its version and hash in the signed decision", async () => {
+    const hash = `0x${"c".repeat(64)}`;
+    await db.insert(programContexts).values({
+      ownerUserId: ownerId,
+      programId,
+      version: 2,
+      about: "Arc is Circle's stablecoin-native L1. Post about building on Arc.",
+      mustIncludeJson: [],
+      status: "ready",
+      understandingJson: {
+        summary: "Arc pays gas in USDC.",
+        keyFacts: ["Gas on Arc is paid in USDC"],
+        onTopic: ["building on Arc"],
+        offTopic: ["token price talk"],
+      },
+      contextHash: hash,
+      inputHash: hash,
+    });
+    await db.update(programs).set({ contextVersion: 2 }).where(eq(programs.id, programId));
+    const d = deps();
+    const id = await submit(
+      "alice_builds",
+      "https://x.com/alice_builds/status/1840000000000000001",
+    );
+    await processSubmission(d, id);
+    // The brief is its own trusted section, separate from the untrusted content.
+    const sent = JSON.stringify((d.calls[0] as { messages: unknown }).messages);
+    expect(sent).toContain("<program_brief>");
+    expect(sent).toContain("Gas on Arc is paid in USDC");
+    const record = JSON.parse((await latestDecision(id)).decisionJson) as {
+      context: { version: number; hash: string };
+    };
+    expect(record.context).toEqual({ version: 2, hash });
   });
 
   it("rejects someone else's post (OWNERSHIP_MISMATCH)", async () => {
@@ -509,6 +546,32 @@ describe("processOverride", () => {
     await processSubmission(deps(fakeClaude("injection-resisted")), id);
     return id;
   }
+
+  it("an owner's decision answers the contributor's second look (signed, audited)", async () => {
+    const id = await escalated();
+    const agentDec = await latestDecision(id);
+    await db.insert(appeals).values({
+      submissionId: id,
+      contributorId: people.alice_builds!,
+      programId,
+      note: "Please look again.",
+      decisionHash: agentDec.decisionHash,
+    });
+    const r = await processOverride(deps(), {
+      submissionId: id,
+      userId: ownerId,
+      action: "reject",
+      reason: "Looked again: the injection line stays a problem.",
+    });
+    expect(r.ok).toBe(true);
+    const [a] = await db.select().from(appeals).where(eq(appeals.submissionId, id));
+    const dec = await latestDecision(id);
+    expect(a).toMatchObject({ resolutionHash: dec.decisionHash });
+    expect(a!.resolvedAt).toBeInstanceOf(Date);
+    expect(dec.decidedBy).toBe("human");
+    const actions = (await db.select().from(auditEvents)).map((e) => e.action);
+    expect(actions).toContain("appeal.resolved");
+  });
 
   it("records a signed human decision that supersedes the agent's", async () => {
     const id = await escalated();

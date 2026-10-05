@@ -248,3 +248,60 @@ test("focus rings only for keyboard: clicks on the logo, nav and switcher leave 
   await page.keyboard.press("Tab");
   expect(await page.evaluate(() => document.querySelector(":focus-visible") !== null)).toBe(true);
 });
+
+test("a contributor asks for a second look once; the owner sees it under Needs you and in the review drawer", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext();
+  const wallet = await injectWallet(ctx, generatePrivateKey());
+  const { page, errors } = await newPage(ctx);
+  await ownerSignIn(page);
+  const ownerId = await userIdForWallet(db, wallet.address);
+  const stamp = Date.now();
+  const slug = `appeal-${stamp}`;
+  const programId = await seedProgram(db, { ownerId, slug, name: "Appeal Program" });
+  const x = { id: `85${stamp}`, handle: "second_look" };
+  const { userId, cookie } = await contributorSession(db, x);
+  const cid = await seedMember(db, { programId, userId, x, wallet: `0x${"cd".repeat(20)}` });
+  const sub = await db.query<{ id: string }>(
+    `insert into submissions (program_id, round_id, contributor_id, url, source_type, resource_id, status)
+     select $1, r.id, $2, 'https://x.com/i/web/status/77', 'x_post', '77', 'rejected' from rounds r where r.program_id = $1
+     returning id`,
+    [programId, cid],
+  );
+  await db.query(
+    `insert into decisions (submission_id, flags_json, action, amount, summary, decision_json, decision_hash, signature, signer_address, rule_version, decided_by)
+     values ($1, '[]', 'reject', 0, 'Rejected. Off topic for this program.', '{}', $2, '0x00', '0x0000000000000000000000000000000000000001', 'rules-v6', 'agent')`,
+    [sub.rows[0]!.id, `0x${String(stamp).padStart(64, "7")}`],
+  );
+
+  // Contributor: one request per submission, with a short note.
+  const cctx = await browser.newContext();
+  await cctx.addCookies([cookie]);
+  const { page: cp, errors: cerrors } = await newPage(cctx);
+  await cp.goto(`/c/${slug}`);
+  await cp.getByRole("button", { name: "Ask for a second look" }).click();
+  await cp
+    .getByLabel(/Why should the team look again/)
+    .fill("It's about Arc payments; see the second post.");
+  await cp.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(cp.getByText("Second look requested.", { exact: false })).toBeVisible();
+  await cp.reload();
+  await expect(cp.getByRole("button", { name: "Ask for a second look" })).toHaveCount(0);
+  await expect(cp.getByText(/Second look requested/)).toBeVisible();
+
+  // Owner: under Needs you, then the note in the review drawer.
+  await page.goto(`/app/programs/${programId}`);
+  const needs = page.getByRole("region", { name: "Needs you" });
+  await expect(needs).toContainText("1 contributor asked for a second look");
+  await needs.getByRole("link", { name: "Review" }).first().click();
+  await expect(page).toHaveURL(/status=appeal/);
+  await page
+    .getByRole("button", { name: /review submission/i })
+    .first()
+    .click();
+  const note = page.getByRole("region", { name: "Second look requested" });
+  await expect(note).toContainText("It's about Arc payments; see the second post.");
+  expect(errors).toEqual([]);
+  expect(cerrors).toEqual([]);
+});

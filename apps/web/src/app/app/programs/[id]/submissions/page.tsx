@@ -9,6 +9,7 @@ import {
   getProgramForMember,
   isReviewStatus,
   listSubmissionsForReview,
+  openAppealCount,
   submissionCounts,
 } from "@/lib/server/queries";
 import { getOwnerSession } from "@/lib/server/session";
@@ -28,10 +29,16 @@ export default async function SubmissionsPage({
   const rawStatus = sp.status;
   const view = sp.view === "board" ? "board" : "list";
   const status = isReviewStatus(rawStatus) ? rawStatus : undefined;
-  const [rows, counts] = await Promise.all([
-    listSubmissionsForReview(id, status === "pending" || view === "board" ? undefined : status),
+  // "Second look": submissions whose contributor asked the team to look again.
+  const appealView = rawStatus === "appeal" && view === "list";
+  const [rows, counts, asked] = await Promise.all([
+    appealView
+      ? listSubmissionsForReview(id, undefined, { openAppeal: true })
+      : listSubmissionsForReview(id, status === "pending" || view === "board" ? undefined : status),
     submissionCounts(id),
+    openAppealCount(id),
   ]);
+  const active = appealView ? "appeal" : status;
   const total = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
   const published = row.program.status === "active" || row.program.status === "paused";
   const joinUrl = `${appOrigin()}/join/${row.program.slug}`;
@@ -45,6 +52,7 @@ export default async function SubmissionsPage({
   const filters = [
     [undefined, "All", total],
     ["escalated", "Needs review", counts.escalated ?? 0],
+    ...(asked || appealView ? ([["appeal", "Second look", asked]] as const) : []),
     ["approved", "Approved", counts.approved ?? 0],
     ["partial", "Partial", counts.partial ?? 0],
     ["paid", "Paid", counts.paid ?? 0],
@@ -70,8 +78,8 @@ export default async function SubmissionsPage({
                 key={label}
                 href={q(key)}
                 scroll={false}
-                aria-current={status === key ? "page" : undefined}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 transition-colors ${status === key ? "bg-foreground text-background" : "bg-card text-soft shadow-soft hover:text-foreground"}`}
+                aria-current={active === key ? "page" : undefined}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 transition-colors ${active === key ? "bg-foreground text-background" : "bg-card text-soft shadow-soft hover:text-foreground"}`}
               >
                 {label} <span className="tabular-nums opacity-70">{n}</span>
               </Link>
