@@ -1,5 +1,6 @@
 # Misthos worker (Railway). Build context: repository root.
-FROM node:22-slim
+# Docker Official Images through AWS's public mirror: Railway's builders hit Docker Hub's pull limit (429).
+FROM public.ecr.aws/docker/library/node:22-slim
 ENV CI=true PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable
 WORKDIR /app
