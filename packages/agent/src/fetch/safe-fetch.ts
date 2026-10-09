@@ -112,7 +112,7 @@ export async function safeFetchHtml(
         redirect: "manual",
         signal: AbortSignal.timeout(10_000),
         headers: {
-          "User-Agent": "MisthosBot/1.0 (+https://misthos.xyz/docs)",
+          "User-Agent": "MisthosBot/1.0 (+https://misthos.world/docs)",
           Accept: "text/html,application/xhtml+xml",
         },
       });

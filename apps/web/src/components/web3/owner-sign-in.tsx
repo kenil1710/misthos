@@ -20,6 +20,10 @@ const ERRORS: Record<string, string> = {
   nonce_used: "This sign-in request was already used. Try again.",
   stale: "The sign-in request expired. Try again.",
   wrong_chain: `Switch your wallet to ${chain.name} and try again.`,
+  wrong_domain: "This sign-in request was made for another address. Reload the page and try again.",
+  wrong_uri: "This sign-in request was made for another address. Reload the page and try again.",
+  bad_origin:
+    "This page isn't on the Misthos address. Open https://misthos.world and sign in there.",
 };
 
 /**
@@ -39,8 +43,20 @@ export function useSiweSignIn(onSignedIn?: () => void) {
     setError(null);
     try {
       const nonceRes = await fetch("/api/auth/siwe/nonce", { method: "POST" });
-      if (!nonceRes.ok) throw new Error("nonce");
-      const { nonce } = (await nonceRes.json()) as { nonce: string };
+      const nonceBody = (await nonceRes.json().catch(() => ({}))) as {
+        nonce?: string;
+        error?: string;
+      };
+      if (!nonceRes.ok || !nonceBody.nonce) {
+        setError(
+          ERRORS[nonceBody.error ?? ""] ??
+            (nonceRes.status === 429 && nonceBody.error
+              ? nonceBody.error
+              : "Sign-in failed. Check your connection and try again."),
+        );
+        return;
+      }
+      const nonce = nonceBody.nonce;
       const message = createSiweMessage({
         address,
         chainId: chain.id,
@@ -59,7 +75,10 @@ export function useSiweSignIn(onSignedIn?: () => void) {
       });
       const body = (await res.json()) as { ok: boolean; error?: string };
       if (!body.ok) {
-        setError(ERRORS[body.error ?? ""] ?? "Sign-in failed. Try again.");
+        setError(
+          ERRORS[body.error ?? ""] ??
+            (res.status === 429 && body.error ? body.error : "Sign-in failed. Try again."),
+        );
         return;
       }
       onSignedIn?.();

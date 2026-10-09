@@ -2,6 +2,7 @@ import { loadEnvConfig } from "@next/env";
 import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
 import path from "node:path";
+import { canonicalRedirects } from "./src/lib/canonical-host";
 
 // Secrets live in the monorepo root .env (gitignored). On Vercel, env vars come from the project settings instead.
 loadEnvConfig(
@@ -21,6 +22,10 @@ const nextConfig: NextConfig = {
   images: { qualities: [70, 75], formats: ["image/avif", "image/webp"] },
   // Lets the e2e dev server run beside a normal `next dev` without sharing .next.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // The old vercel.app URL and www answer with a permanent redirect to https://misthos.world (path kept).
+  async redirects() {
+    return canonicalRedirects();
+  },
 };
 
 export default createMDX()(nextConfig);
