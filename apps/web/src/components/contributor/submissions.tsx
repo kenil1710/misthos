@@ -5,14 +5,16 @@ import { formatUsdc } from "@misthos/shared/money";
 import { listSources, SOURCE_LABEL, SOURCE_LABELS, type SourceType } from "@misthos/shared/sources";
 import { ChevronDown, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { StatusBadge, type Status } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { decisionChanged } from "@/lib/contributor-live";
 import { fixesFor } from "@/lib/flags";
-import { submissionJourney, type JourneyStep } from "@/lib/journey";
+import { contradictions, submissionJourney, type JourneyStep } from "@/lib/journey";
 import type { SubmissionItem } from "@/lib/server/contributor-submissions";
 import { cn } from "@/lib/utils";
 import { JourneyStepper } from "@/components/review/reasoning";
@@ -44,6 +46,7 @@ export function Submissions({
   const [error, setError] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
+  const router = useRouter();
 
   const fetchItems = useCallback(
     async (ids?: string[]): Promise<Item[] | null> => {
@@ -61,6 +64,10 @@ export function Submissions({
 
   // Poll only the items still being reviewed: quickly at first, then backing off (2s → 15s). Paused while the tab
   // is hidden, and stopped once every decision is final.
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
   const inFlightIds = (items ?? [])
     .filter((i) => IN_FLIGHT.includes(i.status) && !i.id.startsWith("temp-"))
     .map((i) => i.id)
@@ -75,7 +82,11 @@ export function Submissions({
       if (document.hidden) return; // resumed by visibilitychange
       const fresh = await fetchItems(inFlightIds.split(","));
       if (stopped) return;
-      if (fresh) setItems((prev) => (prev ?? []).map((i) => fresh.find((f) => f.id === i.id) ?? i));
+      if (fresh) {
+        // A decision landed: the timeline, "You're in" and the totals are server-rendered; refresh them too.
+        if (decisionChanged(itemsRef.current ?? [], fresh)) router.refresh();
+        setItems((prev) => (prev ?? []).map((i) => fresh.find((f) => f.id === i.id) ?? i));
+      }
       delay = Math.min(Math.round(delay * 1.6), 15_000);
       timer = setTimeout(tick, delay);
     };
@@ -93,7 +104,7 @@ export function Submissions({
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [inFlightIds, fetchItems]);
+  }, [inFlightIds, fetchItems, router]);
 
   const hint = useMemo(() => {
     if (!url.trim()) return null;
@@ -162,6 +173,8 @@ export function Submissions({
       );
       setJustSubmitted(true);
       toast.success("Submitted. The agent is reviewing it.");
+      // "You're in" gives way to the timeline, which now starts with this submission.
+      router.refresh();
     } catch {
       undo();
       setError("Couldn't reach Misthos. Check your connection and try again.");
@@ -309,6 +322,10 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
   const paidish = i.status === "approved" || i.status === "partial" || i.status === "paid";
   const fixes =
     i.status === "rejected" || i.status === "escalated" ? fixesFor(i.decision?.flags ?? []) : [];
+  // Every contradicted claim; decisions made before rules-v7 didn't always list them in the summary.
+  const factsNotInSummary = contradictions(i.decision?.flags ?? []).filter(
+    (f) => !i.decision?.summary.includes(f),
+  );
   const steps = submissionJourney({
     status: i.status,
     createdAt: i.createdAt,
@@ -381,6 +398,20 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
 
       {i.decision ? (
         <p className="mt-3 text-sm leading-relaxed">{keepDatesTogether(i.decision.summary)}</p>
+      ) : null}
+      {factsNotInSummary.length ? (
+        <div className="bg-warning-subtle mt-3 rounded-xl px-3.5 py-2.5 text-sm">
+          <p className="font-medium">
+            {factsNotInSummary.length === 1
+              ? "1 claim conflicts with the program's brief"
+              : `${factsNotInSummary.length} claims conflict with the program's brief`}
+          </p>
+          <ul className="text-soft mt-1 grid list-disc gap-0.5 pl-4">
+            {factsNotInSummary.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </div>
       ) : null}
       {fixes.length ? (
         <div className="bg-muted/60 mt-3 rounded-xl px-3.5 py-2.5 text-sm">

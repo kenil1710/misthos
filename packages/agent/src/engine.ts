@@ -4,7 +4,11 @@ import type { JudgmentOutput } from "./judge";
 import type { Flag, Resource } from "./types";
 
 /** Bump whenever a rule below changes. Recorded in every decision. */
-export const RULE_VERSION = "rules-v6";
+export const RULE_VERSION = "rules-v7";
+
+/** One contradicted claim, in the words owners and contributors both see. */
+export const contradictionLine = (claim: string, briefSays: string) =>
+  `Says "${claim.trim()}"; the brief says "${briefSays.trim()}".`;
 
 /** Clear spam: the model is very sure the work doesn't qualify and every criterion scored 0 or 1. */
 export const SPAM_CONFIDENCE = 0.9;
@@ -49,6 +53,9 @@ export const REJECT_FLAGS = new Set([
   "OUT_OF_WINDOW",
   "NEAR_DUPLICATE",
   "NOT_MERGED",
+  // Hard only when the owner chose "Reject automatically" (or "Can't join") for accounts below the minimums.
+  "LOW_FOLLOWERS",
+  "NEW_ACCOUNT",
 ]);
 
 export interface EngineInput {
@@ -178,13 +185,12 @@ export function decide(i: EngineInput): EngineDecision {
       message: "Not about what this program pays for, according to the program's brief.",
       evidence: { relevance: "off_topic" },
     });
-  for (const f of (i.judgment.fact_checks ?? [])
-    .filter((x) => x.verdict === "contradicts")
-    .slice(0, 3))
+  // Every contradicted claim is listed (the judge reports at most five), each quoting both sides.
+  for (const f of (i.judgment.fact_checks ?? []).filter((x) => x.verdict === "contradicts"))
     addedFlags.push({
       code: "CONTRADICTS_BRIEF",
       severity: "soft",
-      message: `Says "${f.claim}", but the brief says "${f.brief_says}".`,
+      message: contradictionLine(f.claim, f.brief_says),
       evidence: { claim: f.claim, briefSays: f.brief_says },
     });
   // R5b: clearly off topic is rejected automatically (owners can override; contributors can ask for a second look).

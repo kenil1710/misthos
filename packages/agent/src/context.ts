@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { apiUsage, programContexts, type ContextSource, type DbLike } from "@misthos/db";
 import { ContextUnderstanding } from "@misthos/shared";
+import { isXPageLink } from "@misthos/shared/context";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { detectInjection } from "./injection";
@@ -133,6 +134,15 @@ export async function readProgramContext(
   for (const link of row.linksJson) {
     if (link.startsWith("@")) {
       sources.push({ url: link, ok: true, note: "X account (not read)" });
+      continue;
+    }
+    // X shows a login wall to anything without an account: no fetch, summarize from the rest.
+    if (isXPageLink(link)) {
+      sources.push({
+        url: link,
+        ok: true,
+        note: "X page (not read: X needs an account). Summarized from your text and the other links.",
+      });
       continue;
     }
     try {

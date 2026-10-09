@@ -56,7 +56,7 @@ flowchart LR
    the author's own self-reply thread via one capped search), and runs the deterministic checks against earlier
    submissions in the program.
 3. If no rejecting flag already decides, Claude scores it via the `record_judgment` tool (`judge-v4`).
-4. The decision engine (`rules-v6`) picks the action and amount (points always from the criterion scores; 0 when the
+4. The decision engine (`rules-v7`) picks the action and amount (points always from the criterion scores; 0 when the
    judge recommends rejecting); the explanation is written from facts.
 5. The record is canonicalized, hashed and signed; decision, status and audit event commit in one transaction.
 6. Retryable upstream errors go back to the queue with backoff; the last attempt escalates instead of failing.

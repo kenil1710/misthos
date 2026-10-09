@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
     username: me.username,
     name: me.name,
     createdAt: me.created_at ? new Date(me.created_at) : undefined,
+    followers: me.public_metrics?.followers_count,
   });
   await audit(db, {
     actor: `user:${user.id}`,

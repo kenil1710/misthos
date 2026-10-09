@@ -58,6 +58,11 @@ export interface CheckContext {
     categories: RubricCategory[];
     /** X posts from accounts with fewer followers go to review (0 or unset: no minimum). */
     minXFollowers?: number;
+    /**
+     * Below minXFollowers or minAccountAgeDays: "review" (soft flag, the owner decides; the default), "reject" or
+     * "block" (hard flag: rejected; "block" accounts can't join, so this only catches ones that joined earlier).
+     */
+    belowMinimum?: "review" | "reject" | "block";
     /** Links, @mentions or #hashtags every submission must include (from the program's context). */
     mustInclude?: string[];
   };
@@ -271,7 +276,8 @@ export function runChecks(ctx: CheckContext): Flag[] {
     });
   }
 
-  // ── Minimum followers (X) ──────────────────────────────────────────────
+  // ── Minimum followers and account age (X) ──────────────────────────────
+  const strict = (ctx.program.belowMinimum ?? "review") !== "review";
   const minFollowers = ctx.program.minXFollowers ?? 0;
   if (
     r.sourceType === "x_post" &&
@@ -281,8 +287,10 @@ export function runChecks(ctx: CheckContext): Flag[] {
   ) {
     flags.push({
       code: "LOW_FOLLOWERS",
-      severity: "soft",
-      message: `The account has ${r.author.followers} followers; this program reviews posts from accounts under ${minFollowers}.`,
+      severity: strict ? "hard" : "soft",
+      message: strict
+        ? `The account has ${r.author.followers} followers; this program pays accounts with at least ${minFollowers}.`
+        : `The account has ${r.author.followers} followers; this program reviews posts from accounts under ${minFollowers}.`,
       evidence: { followers: r.author.followers, minimum: minFollowers },
     });
   }
@@ -295,8 +303,10 @@ export function runChecks(ctx: CheckContext): Flag[] {
     if (ageDays < ctx.program.minAccountAgeDays) {
       flags.push({
         code: "NEW_ACCOUNT",
-        severity: "soft",
-        message: `The X account is ${ageDays} days old; this program asks for at least ${ctx.program.minAccountAgeDays}.`,
+        severity: strict ? "hard" : "soft",
+        message: strict
+          ? `The X account is ${ageDays} days old; this program pays accounts at least ${ctx.program.minAccountAgeDays} days old.`
+          : `The X account is ${ageDays} days old; this program asks for at least ${ctx.program.minAccountAgeDays}.`,
         evidence: {
           accountCreatedAt: r.author.createdAt,
           ageDays,

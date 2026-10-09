@@ -72,6 +72,8 @@ export const decisionAction = pgEnum("decision_action", [
 export const decidedBy = pgEnum("decided_by", ["agent", "human"]);
 export const payoutStatus = pgEnum("payout_status", ["pending", "proposed", "executed", "failed"]);
 export const noncePurpose = pgEnum("nonce_purpose", ["siwe", "wallet_link"]);
+/** What happens to X accounts below a program's minimum followers or account age. */
+export const belowMinimumPolicy = pgEnum("below_minimum_policy", ["review", "reject", "block"]);
 
 // ─── Identity ───────────────────────────────────────────────────────────────
 
@@ -83,6 +85,8 @@ export const users = pgTable("users", {
   xUserId: text("x_user_id").unique(),
   xHandle: text("x_handle"),
   xCreatedAt: timestamp("x_created_at", { withTimezone: true }),
+  /** Follower count from the last X sign-in (shown to the contributor against a program's minimum). */
+  xFollowers: integer("x_followers"),
   /** Verified through GitHub OAuth (never typed): the numeric id is what ownership checks compare. */
   githubUserId: text("github_user_id").unique(),
   githubLogin: text("github_login"),
@@ -132,6 +136,11 @@ export const programs = pgTable(
     minAccountAgeDays: integer("min_account_age_days").notNull().default(0),
     /** X posts from accounts with fewer followers go to review (0 = no minimum). */
     minXFollowers: integer("min_x_followers").notNull().default(0),
+    /**
+     * Accounts below minXFollowers or minAccountAgeDays: "review" (the owner decides), "reject" (rejected
+     * automatically) or "block" (can't join).
+     */
+    belowMinimum: belowMinimumPolicy("below_minimum").notNull().default("review"),
     /** Submissions a contributor may make per round; more are refused before any fetch or model call. */
     maxSubmissionsPerRound: integer("max_submissions_per_round").notNull().default(5),
     /** The current version of the agent's context (program_contexts.version); null before the owner adds one. */

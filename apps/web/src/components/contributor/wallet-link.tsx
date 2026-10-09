@@ -27,6 +27,8 @@ const ERRORS: Record<string, string> = {
   nonce_used: "This request was already used. Try again.",
   stale: "The request expired. Try again.",
   program_not_open: "This program isn't accepting contributors right now.",
+  below_minimum:
+    "Your X account is below this program's minimum followers or account age, so it can't join.",
   sign_in_required: "Your X session expired. Sign in with X again.",
   invalid_body: "Something in the request was off. Reload the page and try again.",
 };

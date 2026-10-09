@@ -44,5 +44,24 @@ function Opener({
     openConnectModal();
   }, [request, openConnectModal]);
   useEffect(() => onOpenChange(connectModalOpen), [connectModalOpen, onOpenChange]);
+  useDecorativeIcons(connectModalOpen);
   return null;
+}
+
+/**
+ * RainbowKit draws wallet icons as role="img" with no name, next to the wallet's name in the same button. Mark the
+ * unnamed ones decorative so screen readers (and axe) don't announce an empty image before every wallet.
+ */
+function useDecorativeIcons(open: boolean) {
+  useEffect(() => {
+    if (!open) return;
+    const fix = () =>
+      document
+        .querySelectorAll('[data-rk] [role="img"]:not([aria-label]):not([aria-hidden])')
+        .forEach((el) => el.setAttribute("aria-hidden", "true"));
+    fix();
+    const mo = new MutationObserver(fix);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, [open]);
 }

@@ -17,7 +17,9 @@ import {
   getContributorMembership,
   getProgramBySlug,
   getRounds,
+  xAccountOf,
 } from "@/lib/server/queries";
+import { minimumRuleText, minimumStatus } from "@/lib/minimums";
 import { currentRound, isScheduled } from "@/lib/rounds";
 import { getContributorSession } from "@/lib/server/session";
 import { utcDay } from "@/lib/time";
@@ -73,7 +75,15 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
     getRounds(program.id),
     bestDecision(program.id),
   ]);
-  const membership = session ? await getContributorMembership(program.id, session.xid) : null;
+  const [membership, account] = session
+    ? await Promise.all([
+        getContributorMembership(program.id, session.xid),
+        xAccountOf(session.sub),
+      ])
+    : [null, null];
+  const minimums = account ? minimumStatus(program, account) : null;
+  const blocked = !membership && minimums?.outcome === "block";
+  const ruleText = minimumRuleText(program);
   const round = currentRound(rounds);
   const first = program.rubricJson.categories[0];
 
@@ -173,17 +183,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
               Up to {program.maxSubmissionsPerRound} submission
               {program.maxSubmissionsPerRound === 1 ? "" : "s"} per round.
             </li>
-            {program.minXFollowers > 0 ? (
-              <li>
-                X posts from accounts with fewer than {program.minXFollowers.toLocaleString("en")}{" "}
-                followers are reviewed by the team before payment.
-              </li>
-            ) : null}
-            {program.minAccountAgeDays > 0 ? (
-              <li>
-                X accounts younger than {program.minAccountAgeDays} days are reviewed by the team.
-              </li>
-            ) : null}
+            {ruleText ? <li>{ruleText}</li> : null}
             <li>Disagree with a decision? You can ask for a second look once per submission.</li>
           </ul>
           {program.rubricJson.generalRules ? (
@@ -323,11 +323,29 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
                       </span>
                     ),
                   },
+                  ...(minimums?.applies
+                    ? [
+                        {
+                          key: "account",
+                          label: minimums.below
+                            ? "Below this program's minimums"
+                            : "Your account meets the minimums",
+                          status: (minimums.below
+                            ? minimums.outcome === "review"
+                              ? "current"
+                              : "failed"
+                            : "done") as "done" | "current" | "failed",
+                          detail: <AccountNumbers status={minimums} />,
+                        },
+                      ]
+                    : []),
                   {
                     key: "wallet",
                     label: "Link your payout wallet",
-                    status: session ? "current" : "waiting",
-                    detail: session ? (
+                    status: blocked ? "waiting" : session ? "current" : "waiting",
+                    detail: blocked ? (
+                      "Joining needs an X account that meets the minimums above."
+                    ) : session ? (
                       <span className="grid gap-3">
                         <span>
                           USDC is paid to this wallet on Arc. Signing proves it&apos;s yours; it
@@ -346,5 +364,32 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
         </aside>
       </main>
     </>
+  );
+}
+
+/** What the contributor's X account has against the program's minimums, and what happens to their posts. */
+function AccountNumbers({ status }: { status: ReturnType<typeof minimumStatus> }) {
+  return (
+    <span className="grid gap-2">
+      <span className="flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+        {status.followers ? (
+          <span>
+            <span className="text-foreground mono-num font-medium">
+              {status.followers.have === null ? "?" : status.followers.have.toLocaleString("en")}
+            </span>{" "}
+            followers · needs {status.followers.need.toLocaleString("en")}
+          </span>
+        ) : null}
+        {status.age ? (
+          <span>
+            <span className="text-foreground mono-num font-medium">
+              {status.age.days === null ? "?" : status.age.days.toLocaleString("en")}
+            </span>{" "}
+            days old · needs {status.age.need}
+          </span>
+        ) : null}
+      </span>
+      <span>{status.text}</span>
+    </span>
   );
 }

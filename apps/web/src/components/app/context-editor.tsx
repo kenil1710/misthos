@@ -1,6 +1,6 @@
 "use client";
 
-import { CONTEXT_ABOUT_MIN } from "@misthos/shared/context";
+import { CONTEXT_ABOUT_MIN, EMPTY_READ, hasUnderstanding } from "@misthos/shared/context";
 import { Check, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,7 @@ export function ContextEditor({
           sources: ContextSourceView[];
           error: string | null;
         };
-        if (s.status === "ready" && s.understanding) {
+        if (s.status === "ready" && s.understanding && hasUnderstanding(s.understanding)) {
           onChange({
             readId: body.id,
             understanding: toDraftUnderstanding(s.understanding),
@@ -85,9 +85,9 @@ export function ContextEditor({
           });
           return;
         }
-        if (s.status === "failed") {
+        if (s.status === "failed" || s.status === "ready") {
           onChange({ readId: body.id, sources: s.sources });
-          throw new Error(s.error ?? "The agent couldn't read it this time.");
+          throw new Error(s.error ?? EMPTY_READ);
         }
         await new Promise((r) => setTimeout(r, i < 10 ? 1000 : 2500));
       }
@@ -199,9 +199,21 @@ export function ContextEditor({
           </Button>
         </div>
         {readError ? (
-          <p role="alert" className="text-warning text-sm">
-            {readError}
-          </p>
+          <div
+            role="alert"
+            className="bg-warning-subtle flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm"
+          >
+            <span className="text-foreground min-w-0 flex-1">{readError}</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={reading || tooShort}
+              onClick={read}
+            >
+              Try again
+            </Button>
+          </div>
         ) : null}
         {!u ? (
           <p className="text-muted-foreground text-sm leading-relaxed">

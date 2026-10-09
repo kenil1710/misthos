@@ -15,7 +15,13 @@ import { cooldownEndsAt, currentRound, isScheduled } from "@/lib/rounds";
 import { chainConfig } from "@/lib/server/chain";
 import { contributorDetail } from "@/lib/server/contributors-view";
 import { contributorSubmissionItems } from "@/lib/server/contributor-submissions";
-import { getContributorMembership, getProgramBySlug, getRounds } from "@/lib/server/queries";
+import {
+  getContributorMembership,
+  getProgramBySlug,
+  getRounds,
+  xAccountOf,
+} from "@/lib/server/queries";
+import { minimumStatus } from "@/lib/minimums";
 import { getContributorSession } from "@/lib/server/session";
 import { utc, utcDay } from "@/lib/time";
 import { contributorTimeline } from "@/lib/contributor-timeline";
@@ -39,11 +45,14 @@ export default async function ContributorHome({ params, searchParams }: PageProp
 
   const cooldownSeconds = program.limitsJson.payeeCooldownSeconds;
   const cooldownEnds = cooldownEndsAt(me.walletChangedAt, cooldownSeconds);
-  const [detail, rounds, initialItems] = await Promise.all([
+  const [detail, rounds, initialItems, account] = await Promise.all([
     contributorDetail(program.id, me.id),
     getRounds(program.id),
     contributorSubmissionItems(me.id),
+    xAccountOf(session.sub),
   ]);
+  // Below the follower or account-age minimum: say so before they post, with what will happen.
+  const minimums = minimumStatus(program, account, new Date(), true);
   const round = currentRound(rounds);
   const scheduled = round ? isScheduled(round) : false;
   const roundOpen = round && round.status === "open" && !scheduled;
@@ -240,6 +249,11 @@ export default async function ContributorHome({ params, searchParams }: PageProp
               </section>
             ) : null}
 
+            {minimums.below ? (
+              <Notice tone={minimums.outcome === "review" ? "info" : "warning"}>
+                {minimums.text}
+              </Notice>
+            ) : null}
             <section className="bg-card shadow-soft min-w-0 rounded-[1.5rem] p-5 sm:p-7">
               <Submissions
                 programSlug={program.slug}

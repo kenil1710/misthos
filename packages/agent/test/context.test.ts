@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runChecks, type CheckContext } from "../src/checks";
 import { readProgramContext, type Understander } from "../src/context";
 import { decide } from "../src/engine";
+import { explain } from "../src/explain";
 import { parseArticle } from "../src/fetch/article";
 import type { JudgmentOutput } from "../src/judge";
 import type { Resource } from "../src/types";
@@ -126,8 +127,63 @@ describe("program context: judging", () => {
     expect(d).toMatchObject({ action: "escalate", rule: "R6_SOFT_FLAGS" });
     expect(d.addedFlags[0]).toMatchObject({
       code: "CONTRADICTS_BRIEF",
-      message: 'Says "Arc charges gas in ETH", but the brief says "Gas on Arc is paid in USDC".',
+      message: 'Says "Arc charges gas in ETH"; the brief says "Gas on Arc is paid in USDC".',
     });
+  });
+
+  it("every contradicted claim is listed, in the flags and in the explanation, whatever the outcome", () => {
+    const facts = [
+      ["Arc charges gas in ETH", "Gas on Arc is paid in USDC"],
+      ["CronPay is a token", "CronPay is not a token and not an investment product"],
+      ["CronPay holds your funds", "Funds are held in an escrow contract, never by CronPay"],
+      ["CronPay is on Solana", "CronPay is built on Arc"],
+    ] as const;
+    const j = judgment({
+      relevance: "on_topic",
+      fact_checks: [
+        ...facts.map(([claim, brief_says]) => ({
+          claim,
+          brief_says,
+          verdict: "contradicts" as const,
+        })),
+        { claim: "Uses USDC", brief_says: "CronPay uses USDC", verdict: "consistent" as const },
+      ],
+    });
+    const d = engine(j);
+    const lines = facts.map(([c, b]) => `Says "${c}"; the brief says "${b}".`);
+    expect(
+      d.addedFlags.filter((f) => f.code === "CONTRADICTS_BRIEF").map((f) => f.message),
+    ).toEqual(lines);
+    const text = explain({
+      decision: d,
+      flags: [],
+      judgment: j,
+      categories: CATEGORIES,
+      resource: post("x"),
+      priorCount: 0,
+    });
+    expect(text).toContain("Fact check: 4 claims conflict with the brief.");
+    for (const l of lines) expect(text.split(l).length - 1).toBe(1);
+  });
+
+  it("an off-topic rejection explains itself (and lists any contradiction) without a hard flag", () => {
+    const j = judgment({
+      relevance: "off_topic",
+      confidence: 0.95,
+      fact_checks: [{ claim: "A meme coin", brief_says: "Not a token", verdict: "contradicts" }],
+    });
+    const d = engine(j);
+    expect(d).toMatchObject({ action: "reject", rule: "R5B_OFF_TOPIC" });
+    const text = explain({
+      decision: d,
+      flags: [],
+      judgment: j,
+      categories: CATEGORIES,
+      resource: post("x"),
+      priorCount: 0,
+    });
+    expect(text).toMatch(/^Rejected automatically: not about what this program pays for/);
+    expect(text).toContain('Says "A meme coin"; the brief says "Not a token".');
   });
 
   it("a missing required link, mention or hashtag is flagged for review; expanded links count", () => {
@@ -149,6 +205,38 @@ describe("program context: judging", () => {
     expect(checks(post("Fun on @arcade"), { mustInclude: ["@arc"] }).map((f) => f.code)).toContain(
       "MISSING_REQUIRED",
     );
+  });
+
+  it("below the minimums: the owner's policy decides between review and an automatic rejection", () => {
+    const small = post("text", {
+      author: { ...post("").author, followers: 40, createdAt: "2026-10-01T00:00:00Z" },
+    });
+    const rules = { minXFollowers: 100, minAccountAgeDays: 30 };
+    const review = checks(small, { ...rules, belowMinimum: "review" });
+    expect(review.filter((f) => ["LOW_FOLLOWERS", "NEW_ACCOUNT"].includes(f.code))).toEqual([
+      expect.objectContaining({ code: "LOW_FOLLOWERS", severity: "soft" }),
+      expect.objectContaining({ code: "NEW_ACCOUNT", severity: "soft" }),
+    ]);
+    expect(engine(judgment(), small).action).toBe("approve"); // no flags passed: judged on its own
+    for (const policy of ["reject", "block"] as const) {
+      const flags = checks(small, { ...rules, belowMinimum: policy });
+      const f = flags.find((x) => x.code === "LOW_FOLLOWERS")!;
+      expect(f).toMatchObject({ severity: "hard" });
+      expect(f.message).toBe(
+        "The account has 40 followers; this program pays accounts with at least 100.",
+      );
+      const d = decide({
+        flags,
+        judgment: null,
+        categories: CATEGORIES,
+        resource: small,
+        ratePerPoint: 1_000_000n,
+        autoApproveConfidence: 0.8,
+        maxPerPayout: 50_000_000n,
+        maxAutoApproveItem: 20_000_000n,
+      });
+      expect(d).toMatchObject({ action: "reject", rule: "R1_REJECT_FLAG" });
+    }
   });
 
   it("accounts below the follower minimum go to review", () => {
@@ -250,5 +338,70 @@ describe("program context: reading links", () => {
         row!.id,
       ),
     ).toEqual({ status: "skipped" });
+  });
+  it("x.com links are never fetched (login wall); the summary comes from the owner's text and the other links", async () => {
+    const [row] = await db
+      .insert(programContexts)
+      .values({
+        ownerUserId: ownerId,
+        about: "CronPay is non-custodial USDC escrow for remote teams, built on Arc.",
+        linksJson: ["https://x.com/cronpay_", "https://docs.example/arc"],
+        inputHash: "0x2",
+      })
+      .returning();
+    const fetched: string[] = [];
+    const seen: { about: string; urls: string[] }[] = [];
+    const out = await readProgramContext(
+      {
+        db,
+        understand: async ({ about, excerpts }) => {
+          seen.push({ about, urls: excerpts.map((e) => e.url) });
+          return {
+            understanding: { summary: "Escrow on Arc.", keyFacts: [], onTopic: [], offTopic: [] },
+            usage: { provider: "anthropic", endpoint: "test", units: 1, estCostUsd: 0 },
+          };
+        },
+        fetchArticle: async (url) => {
+          fetched.push(url);
+          return { outcome: parseArticle(url, url, page()), usage: [] };
+        },
+      },
+      row!.id,
+    );
+    expect(out).toEqual({ status: "ready" });
+    expect(fetched).toEqual(["https://docs.example/arc"]);
+    expect(seen[0]!.about).toMatch(/CronPay/);
+    const [saved] = await db.select().from(programContexts).where(eq(programContexts.id, row!.id));
+    expect(saved!.sourcesJson[0]).toMatchObject({ url: "https://x.com/cronpay_", ok: true });
+    expect(saved!.sourcesJson[0]!.note).toMatch(/X needs an account/);
+  });
+
+  it("a model answer with no summary is a failed read the owner can retry, never an empty ready", async () => {
+    const [row] = await db
+      .insert(programContexts)
+      .values({
+        ownerUserId: ownerId,
+        about: "CronPay is non-custodial USDC escrow for remote teams, built on Arc.",
+        linksJson: [],
+        inputHash: "0x3",
+      })
+      .returning();
+    const out = await readProgramContext(
+      {
+        db,
+        understand: async () => {
+          throw new Error("summary: Too small");
+        },
+        fetchArticle: async () => {
+          throw new Error("unused");
+        },
+      },
+      row!.id,
+    );
+    expect(out).toEqual({ status: "failed" });
+    const [saved] = await db.select().from(programContexts).where(eq(programContexts.id, row!.id));
+    expect(saved!.status).toBe("failed");
+    expect(saved!.understandingJson).toBeNull();
+    expect(saved!.error).toMatch(/Try again/);
   });
 });

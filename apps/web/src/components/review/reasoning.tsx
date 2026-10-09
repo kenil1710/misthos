@@ -147,6 +147,13 @@ export function ReasoningTrace({
                 >
                   <div className="pt-1 pb-2 pl-7.5 text-sm">
                     {c.message ? <p className="text-soft">{c.message}</p> : null}
+                    {c.items?.length ? (
+                      <ul className="text-soft grid list-disc gap-1 pl-4">
+                        {c.items.map((t, i) => (
+                          <li key={i}>{t}</li>
+                        ))}
+                      </ul>
+                    ) : null}
                     {c.evidence ? <Evidence evidence={c.evidence} /> : null}
                   </div>
                 </Disclosure>

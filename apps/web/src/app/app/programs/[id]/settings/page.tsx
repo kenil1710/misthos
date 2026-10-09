@@ -147,6 +147,8 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
               programId={id}
               maxSubmissionsPerRound={row.program.maxSubmissionsPerRound}
               minXFollowers={row.program.minXFollowers}
+              minAccountAgeDays={row.program.minAccountAgeDays}
+              belowMinimum={row.program.belowMinimum}
             />
           </Card>
 

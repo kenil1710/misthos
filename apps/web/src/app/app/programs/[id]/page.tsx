@@ -19,6 +19,7 @@ import { Term } from "@/components/ui-kit/term";
 import { currentRound } from "@/lib/rounds";
 import { appOrigin } from "@/lib/server/env";
 import {
+  currentContext,
   getProgramForMember,
   getRounds,
   hasPaidRound,
@@ -37,6 +38,7 @@ import { PublishButton } from "./publish-button";
 import { ShareOnX } from "@/components/app/share-on-x";
 import { shareOnXUrl } from "@/lib/share";
 import { programNameForTitle } from "@/lib/server/titles";
+import { submissionRuleRows } from "@/lib/minimums";
 
 export async function generateMetadata({ params }: PageProps<"/app/programs/[id]">) {
   return { title: (await programNameForTitle((await params).id)) ?? "No access" };
@@ -99,12 +101,21 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
   if (!summary) notFound();
   const { program, role } = summary;
   const isOwner = role === "owner";
-  const [rounds, counts, recent, paidOnce] = await Promise.all([
+  const [rounds, counts, recent, paidOnce, context] = await Promise.all([
     getRounds(program.id),
     submissionCounts(program.id),
     recentDecisions(program.id),
     hasPaidRound(program.id),
+    currentContext(program.id, program.contextVersion),
   ]);
+  const ruleRows = submissionRuleRows({
+    minXFollowers: program.minXFollowers,
+    minAccountAgeDays: program.minAccountAgeDays,
+    belowMinimum: program.belowMinimum,
+    maxSubmissionsPerRound: program.maxSubmissionsPerRound,
+    mustInclude: context?.mustIncludeJson ?? [],
+    acceptsArticles: program.rubricJson.categories.some((c) => c.sourceTypes.includes("article")),
+  });
   const total = summary.submissions;
   const limits = program.limitsJson;
   const joinUrl = `${appOrigin()}/join/${program.slug}`;
@@ -362,46 +373,70 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
             ))}
           </ul>
         </Card>
-        <Card
-          title="Vault limits"
-          description="Enforced by the contract, whatever the agent decides."
-          actions={
-            isOwner ? (
-              <Button asChild variant="ghost" size="sm">
-                <Link href={`${base}/settings#limits`}>Edit</Link>
-              </Button>
-            ) : null
-          }
-        >
-          <dl className="grid gap-2.5 text-sm">
-            {(
-              [
-                ["Per contributor per round", formatUsdc(BigInt(limits.maxPerPayout))],
-                ["Per round", formatUsdc(BigInt(limits.maxPerRound))],
-                ["Per 24 hours", formatUsdc(BigInt(limits.maxPerDay))],
+        <div className="grid gap-6">
+          <Card
+            title="Vault limits"
+            description="Enforced by the contract, whatever the agent decides."
+            actions={
+              isOwner ? (
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`${base}/settings#limits`}>Edit</Link>
+                </Button>
+              ) : null
+            }
+          >
+            <dl className="grid gap-2.5 text-sm">
+              {(
                 [
-                  <Term key="t" k="approvalThreshold">
-                    Your approval above
-                  </Term>,
-                  formatUsdc(BigInt(limits.autoApproveThreshold)),
-                ],
-                [
-                  <Term key="c" k="cooldown">
-                    New wallet cooldown
-                  </Term>,
-                  limits.payeeCooldownSeconds
-                    ? `${limits.payeeCooldownSeconds / 3600} hours`
-                    : "None",
-                ],
-              ] as const
-            ).map(([label, value], i) => (
-              <div key={i} className="flex items-baseline justify-between gap-4">
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="mono-num">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
+                  ["Per contributor per round", formatUsdc(BigInt(limits.maxPerPayout))],
+                  ["Per round", formatUsdc(BigInt(limits.maxPerRound))],
+                  ["Per 24 hours", formatUsdc(BigInt(limits.maxPerDay))],
+                  [
+                    <Term key="t" k="approvalThreshold">
+                      Your approval above
+                    </Term>,
+                    formatUsdc(BigInt(limits.autoApproveThreshold)),
+                  ],
+                  [
+                    <Term key="c" k="cooldown">
+                      New wallet cooldown
+                    </Term>,
+                    limits.payeeCooldownSeconds
+                      ? `${limits.payeeCooldownSeconds / 3600} hours`
+                      : "None",
+                  ],
+                ] as const
+              ).map(([label, value], i) => (
+                <div key={i} className="flex items-baseline justify-between gap-4">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="mono-num">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+          <Card
+            title="Submission rules"
+            description="Contributors see these on the join page."
+            actions={
+              isOwner ? (
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`${base}/settings#rules`} aria-label="Edit submission rules">
+                    Edit
+                  </Link>
+                </Button>
+              ) : null
+            }
+          >
+            <dl className="grid gap-2.5 text-sm">
+              {ruleRows.map(([label, value]) => (
+                <div key={label} className="flex items-baseline justify-between gap-4">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="text-right [overflow-wrap:anywhere]">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+        </div>
       </div>
     </div>
   );

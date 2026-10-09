@@ -9,6 +9,7 @@ import {
   programs,
   rounds,
   submissions,
+  users,
 } from "@misthos/db";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
@@ -201,4 +202,14 @@ export async function openAppealCount(programId: string) {
     .from(appeals)
     .where(and(eq(appeals.programId, programId), sql`${appeals.resolvedAt} is null`));
   return Number(r?.n ?? 0);
+}
+
+/** The X account numbers saved at the contributor's last X sign-in (followers, creation date). */
+export async function xAccountOf(userId: string) {
+  const [u] = await getDb()
+    .select({ followers: users.xFollowers, createdAt: users.xCreatedAt })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return u ?? { followers: null, createdAt: null };
 }

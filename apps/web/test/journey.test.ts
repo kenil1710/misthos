@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   boardStage,
+  contradictions,
   reasoningChecks,
   scoreLines,
   submissionJourney,
@@ -144,6 +145,45 @@ describe("reasoningChecks", () => {
       "warn Injection detected",
       "warn New X account",
     ]);
+  });
+});
+
+describe("contradicted claims", () => {
+  const facts = [
+    {
+      code: "CONTRADICTS_BRIEF",
+      severity: "soft",
+      message: 'Says "a token"; the brief says "not a token".',
+    },
+    {
+      code: "CONTRADICTS_BRIEF",
+      severity: "soft",
+      message: 'Says "on Solana"; the brief says "on Arc".',
+    },
+    {
+      code: "CONTRADICTS_BRIEF",
+      severity: "soft",
+      message: 'Says "custodial"; the brief says "non-custodial".',
+    },
+  ];
+  it("the owner's checks list every one, quoting both sides, plus other brief notes", () => {
+    const c = reasoningChecks(
+      [...facts, { code: "MISSING_REQUIRED", severity: "soft", message: "No @cronpay_." }],
+      "x_post",
+      "",
+    );
+    const line = c.find((x) => x.key === "brief-facts")!;
+    expect(line).toMatchObject({ state: "warn", label: "3 claims conflict with the brief" });
+    expect(line.items).toEqual(facts.map((f) => f.message));
+    expect(c.at(-1)).toMatchObject({ key: "MISSING_REQUIRED", state: "warn" });
+  });
+  it("contradictions() keeps only contradicted claims with their text", () => {
+    expect(
+      contradictions([...facts, { code: "OFF_TOPIC", severity: "soft", message: "x" }]),
+    ).toEqual(facts.map((f) => f.message));
+    expect(contradictions([{ code: "CONTRADICTS_BRIEF", severity: "soft", message: "" }])).toEqual(
+      [],
+    );
   });
 });
 

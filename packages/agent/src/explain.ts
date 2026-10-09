@@ -46,9 +46,21 @@ export function explain(p: {
       ? ` No duplicate found across ${p.priorCount} prior submission${p.priorCount === 1 ? "" : "s"}.`
       : "";
   const cap = d.cappedBy === "maxPerPayout" ? " Capped at the program's per-payout limit." : "";
+  // Every claim that contradicts the brief, whatever the outcome.
+  const contradictions = flags.filter((f) => f.code === "CONTRADICTS_BRIEF").map((f) => f.message);
+  const factLine = () =>
+    contradictions.length
+      ? ` Fact check: ${contradictions.length === 1 ? "1 claim conflicts" : `${contradictions.length} claims conflict`} with the brief. ${contradictions.join(" ")}`
+      : "";
 
   if (d.action === "reject" && d.rule === "R5A_CLEAR_SPAM") {
-    return `Rejected automatically as clearly outside this program's rubric. ${j!.quality_summary}${scoreLine()} The program team can override this decision.`
+    return `Rejected automatically as clearly outside this program's rubric. ${j!.quality_summary}${scoreLine()}${factLine()} The program team can override this decision.`
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  if (d.action === "reject" && d.rule === "R5B_OFF_TOPIC") {
+    return `Rejected automatically: not about what this program pays for, according to its brief. ${j?.quality_summary ?? ""}${factLine()} The program team can override this decision.`
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -63,12 +75,12 @@ export function explain(p: {
       DELETED: "",
       NOT_MERGED: "",
     };
-    return `Rejected. ${f.message}${tail[f.code] ?? ""}`;
+    return `Rejected. ${f.message}${tail[f.code] ?? ""}${factLine()}`;
   }
 
   if (d.action === "approve" || d.action === "partial") {
     const label = d.action === "partial" ? "Partially approved" : "Approved";
-    return `${label} · ${formatUsdc(d.amount)}.${provenance()} ${j!.quality_summary}${scoreLine()}${dupLine()}${cap}`
+    return `${label} · ${formatUsdc(d.amount)}.${provenance()} ${j!.quality_summary}${scoreLine()}${dupLine()}${cap}${factLine()}`
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -85,8 +97,9 @@ export function explain(p: {
       j?.recommended_action === "reject"
         ? "The agent recommends rejecting this (no payment) and wants a reviewer to confirm."
         : "The agent wants a reviewer's judgment on this one.",
+    // Contradictions are listed once, in the fact-check line below.
     R6_SOFT_FLAGS: flags
-      .filter((f) => f.severity === "soft")
+      .filter((f) => f.severity === "soft" && f.code !== "CONTRADICTS_BRIEF")
       .map((f) => f.message)
       .join(" "),
     R7_LOW_CONFIDENCE: `The agent's confidence (${j ? Math.round(j.confidence * 100) : 0}%) is below this program's auto-approval threshold.`,
@@ -98,7 +111,7 @@ export function explain(p: {
       "Articles are always reviewed by a person: their author and date come from the page itself, not a platform.",
   };
   const summary = j ? ` ${j.quality_summary}` : "";
-  return `Escalated for review. ${why[d.rule] ?? ""}${rec}${summary}${scoreLine()}`
+  return `Escalated for review. ${why[d.rule] ?? ""}${factLine()}${rec}${summary}${scoreLine()}`
     .replace(/\s+/g, " ")
     .trim();
 }

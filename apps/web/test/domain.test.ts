@@ -127,6 +127,30 @@ describe("createProgram", () => {
 });
 
 describe("linkContributorWallet", () => {
+  it('"Can\'t join": an X account below the minimums is turned away; one above them joins; members keep access', async () => {
+    const { programId } = await setup();
+    await db
+      .update(programs)
+      .set({ minXFollowers: 100, belowMinimum: "block" })
+      .where(eq(programs.id, programId));
+    const small = await upsertXUser(db, { id: "77", username: "small", followers: 40 });
+    expect(await link(small)).toEqual({ ok: false, error: "below_minimum" });
+    const big = await upsertXUser(db, { id: "78", username: "big", followers: 4000 });
+    expect(
+      await link(big, { address: "0x00000000000000000000000000000000000000B2" }),
+    ).toMatchObject({ ok: true, joined: true });
+    // Its followers drop later: still a member, can still change wallet (posts are then rejected by the agent).
+    await upsertXUser(db, { id: "78", username: "big", followers: 10 });
+    expect(
+      await link(big, { address: "0x00000000000000000000000000000000000000B3" }),
+    ).toMatchObject({ ok: true, joined: false });
+    // "Send to my review" (the default) never blocks joining.
+    await db.update(programs).set({ belowMinimum: "review" }).where(eq(programs.id, programId));
+    expect(
+      await link(small, { address: "0x00000000000000000000000000000000000000B4" }),
+    ).toMatchObject({ ok: true, joined: true });
+  });
+
   it("joins with a verified wallet and keeps the signed proof", async () => {
     const { user } = await setup();
     const verify = vi.fn(async (args: { message: string }) => args.message.length > 0);

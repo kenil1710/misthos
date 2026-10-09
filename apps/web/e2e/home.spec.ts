@@ -63,7 +63,7 @@ test("owner with several programs: cards, what needs them, and what they joined"
   await page.goto("/");
   const header = page.getByRole("banner");
   await expect(header.getByRole("link", { name: "Open app" })).toBeVisible();
-  await expect(header.getByRole("link", { name: "Start a program" })).toHaveCount(0);
+  await expect(header.getByRole("link", { name: "Launch a campaign" })).toHaveCount(0);
   await expect(header).not.toContainText(wallet.address.slice(0, 6).toLowerCase());
   expect(errors).toEqual([]);
 });
@@ -213,6 +213,53 @@ test("submitting is instant (optimistic) and a double click creates one submissi
   // Invalid input is caught before anything is sent.
   await page.getByLabel("Submit your work").fill("not a link");
   await expect(page.getByRole("button", { name: "Submit", exact: true })).toBeDisabled();
+  expect(errors).toEqual([]);
+});
+
+test('a decision updates the timeline, the totals and "You\'re in" live, like the submission card', async ({
+  browser,
+}) => {
+  const owner = await db.query<{ id: string }>(
+    "insert into users (wallet_address) values ($1) returning id",
+    [`0x${Date.now().toString(16).padStart(40, "3")}`],
+  );
+  const stamp = Date.now();
+  const slug = `live-${stamp}`;
+  const programId = await seedProgram(db, { ownerId: owner.rows[0]!.id, slug });
+  const x = { id: `86${stamp}`, handle: "livetimeline" };
+  const { userId, cookie } = await contributorSession(db, x);
+  const cid = await seedMember(db, { programId, userId, x, wallet: `0x${"34".repeat(20)}` });
+  const ctx = await browser.newContext();
+  await ctx.addCookies([cookie]);
+  const { page, errors } = await newPage(ctx);
+  await page.goto(`/c/${slug}`);
+  await expect(page.getByRole("heading", { name: /You're in/ })).toBeVisible();
+
+  await page.getByLabel("Submit your work").fill("https://x.com/livetimeline/status/55501");
+  await page.getByRole("button", { name: "Submit", exact: true }).click();
+  // Submitting moves "You're in" aside for the timeline, without a reload.
+  const timeline = page.getByRole("region", { name: "Your timeline" });
+  await expect(page.getByRole("heading", { name: /You're in/ })).toHaveCount(0);
+  await expect(timeline).toContainText("First submission");
+
+  // The worker decides (played here by the database): approved, 0.40 USDC.
+  const { rows } = await db.query<{ id: string }>(
+    "select id from submissions where contributor_id = $1",
+    [cid],
+  );
+  await db.query(
+    `insert into decisions (submission_id, flags_json, action, amount, summary, decision_json, decision_hash, signature, signer_address, rule_version, decided_by)
+     values ($1, '[]', 'approve', 400000, 'Approved · 0.40 USDC.', '{}', $2, '0x00', '0x0000000000000000000000000000000000000001', 'rules-v7', 'agent')`,
+    [rows[0]!.id, `0x${String(stamp).padStart(64, "8")}`],
+  );
+  await db.query("update submissions set status = 'approved', amount = 400000 where id = $1", [
+    rows[0]!.id,
+  ]);
+  // The card, the timeline and the totals all follow, with no reload.
+  await expect(page.getByText("Approved · 0.40 USDC.")).toBeVisible({ timeout: 30_000 });
+  await expect(timeline.getByText("First approval")).toBeVisible();
+  await expect(timeline).not.toContainText("The agent is reviewing");
+  await expect(page.getByText("0.40").first()).toBeVisible();
   expect(errors).toEqual([]);
 });
 

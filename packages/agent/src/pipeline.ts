@@ -382,6 +382,7 @@ export async function processSubmission(
         payeeCooldownSeconds: limits.payeeCooldownSeconds,
         categories,
         minXFollowers: program.minXFollowers,
+        belowMinimum: program.belowMinimum,
         mustInclude: brief?.judge.mustInclude ?? [],
       },
       sameResource,
@@ -459,6 +460,8 @@ export async function processSubmission(
       autoApproveConfidence: program.autoApproveConfidence,
       minAccountAgeDays: program.minAccountAgeDays,
       minXFollowers: program.minXFollowers,
+      // Only when it differs from the default, so earlier decisions keep their input hash.
+      ...(program.belowMinimum !== "review" ? { belowMinimum: program.belowMinimum } : {}),
       context: brief?.hash ?? null,
     },
   });

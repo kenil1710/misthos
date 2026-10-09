@@ -2,6 +2,7 @@ import { contributors, programs, users, type DbLike } from "@misthos/db";
 import { buildWalletLinkMessage } from "@misthos/shared";
 import { and, eq } from "drizzle-orm";
 import type { Hex } from "viem";
+import { minimumStatus } from "@/lib/minimums";
 import { audit } from "./audit";
 
 export type LinkWalletError =
@@ -10,7 +11,8 @@ export type LinkWalletError =
   | "stale"
   | "bad_signature"
   | "nonce_used"
-  | "wallet_in_use";
+  | "wallet_in_use"
+  | "below_minimum";
 
 export type LinkWalletResult =
   | { ok: true; contributorId: string; joined: boolean; walletChanged: boolean }
@@ -42,12 +44,37 @@ export async function linkContributorWallet(
 ): Promise<LinkWalletResult> {
   const now = p.now ?? new Date();
   const [program] = await db
-    .select({ id: programs.id, slug: programs.slug, name: programs.name, status: programs.status })
+    .select({
+      id: programs.id,
+      slug: programs.slug,
+      name: programs.name,
+      status: programs.status,
+      minXFollowers: programs.minXFollowers,
+      minAccountAgeDays: programs.minAccountAgeDays,
+      belowMinimum: programs.belowMinimum,
+    })
     .from(programs)
     .where(eq(programs.slug, p.programSlug))
     .limit(1);
   if (!program) return { ok: false, error: "program_not_found" };
   if (program.status !== "active") return { ok: false, error: "program_not_open" };
+  // "Can't join": accounts below the minimums are turned away before they join (members can still change wallet).
+  if (program.belowMinimum === "block") {
+    const [member] = await db
+      .select({ id: contributors.id })
+      .from(contributors)
+      .where(and(eq(contributors.programId, program.id), eq(contributors.xUserId, p.user.xUserId)))
+      .limit(1);
+    if (!member) {
+      const [u] = await db
+        .select({ followers: users.xFollowers, createdAt: users.xCreatedAt })
+        .from(users)
+        .where(eq(users.id, p.user.id))
+        .limit(1);
+      if (minimumStatus(program, u ?? { followers: null, createdAt: null }, now).below)
+        return { ok: false, error: "below_minimum" };
+    }
+  }
   if (
     now.getTime() - p.issuedAt.getTime() > MAX_AGE_MS ||
     p.issuedAt.getTime() > now.getTime() + 60_000
@@ -152,7 +179,7 @@ export async function linkContributorWallet(
 /** Upsert the X identity after OAuth. Handle changes are tracked; the numeric X id is the stable key. */
 export async function upsertXUser(
   db: DbLike,
-  x: { id: string; username: string; name?: string; createdAt?: Date },
+  x: { id: string; username: string; name?: string; createdAt?: Date; followers?: number },
 ): Promise<{ id: string; xUserId: string; xHandle: string }> {
   const [u] = await db
     .insert(users)
@@ -161,10 +188,16 @@ export async function upsertXUser(
       xHandle: x.username,
       name: x.name ?? null,
       xCreatedAt: x.createdAt ?? null,
+      xFollowers: x.followers ?? null,
     })
     .onConflictDoUpdate({
       target: users.xUserId,
-      set: { xHandle: x.username, name: x.name ?? null, xCreatedAt: x.createdAt ?? null },
+      set: {
+        xHandle: x.username,
+        name: x.name ?? null,
+        xCreatedAt: x.createdAt ?? null,
+        xFollowers: x.followers ?? null,
+      },
     })
     .returning({ id: users.id, xUserId: users.xUserId, xHandle: users.xHandle });
   return { id: u!.id, xUserId: u!.xUserId!, xHandle: u!.xHandle! };

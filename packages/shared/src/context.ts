@@ -111,3 +111,25 @@ export function includesToken(text: string, urls: string[], token: string): bool
     .replace(/www\./g, "");
   return hay.includes(bare);
 }
+
+/** What the owner sees when a read came back with nothing usable. */
+export const EMPTY_READ =
+  "The agent couldn't draft anything from this. Add a sentence or two about the project, then try again, or write the summary yourself.";
+
+/** A read result worth showing: at least a summary. */
+export function hasUnderstanding(u: { summary?: string } | null | undefined): boolean {
+  return !!u && typeof u.summary === "string" && u.summary.trim().length > 0;
+}
+
+/**
+ * x.com / twitter.com pages: not readable without an account (the page is a login wall). The agent notes them and
+ * summarizes from the owner's text and the other links instead.
+ */
+export function isXPageLink(link: string): boolean {
+  try {
+    const host = new URL(link).hostname.toLowerCase().replace(/^(www\.|mobile\.)/, "");
+    return host === "x.com" || host === "twitter.com";
+  } catch {
+    return false;
+  }
+}

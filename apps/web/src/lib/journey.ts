@@ -192,6 +192,8 @@ export interface CheckLine {
   label: string;
   state: "pass" | "warn" | "fail";
   message?: string;
+  /** One line each, e.g. every claim that contradicts the brief. */
+  items?: string[];
   evidence?: Record<string, unknown>;
 }
 
@@ -233,6 +235,15 @@ const EXTRA = [
   "FETCH_FAILED",
 ];
 
+const BRIEF_EXTRA = ["OFF_TOPIC", "MISSING_REQUIRED", "LOW_FOLLOWERS"];
+
+/** Every claim that contradicts the program's brief, as "Says X; the brief says Y." */
+export function contradictions(
+  flags: { code: string; severity?: string; message: string }[],
+): string[] {
+  return flags.filter((f) => f.code === "CONTRADICTS_BRIEF" && f.message).map((f) => f.message);
+}
+
 /** The checks as one line each: passed (✓), noted (soft flag) or failed (hard flag), with the evidence. */
 export function reasoningChecks(
   flags: FlagLike[],
@@ -254,6 +265,19 @@ export function reasoningChecks(
     else out.push({ key: g.key, label: g.pass(sourceType, summary), state: "pass" });
   }
   for (const f of flags) if (EXTRA.includes(f.code)) out.push(line(f));
+  // Against the program's brief: every contradicted claim on one line, quoting both sides.
+  const facts = contradictions(flags);
+  if (facts.length)
+    out.push({
+      key: "brief-facts",
+      label:
+        facts.length === 1
+          ? "1 claim conflicts with the brief"
+          : `${facts.length} claims conflict with the brief`,
+      state: "warn",
+      items: facts,
+    });
+  for (const f of flags) if (BRIEF_EXTRA.includes(f.code)) out.push(line(f));
   return out;
 }
 

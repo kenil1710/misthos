@@ -93,14 +93,14 @@ test("owner: account and network switches show quietly in the wallet chip, the f
   expect(errors).toEqual([]);
 });
 
-test("owner: Start a program / Open app never opens a wallet by itself; the account menu has the wallet actions", async ({
+test("owner: Launch a campaign / Open app never opens a wallet by itself; the account menu has the wallet actions", async ({
   browser,
 }) => {
   const ctx = await browser.newContext();
   const wallet = await injectWallet(ctx, generatePrivateKey());
   const { page, errors } = await newPage(ctx);
   await page.goto("/");
-  await page.getByRole("link", { name: "Start a program" }).first().click();
+  await page.getByRole("link", { name: "Launch a campaign" }).first().click();
   await expect(page.getByRole("heading", { name: "Sign in to Misthos" })).toBeVisible();
   await page.waitForTimeout(2_000);
   // Nothing popped up: no dialog, no wallet request; the picker opens only from "Connect wallet".

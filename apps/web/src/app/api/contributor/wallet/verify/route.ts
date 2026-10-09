@@ -28,6 +28,7 @@ const STATUS: Record<string, number> = {
   bad_signature: 401,
   nonce_used: 409,
   wallet_in_use: 409,
+  below_minimum: 403,
 };
 
 export async function POST(req: Request) {

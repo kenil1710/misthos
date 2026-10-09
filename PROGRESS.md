@@ -1,8 +1,8 @@
 # Misthos — Progress
 
-**Current phase:** Phase 7 done: live on Arc testnet at https://misthos-iota.vercel.app (web on Vercel, worker on
-Railway, Neon). Repository public. No mainnet without the owner's explicit OK.
-**Last updated:** 2026-10-05
+**Current phase:** Phase 7 done: live on Arc testnet at https://misthos.world (web on Vercel, worker on
+Railway, Neon; misthos-iota.vercel.app and www redirect there). Repository public. No mainnet without the owner's explicit OK.
+**Last updated:** 2026-10-10
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
 ## Reduced scope (owner decision, 2026-10-02)
@@ -22,6 +22,32 @@ Railway, Neon). Repository public. No mainnet without the owner's explicit OK.
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Done (final changes before submission, 2026-10-10)
+
+- **Domain:** https://misthos.world is canonical (`NEXT_PUBLIC_APP_URL` on Vercel and Railway). Wallet sign-in failed
+  there because CSRF/SIWE checks compared against the old vercel.app origin (nonce POST → 403 `bad_origin`).
+  misthos-iota.vercel.app and www answer 308 to the same path (`lib/canonical-host.ts`). Edge rate-limit rule matches
+  paths only (covers the new host); worker wake doesn't depend on host. Agent User-Agent points at misthos.world.
+- **RainbowKit** replaces the custom picker (MetaMask, Rabby, Coinbase, Rainbow, OKX, Trust, Phantom, Bitget, any
+  browser wallet, WalletConnect). Only connecting: SIWE, account chip, account panel, wallet-fix dialogs unchanged.
+  Themed with our tokens. RainbowKit and its SDKs load on the first Connect click (prefetched on hover/focus), or
+  up front for returning visitors; Base Account SDK aliased out. Wrong chain → switch to Arc Testnet on connect,
+  adding it if missing. Lighthouse mobile 92–94 on landing, sign-in, overview, setup, join (e2e stack).
+- **Copy:** "Launch a campaign. AI pays your community for real work." across landing, sign-in, footer, OG image,
+  metadata, docs intro and README.
+- **Context "Read it":** the one-day cache no longer answers with a saved version (the CronPay empty result); empty
+  reads are failures with "Try again"; x.com links are noted, not fetched, and the summary uses the rest.
+- **Fact checks (`rules-v7`):** every contradicted claim is listed ("Says X; the brief says Y") in the decision, the
+  owner drawer and the contributor view; off-topic rejections explain themselves without a hard flag.
+- **Contributor page:** timeline, "You're in" and totals refresh when a decision lands or a submission is made.
+- **Submission rules card** on the overview (followers, age, policy, per-round cap, required mention, articles) with
+  Edit. **Below-minimum policy** (Settings): Send to my review / Reject automatically / Can't join; followers saved at X
+  sign-in; contributors see their numbers and the outcome on the join page and before posting. Migration `0010`
+  applied to Neon (all programs on "review", the previous behavior).
+- **Wallet warnings:** `docs/WALLET_WARNINGS.md` (what we request, not on MetaMask's list, dispute texts).
+- **Tests:** web 155, agent 206, shared 43, worker 17, db 12, contracts; e2e 26/26 incl. new wrong-network, live
+  contributor page and axe (0 serious/critical, 9 pages × 2 themes).
 
 ## Done (UI polish + agent context + small features, 2026-10-06)
 

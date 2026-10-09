@@ -19,7 +19,10 @@ export interface SubmissionItem {
     createdAt: string;
     /** The model scored it (false when a check rejected it before judgment). */
     scored: boolean;
-    /** Contributor-safe: codes only (labels and fixes come from FLAG_COPY); never the raw message or evidence. */
+    /**
+     * Contributor-safe: codes only (labels and fixes come from FLAG_COPY); never the raw message or evidence, except
+     * a contradicted claim, which quotes the contributor's own words and the program's public brief.
+     */
     flags: { code: string; severity: string; message: string }[];
   } | null;
   /** For the journey's last steps: the round it counts in and, once paid, the payout. */
@@ -123,10 +126,10 @@ export async function contributorSubmissionItems(
             amount: d.amount.toString(),
             createdAt: d.createdAt.toISOString(),
             scored: !!d.scored,
-            flags: (d.flags as { code: string; severity: string }[]).map((f) => ({
+            flags: (d.flags as { code: string; severity: string; message?: string }[]).map((f) => ({
               code: f.code,
               severity: f.severity,
-              message: "",
+              message: f.code === "CONTRADICTS_BRIEF" ? (f.message ?? "") : "",
             })),
           }
         : null,

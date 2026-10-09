@@ -6,7 +6,7 @@ import {
   type ContextReadInput,
   type ContextSaveInput,
 } from "@misthos/shared";
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { audit } from "./audit";
 
 /**
@@ -72,7 +72,9 @@ export async function saveContext(
 
 /**
  * Ask the agent to read the owner's text and links. An identical read from the last day is reused (no fetch, no
- * model call); otherwise a read request is queued for the worker. Returns the request id to poll.
+ * model call); otherwise a read request is queued for the worker. Returns the request id to poll. Only real reads
+ * with a result count as cached: a saved version (which may hold no understanding, or the owner's own edits) never
+ * stands in for a read.
  */
 export async function requestContextRead(
   db: DbLike,
@@ -88,6 +90,8 @@ export async function requestContextRead(
         eq(programContexts.inputHash, inputHash),
         eq(programContexts.ownerUserId, p.ownerUserId),
         eq(programContexts.status, "ready"),
+        isNull(programContexts.version),
+        isNotNull(programContexts.understandingJson),
         sql`${programContexts.updatedAt} > now() - interval '1 day'`,
       ),
     )
