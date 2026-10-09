@@ -10,6 +10,7 @@ import {
   seedMember,
   seedProgram,
   userIdForWallet,
+  walletModal,
 } from "./helpers";
 import { injectWallet } from "./wallet";
 
@@ -106,8 +107,26 @@ test("owner: Start a program / Open app never opens a wallet by itself; the acco
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(wallet.signRequests).toHaveLength(0);
   await page.getByRole("button", { name: "Connect wallet" }).click();
-  await expect(page.getByRole("dialog", { name: "Connect a wallet" })).toBeVisible();
+  await expect(walletModal(page)).toHaveAccessibleName(/connect a wallet/i);
+  // The list offers the popular wallets, any other browser wallet, and WalletConnect for phones.
+  for (const name of [
+    "MetaMask",
+    "Rabby",
+    "Coinbase",
+    "Rainbow",
+    "OKX",
+    "Trust",
+    "Phantom",
+    "Bitget",
+  ])
+    await expect(
+      walletModal(page).getByRole("button", { name: new RegExp(name, "i") }),
+    ).toBeVisible();
+  await expect(walletModal(page).getByRole("button", { name: /browser wallet/i })).toBeVisible();
+  await expect(walletModal(page).getByRole("button", { name: /walletconnect/i })).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(walletModal(page)).toHaveCount(0);
+  expect(wallet.signRequests).toHaveLength(0);
 
   // Signed in: the account menu offers copy, explorer, switch account and sign out.
   await ownerSignIn(page);
@@ -129,17 +148,17 @@ test("owner: a declined signature or connection explains itself and can be retri
   const { page, errors } = await newPage(ctx);
   await page.goto("/app");
 
-  // Declined connection in the picker.
-  await wallet.rejectNext(page, "wallet_requestPermissions");
+  // Declined connection in RainbowKit's list: it stays open on the wallet with a Retry.
+  await wallet.rejectNext(page, "eth_requestAccounts");
   await page
     .getByRole("button", { name: /^connect/i })
     .first()
     .click();
-  const dialog = page.getByRole("dialog", { name: "Connect a wallet" });
+  const dialog = walletModal(page);
   await dialog.getByRole("button", { name: /metamask/i }).click();
-  await expect(dialog.getByRole("alert")).toContainText("You declined the request in your wallet.");
-  await dialog.getByRole("button", { name: "Try again" }).click();
-  await expect(dialog).toBeHidden();
+  await dialog.getByRole("button", { name: /retry/i }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
 
   // Declined signature.
   await wallet.rejectNext(page, "personal_sign");
@@ -149,6 +168,35 @@ test("owner: a declined signature or connection explains itself and can be retri
   ).toBeVisible();
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Welcome to Misthos" })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("owner: a wallet on another network that doesn't know Arc yet is switched (and Arc added) on connect", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext();
+  // On Ethereum mainnet, Arc Testnet not added yet.
+  const wallet = await injectWallet(ctx, generatePrivateKey(), 1, [1]);
+  const { page, errors } = await newPage(ctx);
+  await page.goto("/app");
+  await page.waitForTimeout(1_000);
+  // Page load asks the wallet for nothing that prompts.
+  const before = await page.evaluate(
+    () => (window as unknown as { __e2eWalletCalls?: string[] }).__e2eWalletCalls ?? [],
+  );
+  expect(before.filter((m) => !["eth_accounts", "eth_chainId", "net_version"].includes(m))).toEqual(
+    [],
+  );
+  await connectWallet(page);
+  const calls = await page.evaluate(
+    () => (window as unknown as { __e2eWalletCalls: string[] }).__e2eWalletCalls,
+  );
+  expect(calls).toContain("wallet_switchEthereumChain");
+  expect(calls).toContain("wallet_addEthereumChain");
+  await expect(page.getByRole("button", { name: "Switch to Arc Testnet" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Welcome to Misthos" })).toBeVisible();
+  expect(wallet.signRequests).toHaveLength(1);
   expect(errors).toEqual([]);
 });
 
@@ -172,7 +220,7 @@ test("WalletConnect's expired proposal (an unhandled rejection) becomes a calm m
   });
   await expect(page.getByText("Connection request expired. Try again.")).toBeVisible();
   await page.getByRole("button", { name: "Try again" }).click();
-  await expect(page.getByRole("dialog", { name: "Connect a wallet" })).toBeVisible();
+  await expect(walletModal(page)).toHaveAccessibleName(/connect a wallet/i);
   expect(errors).toEqual([]);
   expect(consoleErrors.filter((t) => /Proposal expired/.test(t))).toEqual([]);
 });

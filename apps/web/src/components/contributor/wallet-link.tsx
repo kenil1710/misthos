@@ -162,7 +162,7 @@ export function WalletLink({
               variant="outline"
               onClick={() => {
                 disconnect();
-                openConnect();
+                openConnect({ fresh: true });
               }}
             >
               Use another wallet app

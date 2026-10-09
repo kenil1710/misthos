@@ -27,6 +27,8 @@ export async function injectWallet(
   context: BrowserContext,
   privateKey: Hex | Hex[],
   chainId = 5042002,
+  /** Chains the wallet already knows; switching to any other fails with 4902 until it's added. Default: all. */
+  knownChains?: number[],
 ): Promise<TestWallet & ReturnType<typeof privateKeyToAccount>> {
   const accounts = (Array.isArray(privateKey) ? privateKey : [privateKey]).map((k) =>
     privateKeyToAccount(k),
@@ -39,7 +41,7 @@ export async function injectWallet(
     return acct.signMessage({ message: { raw: data } });
   });
   await context.addInitScript(
-    ({ addresses, chainIdHex }) => {
+    ({ addresses, chainIdHex, known }) => {
       const listeners: Record<string, ((...a: unknown[]) => void)[]> = {};
       const emit = (event: string, ...args: unknown[]) =>
         (listeners[event] ?? []).forEach((cb) => cb(...args));
@@ -56,7 +58,10 @@ export async function injectWallet(
         index: saved.index ?? 0,
         chainId: saved.chainId ?? chainIdHex,
         reject: new Set<string>(),
+        known: known ? new Set(known) : null,
       };
+      const calls: string[] = [];
+      (window as unknown as { __e2eWalletCalls: string[] }).__e2eWalletCalls = calls;
       const save = () =>
         localStorage.setItem(
           KEY,
@@ -82,8 +87,11 @@ export async function injectWallet(
         async request({ method, params }: { method: string; params?: unknown[] }) {
           if (state.reject.has(method)) {
             state.reject.delete(method);
+            // A person takes a moment to click "Reject"; an instant rejection is something no wallet does.
+            await new Promise((r) => setTimeout(r, 400));
             throw userRejected(method);
           }
+          calls.push(method);
           switch (method) {
             case "eth_requestAccounts":
               state.authorized = true;
@@ -96,12 +104,16 @@ export async function injectWallet(
             case "net_version":
               return String(parseInt(state.chainId, 16));
             case "wallet_switchEthereumChain": {
-              state.chainId = (params![0] as { chainId: string }).chainId;
+              const target = (params![0] as { chainId: string }).chainId;
+              if (state.known && !state.known.has(target))
+                throw Object.assign(new Error("Unrecognized chain ID."), { code: 4902 });
+              state.chainId = target;
               save();
               emit("chainChanged", state.chainId);
               return null;
             }
             case "wallet_addEthereumChain":
+              state.known?.add((params![0] as { chainId: string }).chainId);
               return null;
             case "wallet_requestPermissions":
               state.authorized = true;
@@ -110,9 +122,12 @@ export async function injectWallet(
             case "wallet_getPermissions":
               return state.authorized ? [{ parentCapability: "eth_accounts" }] : [];
             case "wallet_revokePermissions":
-              state.authorized = false;
-              save();
-              emit("accountsChanged", []);
+              // Like a real extension: an event only when access actually changes, and after the request returns.
+              if (state.authorized) {
+                state.authorized = false;
+                save();
+                setTimeout(() => emit("accountsChanged", []), 0);
+              }
               return null;
             case "personal_sign":
               return (
@@ -162,6 +177,7 @@ export async function injectWallet(
     {
       addresses: accounts.map((a) => a.address),
       chainIdHex: `0x${chainId.toString(16)}`,
+      known: knownChains?.map((id) => `0x${id.toString(16)}`) ?? null,
     },
   );
   const ctl = (page: Page, js: string) => page.evaluate(js);

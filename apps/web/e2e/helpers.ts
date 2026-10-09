@@ -29,17 +29,23 @@ export const LIMITS = {
   maxAutoApproveItem: "10000000",
 };
 
-/** Connect the injected test wallet through the app's own wallet picker. */
+/** RainbowKit's modal. Its accessible name changes as it moves from the list to a wallet, so find it by its root. */
+export const walletModal = (page: Page) => page.locator('[data-rk] [role="dialog"]');
+
+/** Connect the injected test wallet through RainbowKit's wallet list. */
 export async function connectWallet(page: Page) {
-  const dialog = page.getByRole("dialog", { name: "Connect a wallet" });
+  const dialog = walletModal(page);
+  // Some buttons open the list by themselves once the wallet code loads (e.g. "Change payout wallet").
   await dialog.waitFor({ state: "visible", timeout: 2_000 }).catch(() => {});
   if (!(await dialog.isVisible()))
     await page
       .getByRole("button", { name: /^connect/i })
       .first()
       .click();
+  await expect(dialog).toHaveAccessibleName(/connect a wallet/i);
   await dialog.getByRole("button", { name: /metamask/i }).click();
-  await expect(dialog).toBeHidden();
+  // The list closes once the wallet connects.
+  await expect(dialog).toHaveCount(0);
 }
 
 /** Real owner sign-in: connect the wallet, sign the SIWE message (sets the session and the landing hint). */

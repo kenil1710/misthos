@@ -29,14 +29,14 @@ export default defineConfig({
     {
       command: "tsx e2e/db-server.mts",
       port: DB_PORT,
-      reuseExistingServer: false,
+      reuseExistingServer: !!process.env.E2E_REUSE,
       stdout: "pipe",
     },
     {
       // A production build by default: realistic, and no on-demand compiles stalling clicks. E2E_DEV=1 uses next dev.
       command: process.env.E2E_DEV ? `next dev -p ${PORT}` : `next build && next start -p ${PORT}`,
       url: `${E2E.baseURL}/api/health`,
-      reuseExistingServer: false,
+      reuseExistingServer: !!process.env.E2E_REUSE,
       timeout: 420_000,
       env: {
         DATABASE_URL: DB_URL,

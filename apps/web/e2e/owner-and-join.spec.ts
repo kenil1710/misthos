@@ -1,8 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { SignJWT } from "jose";
 import pg from "pg";
 import { generatePrivateKey } from "viem/accounts";
 import { E2E } from "../playwright.config";
+import { connectWallet } from "./helpers";
 import { injectWallet } from "./wallet";
 
 /**
@@ -15,20 +16,6 @@ import { injectWallet } from "./wallet";
 
 const SLUG = "e2e-builders";
 const X = { id: "1000000001", handle: "e2e_alice" };
-
-async function connectWallet(page: Page) {
-  const dialog = page.getByRole("dialog", { name: "Connect a wallet" });
-  // Some buttons open the picker by themselves once the wallet code loads (e.g. "Change payout wallet").
-  await dialog.waitFor({ state: "visible", timeout: 2_000 }).catch(() => {});
-  if (!(await dialog.isVisible()))
-    await page
-      .getByRole("button", { name: /^connect/i })
-      .first()
-      .click();
-  await dialog.getByRole("button", { name: /metamask/i }).click();
-  // The picker closes once the wallet connects.
-  await expect(dialog).toBeHidden();
-}
 
 async function contributorCookie(db: pg.Client) {
   const { rows } = await db.query<{ id: string }>(

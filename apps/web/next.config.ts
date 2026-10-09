@@ -22,6 +22,8 @@ const nextConfig: NextConfig = {
   images: { qualities: [70, 75], formats: ["image/avif", "image/webp"] },
   // Lets the e2e dev server run beside a normal `next dev` without sharing .next.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // RainbowKit lists Base Account, which Misthos doesn't offer; its SDK (and the CDP server SDK behind it) stays out.
+  turbopack: { resolveAlias: { "@base-org/account": "./src/lib/base-account-stub.ts" } },
   // The old vercel.app URL and www answer with a permanent redirect to https://misthos.world (path kept).
   async redirects() {
     return canonicalRedirects();

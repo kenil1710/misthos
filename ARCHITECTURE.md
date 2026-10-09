@@ -3,7 +3,7 @@
 ```mermaid
 flowchart LR
   subgraph People
-    O[Program owner<br/>wallet via ConnectKit]
+    O[Program owner<br/>wallet via RainbowKit]
     C[Contributor<br/>X sign-in + wallet signature]
     P[Anyone<br/>public audit page]
   end

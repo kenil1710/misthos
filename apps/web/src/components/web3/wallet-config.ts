@@ -2,67 +2,28 @@
 
 import { getChainConfig } from "@misthos/shared/chains";
 import { QueryClient } from "@tanstack/react-query";
-import { createConfig, http } from "wagmi";
-import { coinbaseWallet, injected, walletConnect } from "wagmi/connectors";
-import { discoverAllowedWallets } from "@/lib/wallets";
+import { createConfig, http, type CreateConnectorFn } from "wagmi";
 
 export const chain = getChainConfig().chain;
-const wcProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? "";
 
-/** The four wallets Misthos offers, in the order shown. `rdns` matches EIP-6963 announcements. */
-export const WALLET_CHOICES = [
-  { id: "io.metamask", name: "MetaMask", install: "https://metamask.io/download/" },
-  { id: "io.rabby", name: "Rabby", install: "https://rabby.io/" },
-  {
-    id: "com.coinbase.wallet",
-    name: "Coinbase Wallet",
-    install: "https://www.coinbase.com/wallet",
-  },
-  { id: "walletConnect", name: "WalletConnect", install: null },
-] as const;
+/**
+ * RainbowKit's connectors, when they were loaded before the config was made (a returning visitor, so the saved
+ * connection can be restored whatever wallet it used). New visitors start with only the browser's own wallets
+ * (EIP-6963, no SDKs) and get the rest on their first "Connect wallet" (`ensureRainbowConnectors`).
+ */
+let preloaded: CreateConnectorFn[] | undefined;
+export function preloadConnectors(fns: CreateConnectorFn[]) {
+  if (!browserConfig) preloaded = fns;
+}
 
 function makeConfig() {
   const browser = typeof window !== "undefined";
-  // Allowed browser wallets, each as its own connector. Found synchronously so a reload can reconnect at once.
-  const found = discoverAllowedWallets();
-  const extensions = found.map((w) =>
-    injected({
-      target: () => ({
-        id: w.info.rdns,
-        name: w.info.name,
-        icon: w.info.icon,
-        provider: w.provider as never,
-      }),
-    }),
-  );
-  const hasCoinbaseExtension = found.some((w) => w.info.rdns === "com.coinbase.wallet");
   return createConfig({
     chains: [chain],
     transports: { [chain.id]: http() },
     // Restore the saved connection once, in an effect (see Web3Provider), not during render.
     ssr: true,
-    multiInjectedProviderDiscovery: false,
-    connectors: [
-      ...extensions,
-      // The SDKs below are only downloaded when someone picks them.
-      ...(browser && !hasCoinbaseExtension
-        ? [coinbaseWallet({ appName: "Misthos", preference: { options: "all" } })]
-        : []),
-      ...(browser && wcProjectId
-        ? [
-            walletConnect({
-              projectId: wcProjectId,
-              showQrModal: true,
-              metadata: {
-                name: "Misthos",
-                description: "Contributor payroll, run by an agent you can audit.",
-                url: process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin,
-                icons: [],
-              },
-            }),
-          ]
-        : []),
-    ],
+    connectors: browser ? (preloaded ?? []) : [],
   });
 }
 
@@ -77,4 +38,27 @@ export function getWalletConfig() {
 export function getQueryClient() {
   if (typeof window === "undefined") return new QueryClient();
   return (browserQueryClient ??= new QueryClient());
+}
+
+const rdnsOf = (c: { rdns?: string | readonly string[] }) =>
+  c.rdns === undefined ? [] : typeof c.rdns === "string" ? [c.rdns] : [...c.rdns];
+
+let adding: Promise<void> | undefined;
+/**
+ * Add RainbowKit's connectors to the live config (once). Called only while no wallet is connected: an extension
+ * found earlier through EIP-6963 is replaced by RainbowKit's connector for the same wallet, as createConfig would
+ * have done had they been there from the start.
+ */
+export function ensureRainbowConnectors(): Promise<void> {
+  const config = getWalletConfig();
+  if (preloaded) return Promise.resolve();
+  adding ??= import("./rainbow-connectors").then(({ rainbowConnectors }) => {
+    const created = rainbowConnectors().map((fn) => config._internal.connectors.setup(fn));
+    const rdns = new Set(created.flatMap(rdnsOf));
+    config._internal.connectors.setState((prev) => [
+      ...prev.filter((c) => !(c.type === "injected" && rdns.has(c.id))),
+      ...created,
+    ]);
+  });
+  return adding;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { shortHex } from "@misthos/shared/money";
-import { Wallet } from "lucide-react";
+import { Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useWalletAccount } from "./use-wallet-account";
@@ -20,17 +20,24 @@ export function WalletButton({
   variant?: "outline" | "default" | "ghost";
   className?: string;
 }) {
-  const { openConnect } = useWalletUi();
+  const { openConnect, prefetchConnect, opening } = useWalletUi();
   const { address, isConnected, chainId } = useWalletAccount();
   return (
     <Button
       type="button"
       variant={variant}
       size={size}
-      onClick={openConnect}
+      onClick={() => openConnect()}
+      onPointerEnter={prefetchConnect}
+      onFocus={prefetchConnect}
+      aria-busy={opening || undefined}
       className={cn("gap-2", className)}
     >
-      <Wallet className="size-4" strokeWidth={1.5} aria-hidden="true" />
+      {opening ? (
+        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+      ) : (
+        <Wallet className="size-4" strokeWidth={1.5} aria-hidden="true" />
+      )}
       {isConnected && address ? (
         <span className="font-mono text-[13px]">
           {chainId !== chain.id ? "Wrong network" : shortHex(address)}

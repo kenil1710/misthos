@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { hadWalletBefore } from "@/lib/wallets";
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 
 /** Resolves once the page has loaded and the main thread has a quiet moment (at most 1.5 s later). */
@@ -31,7 +32,17 @@ export function walletIsland<P extends object>(
   const Loaded = dynamic(
     async () => {
       await afterLoadIdle();
-      const [{ Web3Provider }, C] = await Promise.all([import("./web3-provider"), load()]);
+      const [{ Web3Provider }, C] = await Promise.all([
+        import("./web3-provider"),
+        load(),
+        // A returning visitor: all connectors from the start, so the saved connection restores whatever wallet it
+        // used. Everyone else gets RainbowKit's connectors on their first "Connect wallet".
+        hadWalletBefore()
+          ? Promise.all([import("./rainbow-connectors"), import("./wallet-config")]).then(
+              ([r, c]) => c.preloadConnectors(r.rainbowConnectors()),
+            )
+          : null,
+      ]);
       function Island(props: P) {
         return (
           <Web3Provider>

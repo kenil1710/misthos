@@ -15,6 +15,7 @@
     "@misthos/db": "workspace:*",
     "@misthos/shared": "workspace:*",
     "@next/env": "16.3.6",
+    "@rainbow-me/rainbowkit": "2.2.11",
     "@tanstack/react-query": "^5.104.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",

@@ -54,7 +54,7 @@ export function WalletChipStatus({
       side={side}
       walletItems={
         problem === "disconnected" ? (
-          <DropdownMenuItem onSelect={openConnect}>
+          <DropdownMenuItem onSelect={() => openConnect()}>
             <Wallet className="size-4" strokeWidth={1.5} />
             Connect wallet
           </DropdownMenuItem>
