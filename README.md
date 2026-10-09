@@ -1,9 +1,11 @@
 # Misthos
 
-**Contributor payroll, run by an agent you can audit.**
+**Launch a campaign. AI pays your community for real work.**
 
-Misthos verifies contributor work, catches fraud, and pays in USDC on Arc, inside limits enforced on-chain.
-Contributors submit links to their posts, pull requests and articles. An AI agent checks that the work is theirs,
+Fund a USDC vault and set the rules. People create threads, articles and code about your project. An AI agent checks
+every submission, scores it and pays them automatically, never above the limits your vault enforces. (In the app a
+campaign is a "program" and the people taking part are "contributors".) People submit links to their posts, pull
+requests and articles. An AI agent checks that the work is theirs,
 original and inside the round, scores it against the program's rubric, and explains its decision. Payouts go out
 from a vault contract whose limits the agent cannot exceed, and every decision is a signed record anyone can verify
 against the chain.

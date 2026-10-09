@@ -267,7 +267,7 @@ test("owner: a protected page signs in in place and stays there; sign-out lands 
   await expect(page).toHaveURL(`${E2E.baseURL}/`);
   await expect(page.getByRole("status").filter({ hasText: "You're signed out." })).toBeVisible();
   await expect(
-    page.getByRole("banner").getByRole("link", { name: "Start a program" }),
+    page.getByRole("banner").getByRole("link", { name: "Launch a campaign" }),
   ).toBeVisible();
   await page.goto(`/app/programs/${programId}/settings`);
   await expect(page.getByRole("heading", { name: "Sign in to Misthos" })).toBeVisible();

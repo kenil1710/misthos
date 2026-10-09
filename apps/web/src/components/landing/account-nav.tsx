@@ -18,7 +18,7 @@ function parseHint(cookie: string): Hint | null {
 }
 
 /**
- * The landing header's account area. Signed out: "Sign in" and "Start a program". Signed in: just "Open app", which
+ * The landing header's account area. Signed out: "Sign in" and "Launch a campaign". Signed in: just "Open app", which
  * goes to your programs (owner) or the programs you joined (contributor). No wallet code loads here.
  */
 export function AccountNav() {
@@ -39,7 +39,7 @@ export function AccountNav() {
         </Button>
         <Button asChild size="sm" className="ml-1">
           <Link href="/app" prefetch={false}>
-            Start a program
+            Launch a campaign
           </Link>
         </Button>
       </>

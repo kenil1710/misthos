@@ -26,11 +26,11 @@ export const metadata: Metadata = {
   openGraph: { type: "website", siteName: "Misthos", url: "/" },
   twitter: { card: "summary_large_image" },
   title: {
-    default: "Misthos: contributor payroll, run by an agent you can audit",
+    default: "Misthos: launch a campaign, AI pays your community for real work",
     template: "%s · Misthos",
   },
   description:
-    "Misthos verifies contributor work, catches fraud, and pays in USDC on Arc, inside limits enforced on-chain.",
+    "Fund a USDC vault and set the rules. People create threads, articles and code about your project; an AI agent checks each one, scores it and pays them automatically, never above your vault's limits.",
 };
 
 export const viewport: Viewport = {

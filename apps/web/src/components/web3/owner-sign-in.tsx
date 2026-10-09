@@ -64,7 +64,7 @@ export function useSiweSignIn(onSignedIn?: () => void) {
         uri: window.location.origin,
         nonce,
         version: "1",
-        statement: "Sign in to Misthos to manage your contributor programs.",
+        statement: "Sign in to Misthos to manage your campaigns.",
         issuedAt: new Date(),
       });
       const signature = await signMessageAsync({ message });
@@ -120,7 +120,7 @@ export function OwnerSignIn() {
         ) : (
           <>
             <p className="text-muted-foreground text-sm">
-              The wallet that will own your programs and their vaults.
+              The wallet that will own your campaigns and their vaults.
             </p>
             <WalletButton variant="default" />
           </>

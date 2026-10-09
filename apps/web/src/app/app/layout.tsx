@@ -32,18 +32,21 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             className="mx-auto grid w-full max-w-[1080px] flex-1 content-start items-start gap-10 px-4 pt-[6vh] pb-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:gap-16 lg:pt-[10vh]"
           >
             <section className="order-2 lg:order-1" aria-labelledby="owner-pitch">
-              <p className="text-brand text-sm font-medium">For program owners</p>
+              <p className="text-brand text-sm font-medium">For projects and teams</p>
               <h2
                 id="owner-pitch"
                 className="display mt-2 text-[2.25rem] leading-[1.05] sm:text-[2.75rem]"
               >
-                Pay contributors for <em>real</em> work, automatically.
+                <span className="block">Launch a campaign.</span>
+                <span className="block">
+                  AI pays your community for <em>real</em> work.
+                </span>
               </h2>
               <ul className="text-soft mt-6 grid gap-3 text-[15px] leading-relaxed">
                 {[
-                  "Write the rules once: what counts, what it pays, the limits.",
-                  "The agent reviews every post, PR or article and signs each decision.",
-                  "Approved work is paid in USDC from a vault only you control.",
+                  "Fund a USDC vault and set the rules: what counts, what it pays, the limits.",
+                  "An AI agent checks every thread, article or pull request, scores it and explains why.",
+                  "Good work is paid automatically from your vault, never above its limits.",
                 ].map((t) => (
                   <li key={t} className="flex gap-3">
                     <span className="bg-brand mt-2.5 size-1.5 shrink-0 rounded-full" aria-hidden />
@@ -57,7 +60,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
               <section className="bg-card shadow-soft rounded-2xl border p-6 sm:p-8">
                 <h1 className="text-xl font-medium tracking-tight">Sign in to Misthos</h1>
                 <p className="text-muted-foreground mt-1.5 mb-7 text-sm leading-relaxed">
-                  With the wallet that owns your programs. Nothing opens until you click.
+                  With the wallet that owns your campaigns. Nothing opens until you click.
                 </p>
                 <OwnerSignIn />
               </section>
@@ -79,7 +82,7 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
                 </section>
               ) : (
                 <p className="text-muted-foreground px-1 text-sm leading-relaxed">
-                  Contributor? Open your program&apos;s join link and sign in with X.
+                  Posting for a campaign? Open its join link and sign in with X.
                 </p>
               )}
             </div>

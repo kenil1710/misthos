@@ -39,11 +39,12 @@ export function SiteFooter() {
         <div className="md:col-span-5">
           <Wordmark />
           <p className="text-soft mt-4 max-w-xs leading-relaxed">
-            Contributor payroll, run by an agent you can audit. Live on Arc testnet with test USDC.
+            Launch a campaign. AI pays your community for real work. Live on Arc testnet with test
+            USDC.
           </p>
           <Button asChild className="mt-6">
             <Link href="/app" prefetch={false}>
-              Start a program
+              Launch a campaign
             </Link>
           </Button>
         </div>

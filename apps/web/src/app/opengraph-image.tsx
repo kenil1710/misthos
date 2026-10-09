@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-export const alt = "Misthos: contributor payroll, run by an agent you can audit.";
+export const alt = "Misthos: launch a campaign. AI pays your community for real work.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -50,10 +50,11 @@ export default async function OpengraphImage() {
             maxWidth: 940,
           }}
         >
-          Contributor payroll, run by an agent you can audit.
+          Launch a campaign. AI pays your community for real work.
         </div>
         <div style={{ marginTop: 28, fontSize: 28, color: soft, lineHeight: 1.4, maxWidth: 900 }}>
-          Verified work, signed decisions, USDC payouts on Arc inside limits enforced on-chain.
+          Fund a USDC vault and set the rules. An AI agent checks every thread, article and pull
+          request, and pays automatically, never above your limits.
         </div>
       </div>
       <div

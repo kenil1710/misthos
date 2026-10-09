@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: { absolute: "Misthos: contributor payroll, run by an agent you can audit" },
+  title: { absolute: "Misthos: launch a campaign, AI pays your community for real work" },
   alternates: { canonical: "/" },
 };
 
@@ -61,17 +61,21 @@ export default async function Home() {
         {/* 1 · Hero */}
         <section className="mx-auto grid max-w-[1240px] grid-cols-[minmax(0,1fr)] items-center gap-14 px-4 pt-14 sm:px-6 md:pt-24 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:gap-10">
           <div>
-            <h1 className="display text-[3.25rem] leading-[0.98] sm:text-[4.5rem] lg:text-[5.5rem]">
-              Contributor payroll, run by an agent you can <em>audit</em>.
+            <h1 className="display text-[2.75rem] leading-[1.02] sm:text-[4rem] lg:text-[4.75rem]">
+              <span className="block">Launch a campaign.</span>
+              <span className="block">
+                AI pays your community for <em>real</em> work.
+              </span>
             </h1>
-            <p className="text-soft mt-7 max-w-[34rem] text-lg leading-relaxed sm:text-xl">
-              It reviews every submission against your rules, explains each decision, and pays in
-              USDC on Arc within limits your vault enforces.
+            <p className="text-soft mt-7 max-w-[36rem] text-lg leading-relaxed sm:text-xl">
+              Fund a USDC vault and set the rules. People create threads, articles and code about
+              your project. An AI agent checks every submission, scores it and pays them
+              automatically, never above the limits your vault enforces.
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg" className="h-12 rounded-xl px-6 text-base">
                 <Link href="/app" prefetch={false}>
-                  Start a program
+                  Launch a campaign
                 </Link>
               </Button>
               {auditHref ? (
@@ -101,7 +105,7 @@ export default async function Home() {
         {showMetrics && metrics ? (
           <section aria-label="Live numbers" className="mx-auto mt-28 max-w-[1240px] px-4 sm:px-6">
             <dl className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4">
-              <BigNumber label="USDC paid to contributors">
+              <BigNumber label="USDC paid out">
                 <CountUp
                   value={Number(metrics.usdcPaidTestnet + metrics.usdcPaidMainnet) / 1e6}
                   decimals={2}
@@ -110,7 +114,7 @@ export default async function Home() {
               <BigNumber label="Submissions reviewed">
                 <CountUp value={metrics.submissionsReviewed} />
               </BigNumber>
-              <BigNumber label="Contributors paid">
+              <BigNumber label="People paid">
                 <CountUp value={metrics.contributorsPaid} />
               </BigNumber>
               <BigNumber label="Rounds paid on Arc">
@@ -125,7 +129,7 @@ export default async function Home() {
           <Heading
             title={
               <>
-                Paying contributors by hand stops working at <em>fifty</em> people.
+                Paying your community by hand stops working at <em>fifty</em> people.
               </>
             }
           />
@@ -140,12 +144,12 @@ export default async function Home() {
                 [
                   CopyArt,
                   "Farming is cheap",
-                  "Copied threads, someone else's pull request, work from before the round: unchecked, all of it gets paid.",
+                  "Copied threads, someone else's pull request, work from before the campaign started: unchecked, all of it gets paid.",
                 ],
                 [
                   BoxArt,
                   "Payouts are a black box",
-                  "Contributors can't see why they got what they got, and sponsors can't see where the budget went.",
+                  "People can't see why they got what they got, and you can't see where the budget went.",
                 ],
               ] as [ComponentType<{ className?: string }>, string, string][]
             ).map(([Art, title, body], i) => (
@@ -169,30 +173,30 @@ export default async function Home() {
               </>
             }
           >
-            The agent does the reviewing; the vault does the paying.
+            The AI agent checks the work. Your vault pays for it.
           </Heading>
           <ol className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {(
               [
                 [
                   RubricArt,
-                  "Set the rules",
-                  "Write what you pay for and how it's scored, set your limits, and fund a vault you own.",
+                  "Launch a campaign",
+                  "Say what you pay for and how it's scored, set your limits, and fund a USDC vault you own.",
                 ],
                 [
                   LinkArt,
-                  "Contributors submit",
-                  "They sign in with X, link a payout wallet, and paste links to their posts, pull requests or articles.",
+                  "Your community posts",
+                  "People sign in with X, add a wallet for payouts, and paste links to their threads, articles or code.",
                 ],
                 [
                   SealArt,
-                  "The agent decides",
-                  "Checks authorship, originality and timing, scores the work, and signs every decision with its reasons.",
+                  "AI checks every link",
+                  "It checks who made it, that it's original and on time, scores it, and signs each decision with its reasons.",
                 ],
                 [
                   CoinsArt,
-                  "Rounds pay out",
-                  "When a round closes, the vault pays approved work in USDC, inside your caps.",
+                  "They get paid",
+                  "When a round ends, your vault pays approved work in USDC, never above your limits.",
                 ],
               ] as [ComponentType<{ className?: string }>, string, string][]
             ).map(([Art, title, body], i) => (
@@ -220,8 +224,8 @@ export default async function Home() {
                 </>
               }
             >
-              Approvals say what earned the points. Rejections say what failed, in words a
-              contributor can act on. These two are real
+              Approvals say what earned the points. Rejections say what failed, in words people can
+              act on. These two are real
               {featured.isDemo ? ", from the public demo program" : ""}.
             </Heading>
             <div className="mt-16 grid gap-5 lg:grid-cols-2">
@@ -243,18 +247,18 @@ export default async function Home() {
               <Heading
                 title={
                   <>
-                    The agent decides. The <em>contract</em> sets the limits.
+                    The AI decides. Your <em>vault</em> sets the limits.
                   </>
                 }
               >
-                Payouts leave from a vault your wallet owns. Anything outside your limits is refused
-                on-chain, whatever the agent decided.
+                Payouts leave from a vault your wallet owns. Anything above your limits is refused
+                on-chain, whatever the AI decided.
               </Heading>
               <VaultArt className="mt-8 size-44 sm:size-52" />
             </div>
             <div className="grid grid-cols-2 content-center gap-3 sm:gap-4">
               <Cap
-                label="Per contributor, per round"
+                label="Per person, per round"
                 value={
                   limits ? formatUsdc(BigInt(limits.maxPerPayout), { withSymbol: false }) : null
                 }
@@ -468,10 +472,10 @@ export default async function Home() {
             <CoinsArt className="pointer-events-none absolute -bottom-6 -left-6 size-44 opacity-25 sm:size-56" />
             <SealArt className="pointer-events-none absolute -top-8 -right-6 size-40 opacity-25 sm:size-52" />
             <h2 className="display relative mx-auto max-w-3xl text-[2.5rem] leading-[1.02] sm:text-[3.75rem]">
-              Run your next round with <em>Misthos</em>.
+              Launch your first campaign on <em>Misthos</em>.
             </h2>
             <p className="relative mx-auto mt-5 max-w-md text-lg leading-relaxed opacity-80">
-              Set up a program in a few minutes. You keep the keys and the funds.
+              Set it up in a few minutes. You keep the keys and the funds.
             </p>
             <div className="relative mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Button
@@ -481,7 +485,7 @@ export default async function Home() {
                 className="h-12 rounded-xl px-6 text-base"
               >
                 <Link href="/app" prefetch={false}>
-                  Start a program
+                  Launch a campaign
                 </Link>
               </Button>
               <Button
@@ -508,15 +512,15 @@ const FAQ: [string, string][] = [
   ],
   [
     "What if the agent gets it wrong?",
-    "Anything uncertain comes to you before it's paid: low confidence, odd engagement, large amounts, or text that tries to steer the grader. You can override any decision before the round pays.",
+    "Anything uncertain comes to you before it's paid: low confidence, odd engagement, large amounts, or text that tries to trick the AI. You can change any decision before the round pays.",
   ],
   [
-    "Can contributors game the AI?",
-    "Submitted content is treated as untrusted data. Attempts to instruct the grader are caught in code and always go to a human, and hard checks like authorship can't be talked around.",
+    "Can people game the AI?",
+    "Everything people submit is treated as untrusted. Attempts to give the AI instructions are caught in code and always go to you, and hard checks like who wrote it can't be talked around.",
   ],
   [
     "What kinds of work can it check?",
-    "Posts and threads on X, GitHub pull requests and commits, and articles on the open web. It reads only the links contributors submit.",
+    "Threads and posts on X, articles on the open web, and code on GitHub (pull requests and commits). It reads only the links people submit.",
   ],
   [
     "What does it cost?",
@@ -524,7 +528,7 @@ const FAQ: [string, string][] = [
   ],
   [
     "What data do you keep?",
-    "The submitted links and their content, the contributor's X id and handle, their verified GitHub account and payout wallet. Sign-in tokens are revoked right after reading the profile.",
+    "The submitted links and their content, each person's X id and handle, their verified GitHub account and payout wallet. Sign-in tokens are revoked right after reading the profile.",
   ],
 ];
 
