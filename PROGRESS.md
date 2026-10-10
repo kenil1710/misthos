@@ -38,6 +38,16 @@ Railway, Neon; misthos-iota.vercel.app and www redirect there). Repository publi
 - Owner to-dos: X and GitHub OAuth callbacks on misthos.world, Reown allowlist, a real MetaMask + second wallet
   sign-in and an X sign-in on production.
 
+## Bug fix after freeze (2026-10-10, owner-requested)
+
+- Live test on Misthos Creators: a post with false claims was labeled an injection attempt (rule R2B matched the
+  judge's note "manipulate or trick the AI agent", echoing the brief's own off-topic line) and its contradicted
+  claims were missing (R2B returned before the brief flags were added). Fixed: "influence"/"manipulate" count only
+  when aimed at the grading; brief flags are added before any rule returns (`rules-v8`); judge prompt `judge-v5`
+  says false claims belong in fact checks. Real injection (pre-check and the judge's note) still escalates.
+  Regression tests with the exact post. Demo on a throwaway copy of the campaign: rejected as off topic, both
+  contradicted claims listed, no injection label.
+
 ## Done (final changes before submission, 2026-10-10)
 
 - **Domain:** https://misthos.world is canonical (`NEXT_PUBLIC_APP_URL` on Vercel and Railway). Wallet sign-in failed
