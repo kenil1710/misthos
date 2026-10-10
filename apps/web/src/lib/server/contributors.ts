@@ -12,7 +12,8 @@ export type LinkWalletError =
   | "bad_signature"
   | "nonce_used"
   | "wallet_in_use"
-  | "below_minimum";
+  | "below_minimum"
+  | "minimum_unknown";
 
 export type LinkWalletResult =
   | { ok: true; contributorId: string; joined: boolean; walletChanged: boolean }
@@ -71,8 +72,11 @@ export async function linkContributorWallet(
         .from(users)
         .where(eq(users.id, p.user.id))
         .limit(1);
-      if (minimumStatus(program, u ?? { followers: null, createdAt: null }, now).below)
-        return { ok: false, error: "below_minimum" };
+      const m = minimumStatus(program, u ?? { followers: null, createdAt: null }, now);
+      if (m.below) return { ok: false, error: "below_minimum" };
+      // Unknown numbers (signed in with X before follower counts were saved) are never let through here.
+      if (m.followers?.ok === null || m.age?.ok === null)
+        return { ok: false, error: "minimum_unknown" };
     }
   }
   if (

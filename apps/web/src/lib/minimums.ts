@@ -105,7 +105,7 @@ export function minimumRuleText(rules: MinimumRules): string | null {
   return rules.belowMinimum === "review"
     ? `${who} are reviewed by the team before payment.`
     : rules.belowMinimum === "reject"
-      ? `Posts from ${who} are rejected automatically.`
+      ? `X posts from ${who.replace(/^X accounts/, "accounts")} are rejected automatically.`
       : `${who} can't join.`;
 }
 

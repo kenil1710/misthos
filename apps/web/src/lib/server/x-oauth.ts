@@ -150,7 +150,11 @@ export function safeNextPath(next: string | null | undefined, fallback = "/"): s
     return fallback;
   try {
     const u = new URL(next, "http://local.invalid");
-    return u.origin === "http://local.invalid" ? `${u.pathname}${u.search}` : fallback;
+    if (u.origin !== "http://local.invalid") return fallback;
+    // Check the normalized result too: "/.//evil.com" and "/a/..//evil.com" normalize to "//evil.com", which a
+    // caller resolving it against our origin would turn into https://evil.com.
+    const out = `${u.pathname}${u.search}`;
+    return /^[/\\]{2}/.test(out) ? fallback : out;
   } catch {
     return fallback;
   }

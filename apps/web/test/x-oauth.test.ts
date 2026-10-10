@@ -130,6 +130,12 @@ describe("safeNextPath", () => {
     [" /join/x", "/"],
     ["/c/arc#wallet", "/c/arc"],
     [null, "/"],
+    // Dot segments that normalize to a protocol-relative path (D-1, Oct 10 delta audit).
+    ["/.//evil.com", "/"],
+    ["/a/..//evil.com/path", "/"],
+    ["/%2e//evil.com", "/"],
+    ["/./\\evil.com", "/"],
+    ["/a/../join/x", "/join/x"],
   ])("%s → %s", (input, expected) => {
     expect(safeNextPath(input)).toBe(expected);
   });

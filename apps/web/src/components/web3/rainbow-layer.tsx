@@ -6,6 +6,9 @@ import { useEffect, useRef } from "react";
 import { chain } from "./wallet-config";
 import { walletTheme } from "./wallet-theme";
 
+/** How long a click's request to open the list may wait for RainbowKit (a disconnect settling, the chunk loading). */
+const REQUEST_TTL_MS = 10_000;
+
 /**
  * RainbowKit's wallet list, loaded on the first "Connect wallet". Each bump of `request` opens it once (as soon as
  * RainbowKit can: right after a disconnect it waits for the disconnect to settle).
@@ -14,7 +17,7 @@ export function RainbowLayer({
   request,
   onOpenChange,
 }: {
-  request: number;
+  request: { n: number; at: number };
   onOpenChange: (open: boolean) => void;
 }) {
   return (
@@ -33,14 +36,17 @@ function Opener({
   request,
   onOpenChange,
 }: {
-  request: number;
+  request: { n: number; at: number };
   onOpenChange: (open: boolean) => void;
 }) {
   const { openConnectModal, connectModalOpen } = useConnectModal();
   const handled = useRef(0);
   useEffect(() => {
-    if (request <= handled.current || !openConnectModal) return;
-    handled.current = request;
+    if (request.n <= handled.current || !openConnectModal) return;
+    handled.current = request.n;
+    // A request that waited too long (still connected, e.g. a disconnect that never happened) is dropped, so the
+    // list never pops up later on its own.
+    if (Date.now() - request.at > REQUEST_TTL_MS) return;
     openConnectModal();
   }, [request, openConnectModal]);
   useEffect(() => onOpenChange(connectModalOpen), [connectModalOpen, onOpenChange]);

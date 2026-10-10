@@ -99,13 +99,13 @@ function WalletUiBridge({ children }: { children: ReactNode }) {
   const [Layer, setLayer] = useState<ComponentType<Parameters<typeof RainbowLayerType>[0]> | null>(
     null,
   );
-  const [request, setRequest] = useState(0);
+  const [request, setRequest] = useState({ n: 0, at: 0 });
   const [opening, setOpening] = useState(false);
   const asked = useRef(false);
 
   const openList = useCallback(() => {
     asked.current = true;
-    setRequest((r) => r + 1);
+    setRequest((r) => ({ n: r.n + 1, at: Date.now() }));
     if (Layer) return;
     setOpening(true);
     loadLayer()

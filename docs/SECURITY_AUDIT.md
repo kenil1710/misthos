@@ -204,3 +204,58 @@ vault limits.
 
 No formal verification or external audit of the contracts. Circle's wallet infrastructure, X, GitHub and Anthropic
 are trusted as providers. Load and abuse testing at production scale belongs to Phase 7.
+
+## Oct 10 delta audit
+
+Scope: only commits `6d27828`…`972d42f` (domain move to misthos.world, RainbowKit, landing copy, context "Read it",
+fact checks, contributor live refresh, submission rules and below-minimum policy, migration `0010`, worker base
+image). Reviewed by a separate agent that hadn't seen the work (read-only); fixes and re-checks afterwards. No real
+programs, vaults or submissions were changed.
+
+### Findings
+
+| ID  | Severity   | Finding                                                                                                                                                                                                                            | Status                                                                                                                                                                                 |
+| --- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-1 | Medium     | Open redirect: `/api/auth/github/start?next=/.//evil.com` (also `/a/..//x`, `/%2e//x`) → `https://evil.com`. `safeNextPath` checked the raw string, but URL normalization produced `//evil.com`. Pre-existing, live on production. | **Fixed**: the normalized result is checked too; tests for each variant (`test/x-oauth.test.ts`).                                                                                      |
+| D-2 | Low–Medium | "Can't join" let in X users whose follower count was unknown (signed in before counts were saved).                                                                                                                                 | **Fixed**: unknown counts are refused with "sign in with X again" (`minimum_unknown`); test in `test/domain.test.ts`.                                                                  |
+| D-3 | Low        | Minimums only apply to X posts; a below-minimum member's article or PR is judged normally.                                                                                                                                         | **Documented**: join-page copy now says "X posts …". Recommendation: if the policy should cover all work, check the stored `users.x_followers` / `x_created_at` for every source type. |
+| D-4 | Low        | In strict modes an X post with no follower count from X skipped the check.                                                                                                                                                         | **Fixed**: soft `LOW_FOLLOWERS` (→ owner review); agent test.                                                                                                                          |
+| D-5 | Low        | Duplicate React keys possible in the contributor's fact-check list.                                                                                                                                                                | **Fixed**: index-qualified keys.                                                                                                                                                       |
+| D-6 | Info       | A queued "open wallet list" request could pop the list later (e.g. after a much later disconnect).                                                                                                                                 | **Fixed**: requests older than 10 s are dropped.                                                                                                                                       |
+| D-7 | Info       | Contributors see the brief's quoted fact in contradiction messages.                                                                                                                                                                | Accepted: facts come from the owner's public About and links; rendered as React text (escaped).                                                                                        |
+| D-8 | Info       | Users who signed in before the deploy show "?" followers until they sign in with X again.                                                                                                                                          | Accepted (see D-2).                                                                                                                                                                    |
+
+### Checked and fine
+
+1. **Sign-in:** SIWE requires domain `misthos.world`, exact URI origin, Arc chain id, ≤ 10 min age, and burns the
+   nonce atomically only after a valid signature. `sameOrigin` on production: 200 only for `https://misthos.world`;
+   403 for no Origin, `null`, the vercel.app host, `http://`, `www` and `evil.misthos.world`. Session cookies are
+   HttpOnly, Secure (production) and SameSite=Lax. OAuth state is compared in constant time; callbacks re-sanitize `next`.
+2. **Redirects:** the old host and www return 308 to the same path and query on misthos.world; `//evil.com`,
+   `%2F%2F` and `?next=https://evil.com` stay on misthos.world.
+3. **RainbowKit:** page load makes no prompting requests (e2e asserts it). The only approval is the exact deposit
+   amount, to the program's own vault (no `maxUint256`). Chain switch and add target only Arc Testnet from
+   `packages/shared/src/chains.ts`. **Stub:** `@base-org/account` (Base Account SDK) is aliased to
+   `src/lib/base-account-stub.ts`. It's reached only by wagmi's `baseAccount` connector, which we don't list.
+   Coinbase Wallet uses `@coinbase/wallet-sdk` (no dependency on `@base-org/account`), so it keeps working.
+4. **Migration 0010:** additive (`ADD COLUMN … DEFAULT 'review' NOT NULL`, nullable `x_followers`); all 20 existing
+   programs are `review`. No down migration (drizzle); manual rollback: `ALTER TABLE programs DROP COLUMN
+below_minimum; ALTER TABLE users DROP COLUMN x_followers; DROP TYPE below_minimum_policy;`. The only writer is
+   the rules route (`requireProgramOwner` + `sameOrigin`).
+5. **Bypass:** submissions need a joined contributor with a verified wallet; `linkContributorWallet` is the only
+   place the app creates contributors; the agent hard-rejects below-minimum X posts under reject/block.
+6. **"Read it" / fact checks:** cache scoped to the same owner (`ownerUserId` + input hash, real reads only); the
+   poll route filters by owner. Link text is wrapped in random boundaries, tags neutralized, injected pages dropped.
+   Fact quotes are React text (no `dangerouslySetInnerHTML`).
+7. **Dependencies:** `pnpm audit --prod`: 3 high, all pre-existing, none from RainbowKit's tree.
+   - `next` < 16.3.8 image-optimizer SSRF: affects only apps with `images.remotePatterns`; we set none (not
+     reachable). Recommendation: upgrade to 16.3.8.
+   - `sharp`/librsvg: SVG input to the optimizer is off by default.
+   - `source-map-js`: build time.
+8. **Secrets:** none in the diff; 1,866 built client files scanned against every `.env` value > 12 chars: only
+   `NEXT_PUBLIC_APP_URL` and `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` appear (public by design).
+
+### Tests after fixes
+
+web 160, agent 207 (+1 skipped), shared 43, worker 17, db 12, contracts; e2e 26/26 including axe (0 serious or
+critical, 9 pages × 2 themes).

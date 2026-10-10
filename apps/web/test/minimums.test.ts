@@ -47,7 +47,7 @@ describe("minimum followers and account age", () => {
     );
     expect(
       minimumRuleText({ minXFollowers: 100, minAccountAgeDays: 0, belowMinimum: "reject" }),
-    ).toBe("Posts from X accounts with fewer than 100 followers are rejected automatically.");
+    ).toBe("X posts from accounts with fewer than 100 followers are rejected automatically.");
     expect(
       minimumRuleText({ minXFollowers: 0, minAccountAgeDays: 30, belowMinimum: "block" }),
     ).toBe("X accounts younger than 30 days can't join.");

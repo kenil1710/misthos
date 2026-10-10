@@ -239,6 +239,19 @@ describe("program context: judging", () => {
     }
   });
 
+  it("strict modes never let an unknown follower count through: it goes to review", () => {
+    const unknown = post("text", { author: { ...post("").author, followers: null } });
+    for (const policy of ["reject", "block"] as const)
+      expect(
+        checks(unknown, { minXFollowers: 100, belowMinimum: policy }).find(
+          (f) => f.code === "LOW_FOLLOWERS",
+        ),
+      ).toMatchObject({ severity: "soft", evidence: { followers: null } });
+    expect(
+      checks(unknown, { minXFollowers: 100, belowMinimum: "review" }).map((f) => f.code),
+    ).not.toContain("LOW_FOLLOWERS");
+  });
+
   it("accounts below the follower minimum go to review", () => {
     const flags = checks(post("text", { author: { ...post("").author, followers: 40 } }), {
       minXFollowers: 100,

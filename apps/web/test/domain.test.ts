@@ -135,12 +135,32 @@ describe("linkContributorWallet", () => {
       .where(eq(programs.id, programId));
     const small = await upsertXUser(db, { id: "77", username: "small", followers: 40 });
     expect(await link(small)).toEqual({ ok: false, error: "below_minimum" });
-    const big = await upsertXUser(db, { id: "78", username: "big", followers: 4000 });
+    // Signed in before follower counts were saved: no count, so asked to sign in again (never let through).
+    const unknown = await upsertXUser(db, {
+      id: "79",
+      username: "unknown",
+      createdAt: new Date("2015-01-01"),
+    });
+    expect(await link(unknown, { address: "0x00000000000000000000000000000000000000B5" })).toEqual({
+      ok: false,
+      error: "minimum_unknown",
+    });
+    const big = await upsertXUser(db, {
+      id: "78",
+      username: "big",
+      followers: 4000,
+      createdAt: new Date("2015-01-01"),
+    });
     expect(
       await link(big, { address: "0x00000000000000000000000000000000000000B2" }),
     ).toMatchObject({ ok: true, joined: true });
     // Its followers drop later: still a member, can still change wallet (posts are then rejected by the agent).
-    await upsertXUser(db, { id: "78", username: "big", followers: 10 });
+    await upsertXUser(db, {
+      id: "78",
+      username: "big",
+      followers: 10,
+      createdAt: new Date("2015-01-01"),
+    });
     expect(
       await link(big, { address: "0x00000000000000000000000000000000000000B3" }),
     ).toMatchObject({ ok: true, joined: false });

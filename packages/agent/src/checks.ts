@@ -279,6 +279,15 @@ export function runChecks(ctx: CheckContext): Flag[] {
   // ── Minimum followers and account age (X) ──────────────────────────────
   const strict = (ctx.program.belowMinimum ?? "review") !== "review";
   const minFollowers = ctx.program.minXFollowers ?? 0;
+  // Strict modes never let an unknown count through: a person looks instead.
+  if (r.sourceType === "x_post" && minFollowers > 0 && strict && r.author.followers === null) {
+    flags.push({
+      code: "LOW_FOLLOWERS",
+      severity: "soft",
+      message: `X didn't return the account's follower count; this program asks for at least ${minFollowers}, so the team reviews it.`,
+      evidence: { followers: null, minimum: minFollowers },
+    });
+  }
   if (
     r.sourceType === "x_post" &&
     minFollowers > 0 &&

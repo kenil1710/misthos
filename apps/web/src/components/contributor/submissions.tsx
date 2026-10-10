@@ -407,8 +407,8 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
               : `${factsNotInSummary.length} claims conflict with the program's brief`}
           </p>
           <ul className="text-soft mt-1 grid list-disc gap-0.5 pl-4">
-            {factsNotInSummary.map((f) => (
-              <li key={f}>{f}</li>
+            {factsNotInSummary.map((f, idx) => (
+              <li key={`${idx}-${f}`}>{f}</li>
             ))}
           </ul>
         </div>
