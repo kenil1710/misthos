@@ -259,3 +259,13 @@ below_minimum; ALTER TABLE users DROP COLUMN x_followers; DROP TYPE below_minimu
 
 web 160, agent 207 (+1 skipped), shared 43, worker 17, db 12, contracts; e2e 26/26 including axe (0 serious or
 critical, 9 pages × 2 themes).
+
+### Production re-check (after deploy of `83f6a6b`)
+
+- `/api/auth/github/start?next=` with `/.//evil.com`, `/a/..//evil.com/p`, `/%2e//evil.com`, `//evil.com` and
+  `https://evil.com`: every one lands on `https://misthos.world/…`.
+- SIWE nonce: 200 only for Origin `https://misthos.world`; 403 for none, `null`, the vercel.app host, `http://` and
+  `evil.misthos.world`.
+- `misthos-iota.vercel.app/p/kency-arc-creators?next=https://evil.com` → 308 to the same path and query on
+  misthos.world; `www.misthos.world//evil.com` → `/evil.com` on the same host.
+- `/`, `/app`, `/docs`, `/p/kency-arc-creators`, `/join/kency-arc-creators`: 200. Worker health: ok.
