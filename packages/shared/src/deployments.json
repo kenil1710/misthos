@@ -8,9 +8,9 @@
   },
   "arc-mainnet": {
     "chainId": 5042,
-    "vaultImplementation": null,
-    "vaultFactory": null,
-    "deployBlock": null,
+    "vaultImplementation": "0x36E677De57Ce0f59eFed05a748B07c7Bb07d5dBb",
+    "vaultFactory": "0x9075CbB50639216C2e4E32013514baa01f2b0C1b",
+    "deployBlock": 25234896,
     "smokeVault": null
   }
 }
