@@ -2,7 +2,7 @@
 
 **Current phase:** Phase 7 done: live on Arc testnet at https://misthos.world (web on Vercel, worker on
 Railway, Neon; misthos-iota.vercel.app and www redirect there). Repository public. No mainnet without the owner's explicit OK.
-**Last updated:** 2026-10-10
+**Last updated:** 2026-10-10 (code freeze)
 **Deadline:** Oct 10, 2026 11:59 PM ET
 
 ## Reduced scope (owner decision, 2026-10-02)
@@ -22,6 +22,21 @@ Railway, Neon; misthos-iota.vercel.app and www redirect there). Repository publi
 2. Neon (Postgres) + Railway (worker) + ConnectKit.
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
+
+## Code freeze (2026-10-10)
+
+**main is frozen.** No feature changes unless the owner asks. State at freeze:
+
+- Live at https://misthos.world (Vercel, Next.js 16.3.8; old vercel.app host and www redirect 308). Worker on
+  Railway (deployed with `railway up`), Neon with migrations 0001–0010 applied. Arc testnet only.
+- Wallets through RainbowKit (lazy-loaded), our own SIWE sign-in. Product wording: campaigns, your community.
+- Minimum X followers / account age apply to every kind of submission (X posts use the author's live numbers,
+  articles and GitHub work the numbers saved at X sign-in); Send to my review / Reject automatically / Can't join.
+- Audits: release, independent, and the Oct 10 delta audit (separate reviewer; D-1 open redirect fixed, D-2/D-4/D-5/D-6
+  fixed, D-3 now fixed by the all-submissions minimums). `docs/SECURITY_AUDIT.md`.
+- Tests: web 160, agent 209 (+1 skipped), shared 43, worker 17, db 12, contracts; e2e 26/26 incl. axe.
+- Owner to-dos: X and GitHub OAuth callbacks on misthos.world, Reown allowlist, a real MetaMask + second wallet
+  sign-in and an X sign-in on production.
 
 ## Done (final changes before submission, 2026-10-10)
 

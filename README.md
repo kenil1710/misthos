@@ -50,8 +50,10 @@ Then try the live app at **https://misthos.world** (Arc testnet):
    ([tx](https://explorer.testnet.arc.io/tx/0x2ccd33fcb77ed5bb41af10bfa4e9f59b780f774a2c242bebdf39b29546da321a)).
 2. **Verify a decision**: click _Verify_ next to any decision. The page re-hashes the record, checks the agent's
    signature (ERC-1271 for the Circle smart-contract wallet) and matches the `PayoutExecuted` event on Arc.
-3. **Run a program** `/app`: connect a wallet, create a program, deploy and fund its vault, share the join link.
-4. **Contribute** `/join/<slug>`: sign in with X, prove your wallet with a signature, submit links, and watch the
+3. **Launch a campaign** `/app`: connect a wallet (RainbowKit: MetaMask, Rabby, Coinbase, Rainbow, OKX, Trust,
+   Phantom, Bitget, any browser wallet or WalletConnect), sign in with one free signature (SIWE), create a campaign,
+   deploy and fund its vault, share the join link.
+4. **Take part** `/join/<slug>`: sign in with X, prove your wallet with a signature, submit links, and watch the
    agent decide.
 
 Everything on Arc testnet is real and checkable on the explorer (see [On-chain](#on-chain)).
@@ -70,8 +72,13 @@ round closes ──► re-check ──► plan payouts within caps ──► pro
 - **Fetching** reads exactly what was linked. For an X post that includes the author's own thread (their
   self-reply chain, up to 25 posts), so a "3+ post thread" rule judges the whole thread.
 - **Deterministic checks** catch what code can prove: someone else's post, reposts, duplicates, copied text
-  (pg_trgm + SimHash), out-of-window work, unmerged PRs, deleted content, new accounts, engagement anomalies, and
-  prompt-injection attempts (including hidden text in articles).
+  (pg_trgm + SimHash), out-of-window work, unmerged PRs, deleted content, engagement anomalies, a missing required
+  mention, and prompt-injection attempts (including hidden text in articles). Minimum X followers and account age
+  apply to every kind of work; the owner picks what happens below them: send to review, reject automatically, or
+  can't join.
+- **The campaign brief** (the owner's About text, up to 3 links read once, key facts the owner checks) is trusted
+  context for the judge: off-topic work and claims that contradict it are flagged, each contradiction quoted as
+  "Says X; the brief says Y".
 - **The judge** (Claude Haiku 4.5) scores only the rubric, through a strict tool schema. Submission content is
   untrusted and fenced with a random per-request boundary.
 - **The decision engine** is plain TypeScript. Hard flags reject; prompt injection always goes to a human, even when
@@ -86,8 +93,13 @@ round closes ──► re-check ──► plan payouts within caps ──► pro
   agent itself were compromised, the most it could pay out is `maxPerDay` per day until the owner pauses: the
   approval threshold is checked per round on-chain (the honest agent also applies it to its last 24 h of payouts).
 
+**Audits:** release audit, independent audit (all High/Medium fixed) and the Oct 10 delta audit of the final
+changes by a separate reviewer (no Critical/High; the one Medium, an open redirect, fixed): all in
+[docs/SECURITY_AUDIT.md](./docs/SECURITY_AUDIT.md) and [docs/INDEPENDENT_AUDIT.md](./docs/INDEPENDENT_AUDIT.md).
+Wallet requests and MetaMask warning disputes: [docs/WALLET_WARNINGS.md](./docs/WALLET_WARNINGS.md).
+
 More: [ARCHITECTURE.md](./ARCHITECTURE.md) · [SECURITY.md](./SECURITY.md) ·
-[docs/SECURITY_AUDIT.md](./docs/SECURITY_AUDIT.md) · [docs/TEST_REPORT.md](./docs/TEST_REPORT.md)
+[docs/TEST_REPORT.md](./docs/TEST_REPORT.md)
 
 ## Circle and Arc, and where they are used
 
@@ -118,12 +130,12 @@ a round above the approval threshold that waited for the owner
 
 ## Deployment
 
-| Part      | Where                                          | Notes                                                                                                             |
-| --------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Web app   | Vercel, [misthos.world](https://misthos.world) | `apps/web`, built from `main`; no signing keys; edge rate limit on `/api/auth`, `/api/public`, `/api/contributor` |
-| Worker    | Railway, always on                             | `apps/worker/Dockerfile` + `railway.json` (restart always); the only process with the Circle entity secret        |
-| Database  | Neon Postgres                                  | migrations in `packages/db/migrations` (`pnpm --filter @misthos/db db:migrate`)                                   |
-| Contracts | Arc testnet                                    | addresses above; mainnet only with the owner's explicit approval                                                  |
+| Part      | Where                                          | Notes                                                                                                                                                                                                           |
+| --------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web app   | Vercel, [misthos.world](https://misthos.world) | `apps/web` (Next.js 16.3.8), built from `main` on push; no signing keys; edge rate limit on `/api/auth`, `/api/public`, `/api/contributor`; `misthos-iota.vercel.app` and `www` redirect (308) to misthos.world |
+| Worker    | Railway, always on                             | `apps/worker/Dockerfile` + `railway.json` (restart always), deployed with `railway up --service worker`; the only process with the Circle entity secret                                                         |
+| Database  | Neon Postgres                                  | migrations in `packages/db/migrations` (`pnpm --filter @misthos/db db:migrate`)                                                                                                                                 |
+| Contracts | Arc testnet                                    | addresses above; mainnet only with the owner's explicit approval                                                                                                                                                |
 
 ## Screenshots
 
@@ -155,7 +167,7 @@ pnpm --filter @misthos/web dev           # app on http://localhost:3000
 pnpm test                                # everything: Vitest + Foundry
 pnpm --filter @misthos/contracts test    # unit, fuzz (1,024 runs) and invariant tests
 pnpm --filter @misthos/agent test        # every flag, every engine rule, adversarial fixtures, round job
-pnpm --filter @misthos/web e2e           # browser e2e on a throwaway in-memory Postgres
+pnpm --filter @misthos/web e2e           # browser e2e + axe on a throwaway in-memory Postgres (26 tests)
 ARC_RPC_TESTS=1 pnpm --filter @misthos/shared test   # live ERC-1271 checks on Arc testnet
 ```
 
