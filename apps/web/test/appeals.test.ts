@@ -111,7 +111,7 @@ async function decided(action: "reject" | "partial" | "approve", over: { payoutI
     decisionHash: `0x${String(n).padStart(64, "0")}`,
     signature: "0x00",
     signerAddress: "0x" + "1".repeat(40),
-    ruleVersion: "rules-v7",
+    ruleVersion: "rules-v8",
     decidedBy: "agent",
   });
   return s!.id;

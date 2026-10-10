@@ -4,7 +4,7 @@ import type { JudgmentOutput } from "./judge";
 import type { Flag, Resource } from "./types";
 
 /** Bump whenever a rule below changes. Recorded in every decision. */
-export const RULE_VERSION = "rules-v7";
+export const RULE_VERSION = "rules-v8";
 
 /** One contradicted claim, in the words owners and contributors both see. */
 export const contradictionLine = (claim: string, briefSays: string) =>
@@ -20,11 +20,13 @@ export const SPAM_MAX_SCORE = 1;
  */
 export const JUDGE_INJECTION_NOTE = new RegExp(
   [
-    "influenc",
+    // "Influence" and "manipulate" only count when aimed at the grading. A post that misleads its readers (false
+    // claims, hype about the project or its agent) is a fact-check matter, not an injection.
+    "influenc\\w* (the |your |its )?(grad|scor|review|judg|model|rubric|decision|rating|evaluat)",
+    "manipulat\\w* (the |your |its )?(grad|scor|review|judg|model|rubric|decision|rating|evaluat)",
     "instruct",
     "grader",
     "inject",
-    "manipulat",
     "jailbreak",
     "prompt",
     // Paraphrases (N-10): asking for marks, claiming approval, gaming the scoring, talking to the reviewer.
@@ -169,15 +171,9 @@ export function decide(i: EngineInput): EngineDecision {
     cappedBy,
   });
 
-  if (addedFlags.some((f) => f.severity === "hard")) return out("reject", "R1_REJECT_FLAG");
-  if (i.flags.some((f) => f.code === "PROMPT_INJECTION_ATTEMPT"))
-    return out("escalate", "R2_INJECTION");
-  if (!i.judgment) return out("escalate", "R3_NO_JUDGMENT");
-  if (i.judgment.soft_flags.some((f) => JUDGE_INJECTION_NOTE.test(f)))
-    return out("escalate", "R2B_JUDGE_INJECTION");
-  if (!cat) return out("escalate", "R4_CATEGORY_INVALID");
-  // Against the program's brief (trusted context): off-topic work and claims that contradict its key facts.
-  const offTopic = i.judgment.relevance === "off_topic";
+  // Against the program's brief (trusted context): off-topic work and every claim that contradicts its key facts.
+  // Added before any rule can return, so the decision lists them whatever sends it to review or rejects it.
+  const offTopic = i.judgment?.relevance === "off_topic";
   if (offTopic)
     addedFlags.push({
       code: "OFF_TOPIC",
@@ -185,14 +181,22 @@ export function decide(i: EngineInput): EngineDecision {
       message: "Not about what this program pays for, according to the program's brief.",
       evidence: { relevance: "off_topic" },
     });
-  // Every contradicted claim is listed (the judge reports at most five), each quoting both sides.
-  for (const f of (i.judgment.fact_checks ?? []).filter((x) => x.verdict === "contradicts"))
+  // The judge reports at most five; each quotes both sides.
+  for (const f of (i.judgment?.fact_checks ?? []).filter((x) => x.verdict === "contradicts"))
     addedFlags.push({
       code: "CONTRADICTS_BRIEF",
       severity: "soft",
       message: contradictionLine(f.claim, f.brief_says),
       evidence: { claim: f.claim, briefSays: f.brief_says },
     });
+
+  if (addedFlags.some((f) => f.severity === "hard")) return out("reject", "R1_REJECT_FLAG");
+  if (i.flags.some((f) => f.code === "PROMPT_INJECTION_ATTEMPT"))
+    return out("escalate", "R2_INJECTION");
+  if (!i.judgment) return out("escalate", "R3_NO_JUDGMENT");
+  if (i.judgment.soft_flags.some((f) => JUDGE_INJECTION_NOTE.test(f)))
+    return out("escalate", "R2B_JUDGE_INJECTION");
+  if (!cat) return out("escalate", "R4_CATEGORY_INVALID");
   // R5b: clearly off topic is rejected automatically (owners can override; contributors can ask for a second look).
   if (offTopic && i.judgment.confidence >= SPAM_CONFIDENCE) return out("reject", "R5B_OFF_TOPIC");
   // R5a: clear spam is rejected automatically (injection was already routed to a human by R2). Owners can override.

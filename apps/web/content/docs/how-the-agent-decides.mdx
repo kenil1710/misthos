@@ -10,9 +10,9 @@ A submission goes through four stages. Only the third uses a model.
    own thread (see [Threads on X](#threads-on-x)). Nothing else is crawled.
 2. **Deterministic checks.** Code compares the resource with the contributor, the round and every earlier submission
    in the program, and raises flags.
-3. **Judge.** Claude Haiku 4.5 scores the work against your rubric through a strict tool schema (`judge-v4`). It
+3. **Judge.** Claude Haiku 4.5 scores the work against your rubric through a strict tool schema (`judge-v5`). It
    returns a category, a score per criterion, a confidence, a recommendation and its reasons. It doesn't set amounts.
-4. **Decision engine.** Plain TypeScript rules (`rules-v7`) combine the flags and the judgment into an action and an
+4. **Decision engine.** Plain TypeScript rules (`rules-v8`) combine the flags and the judgment into an action and an
    amount, and write the explanation the contributor sees.
 
 ## Threads on X

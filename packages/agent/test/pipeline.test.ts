@@ -240,8 +240,8 @@ describe("processSubmission", () => {
       categoryKey: "threads",
       decidedBy: "agent",
       model: "claude-haiku-4-5-20251001",
-      promptVersion: "judge-v4",
-      ruleVersion: "rules-v7",
+      promptVersion: "judge-v5",
+      ruleVersion: "rules-v8",
     });
     expect(dec.summary).toMatch(
       /^Approved · 16\.00 USDC\. Posted inside the round by the linked account\. .* Scored 8\/10 on depth, 7\/10 on clarity and 9\/10 on originality\.$/,
@@ -252,7 +252,7 @@ describe("processSubmission", () => {
       schema: "misthos.decision/v1",
       rule: "R10_AUTO_APPROVE",
       decidedBy: { type: "agent" },
-      judgment: { promptVersion: "judge-v4" },
+      judgment: { promptVersion: "judge-v5" },
     });
     expect(record.contentHash).toMatch(/^0x[0-9a-f]{64}$/);
     expect(

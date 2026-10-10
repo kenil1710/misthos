@@ -322,7 +322,7 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
   const paidish = i.status === "approved" || i.status === "partial" || i.status === "paid";
   const fixes =
     i.status === "rejected" || i.status === "escalated" ? fixesFor(i.decision?.flags ?? []) : [];
-  // Every contradicted claim; decisions made before rules-v7 didn't always list them in the summary.
+  // Every contradicted claim; older decisions (before rules-v7, or stopped early by an injection rule before rules-v8) didn't always list them in the summary.
   const factsNotInSummary = contradictions(i.decision?.flags ?? []).filter(
     (f) => !i.decision?.summary.includes(f),
   );
