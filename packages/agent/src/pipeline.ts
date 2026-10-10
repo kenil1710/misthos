@@ -10,6 +10,7 @@ import {
   rounds,
   submissions,
   type DbLike,
+  users,
 } from "@misthos/db";
 import { formatUsdc, hashCanonical, hashText, type OverrideDecisionJob } from "@misthos/shared";
 import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
@@ -75,10 +76,13 @@ async function loadContext(db: DbLike, submissionId: string) {
       program: programs,
       contributor: contributors,
       round: rounds,
+      // Saved at the contributor's last X sign-in; the minimums use them for every kind of work.
+      account: { xFollowers: users.xFollowers, xCreatedAt: users.xCreatedAt },
     })
     .from(submissions)
     .innerJoin(programs, eq(programs.id, submissions.programId))
     .innerJoin(contributors, eq(contributors.id, submissions.contributorId))
+    .leftJoin(users, eq(users.id, contributors.userId))
     .innerJoin(rounds, eq(rounds.id, submissions.roundId))
     .where(eq(submissions.id, submissionId))
     .limit(1);
@@ -375,6 +379,8 @@ export async function processSubmission(
         githubLogin: contributor.githubLogin,
         githubUserId: contributor.githubUserId,
         walletChangedAt: contributor.walletChangedAt,
+        xFollowers: ctx.account?.xFollowers ?? null,
+        xCreatedAt: ctx.account?.xCreatedAt ?? null,
       },
       round: { startsAt: round.startsAt, endsAt: round.endsAt },
       program: {

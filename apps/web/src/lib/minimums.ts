@@ -15,7 +15,7 @@ export const BELOW_MINIMUM_CHOICES: { value: BelowMinimum; label: string; detail
   {
     value: "reject",
     label: "Reject automatically",
-    detail: "They can join, but their posts are rejected without review.",
+    detail: "They can join, but everything they submit is rejected without review.",
   },
   { value: "block", label: "Can't join", detail: "They can't join with that account." },
 ];
@@ -86,9 +86,9 @@ export function minimumStatus(
             outcome === "review"
               ? "You can join and post; the team reviews your work before it's paid."
               : member
-                ? "Posts from this account are rejected automatically."
+                ? "Everything you submit from this account is rejected automatically."
                 : outcome === "reject"
-                  ? "You can join, but posts from this account are rejected automatically."
+                  ? "You can join, but everything you submit is rejected automatically."
                   : "You can't join with this account."
           }`;
   return { applies: !!followers || !!age, followers, age, below, outcome, text };
@@ -102,10 +102,12 @@ export function minimumRuleText(rules: MinimumRules): string | null {
   ].filter(Boolean);
   if (!parts.length) return null;
   const who = `X accounts with ${parts.join(" or ")}`.replace("with younger", "younger");
+  // Every kind of work counts (posts, articles, code): the X account is the one used to sign in.
+  const from = `All submissions from ${who}`;
   return rules.belowMinimum === "review"
-    ? `${who} are reviewed by the team before payment.`
+    ? `${from} are reviewed by the team before payment.`
     : rules.belowMinimum === "reject"
-      ? `X posts from ${who.replace(/^X accounts/, "accounts")} are rejected automatically.`
+      ? `${from} are rejected automatically.`
       : `${who} can't join.`;
 }
 

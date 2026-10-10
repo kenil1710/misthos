@@ -239,6 +239,128 @@ describe("program context: judging", () => {
     }
   });
 
+  it("articles and PRs follow the same minimums, using the numbers saved at X sign-in, in all three modes", () => {
+    const resource = (sourceType: "article" | "github_pr"): Resource =>
+      post("A long write-up about Arc.", {
+        sourceType,
+        url:
+          sourceType === "article" ? "https://blog.example/arc" : "https://github.com/o/r/pull/1",
+        author: { id: "", handle: "", name: null, createdAt: null, followers: null },
+        x: undefined,
+        ...(sourceType === "github_pr"
+          ? { github: { merged: true, authorId: "1", authorLogin: "alice" } as never }
+          : {}),
+      });
+    const run = (
+      sourceType: "article" | "github_pr",
+      policy: "review" | "reject" | "block",
+      account: { xFollowers: number | null; xCreatedAt: Date | null },
+    ) =>
+      runChecks({
+        sourceType,
+        resource: resource(sourceType),
+        contributor: {
+          id: "c",
+          xUserId: "111",
+          xHandle: "alice",
+          githubLogin: "alice",
+          githubUserId: "1",
+          walletChangedAt: null,
+          ...account,
+        },
+        round: {
+          startsAt: new Date("2026-10-05T00:00:00Z"),
+          endsAt: new Date("2026-10-19T00:00:00Z"),
+        },
+        program: {
+          minAccountAgeDays: 30,
+          payeeCooldownSeconds: 0,
+          categories: CATEGORIES,
+          minXFollowers: 100,
+          belowMinimum: policy,
+        },
+        sameResource: [],
+        similar: [],
+        submittedAt: new Date("2026-10-07T00:00:00Z"),
+      }).filter((f) => f.code === "LOW_FOLLOWERS" || f.code === "NEW_ACCOUNT");
+    const small = { xFollowers: 40, xCreatedAt: new Date("2026-10-01T00:00:00Z") };
+    const big = { xFollowers: 5000, xCreatedAt: new Date("2015-01-01T00:00:00Z") };
+    for (const source of ["article", "github_pr"] as const) {
+      // Send to my review: noted, a person decides.
+      expect(run(source, "review", small).map((f) => `${f.code}:${f.severity}`)).toEqual([
+        "LOW_FOLLOWERS:soft",
+        "NEW_ACCOUNT:soft",
+      ]);
+      // Reject automatically / Can't join (a member from before): rejected by the engine.
+      for (const policy of ["reject", "block"] as const) {
+        const flags = run(source, policy, small);
+        expect(flags.map((f) => `${f.code}:${f.severity}`)).toEqual([
+          "LOW_FOLLOWERS:hard",
+          "NEW_ACCOUNT:hard",
+        ]);
+        expect(flags[0]!.message).toBe(
+          "The contributor's X account (at their last X sign-in) has 40 followers; this program pays accounts with at least 100.",
+        );
+        expect(
+          decide({
+            flags,
+            judgment: null,
+            categories: CATEGORIES,
+            resource: resource(source),
+            ratePerPoint: 1_000_000n,
+            autoApproveConfidence: 0.8,
+            maxPerPayout: 50_000_000n,
+            maxAutoApproveItem: 20_000_000n,
+          }),
+        ).toMatchObject({ action: "reject", rule: "R1_REJECT_FLAG" });
+        // Unknown numbers never pass a strict mode: a person reviews.
+        expect(
+          run(source, policy, { xFollowers: null, xCreatedAt: null }).map(
+            (f) => `${f.code}:${f.severity}`,
+          ),
+        ).toEqual(["LOW_FOLLOWERS:soft", "NEW_ACCOUNT:soft"]);
+      }
+      // Above both minimums: nothing, in every mode.
+      for (const policy of ["review", "reject", "block"] as const)
+        expect(run(source, policy, big)).toEqual([]);
+    }
+  });
+
+  it("X posts use the post author's live numbers, falling back to the ones saved at sign-in", () => {
+    const noCount = post("text", { author: { ...post("").author, followers: null } });
+    const withSaved = runChecks({
+      sourceType: "x_post",
+      resource: noCount,
+      contributor: {
+        id: "c",
+        xUserId: "111",
+        xHandle: "alice",
+        githubLogin: null,
+        githubUserId: null,
+        walletChangedAt: null,
+        xFollowers: 40,
+      },
+      round: {
+        startsAt: new Date("2026-10-05T00:00:00Z"),
+        endsAt: new Date("2026-10-19T00:00:00Z"),
+      },
+      program: {
+        minAccountAgeDays: 0,
+        payeeCooldownSeconds: 0,
+        categories: CATEGORIES,
+        minXFollowers: 100,
+        belowMinimum: "reject",
+      },
+      sameResource: [],
+      similar: [],
+      submittedAt: new Date("2026-10-07T00:00:00Z"),
+    });
+    expect(withSaved.find((f) => f.code === "LOW_FOLLOWERS")).toMatchObject({
+      severity: "hard",
+      evidence: { followers: 40 },
+    });
+  });
+
   it("strict modes never let an unknown follower count through: it goes to review", () => {
     const unknown = post("text", { author: { ...post("").author, followers: null } });
     for (const policy of ["reject", "block"] as const)

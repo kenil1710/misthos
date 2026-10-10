@@ -24,7 +24,7 @@ describe("minimum followers and account age", () => {
     });
     // Joined before "Can't join" was chosen: told what happens to their posts instead.
     expect(minimumStatus({ ...rules, belowMinimum: "block" }, small, now, true).text).toMatch(
-      /Posts from this account are rejected automatically\.$/,
+      /Everything you submit from this account is rejected automatically\.$/,
     );
   });
   it("meeting both minimums, or none set, is fine; unknown counts are never held against anyone", () => {
@@ -43,11 +43,13 @@ describe("minimum followers and account age", () => {
   });
   it("the join page rule reads per policy", () => {
     expect(minimumRuleText({ ...rules, belowMinimum: "review" })).toBe(
-      "X accounts with fewer than 100 followers or younger than 30 days are reviewed by the team before payment.",
+      "All submissions from X accounts with fewer than 100 followers or younger than 30 days are reviewed by the team before payment.",
     );
     expect(
       minimumRuleText({ minXFollowers: 100, minAccountAgeDays: 0, belowMinimum: "reject" }),
-    ).toBe("X posts from accounts with fewer than 100 followers are rejected automatically.");
+    ).toBe(
+      "All submissions from X accounts with fewer than 100 followers are rejected automatically.",
+    );
     expect(
       minimumRuleText({ minXFollowers: 0, minAccountAgeDays: 30, belowMinimum: "block" }),
     ).toBe("X accounts younger than 30 days can't join.");

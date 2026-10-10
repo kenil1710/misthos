@@ -50,6 +50,9 @@ export interface CheckContext {
     /** Verified through GitHub OAuth; null means the contributor hasn't connected GitHub. */
     githubUserId: string | null;
     walletChangedAt: Date | null;
+    /** From the contributor's last X sign-in (null: not known). The minimums use them for non-X work. */
+    xFollowers?: number | null;
+    xCreatedAt?: Date | null;
   };
   round: { startsAt: Date; endsAt: Date };
   program: {
@@ -276,53 +279,54 @@ export function runChecks(ctx: CheckContext): Flag[] {
     });
   }
 
-  // ── Minimum followers and account age (X) ──────────────────────────────
+  // ── Minimum followers and account age (every kind of work) ──────────────
+  // X posts use the post author's live numbers (falling back to the ones saved at X sign-in); articles and GitHub
+  // work use the numbers saved at the contributor's last X sign-in.
   const strict = (ctx.program.belowMinimum ?? "review") !== "review";
   const minFollowers = ctx.program.minXFollowers ?? 0;
-  // Strict modes never let an unknown count through: a person looks instead.
-  if (r.sourceType === "x_post" && minFollowers > 0 && strict && r.author.followers === null) {
+  const minAge = ctx.program.minAccountAgeDays;
+  const isX = r.sourceType === "x_post";
+  const followers = (isX ? r.author.followers : null) ?? ctx.contributor.xFollowers ?? null;
+  const createdAt =
+    (isX && r.author.createdAt ? new Date(r.author.createdAt) : null) ??
+    ctx.contributor.xCreatedAt ??
+    null;
+  const whose = isX ? "The account" : "The contributor's X account (at their last X sign-in)";
+  if (minFollowers > 0 && followers === null && strict)
+    // Strict modes never let an unknown count through: a person looks instead.
     flags.push({
       code: "LOW_FOLLOWERS",
       severity: "soft",
-      message: `X didn't return the account's follower count; this program asks for at least ${minFollowers}, so the team reviews it.`,
+      message: `The X follower count isn't known; this program asks for at least ${minFollowers}, so the team reviews it.`,
       evidence: { followers: null, minimum: minFollowers },
     });
-  }
-  if (
-    r.sourceType === "x_post" &&
-    minFollowers > 0 &&
-    r.author.followers !== null &&
-    r.author.followers < minFollowers
-  ) {
+  if (minFollowers > 0 && followers !== null && followers < minFollowers)
     flags.push({
       code: "LOW_FOLLOWERS",
       severity: strict ? "hard" : "soft",
       message: strict
-        ? `The account has ${r.author.followers} followers; this program pays accounts with at least ${minFollowers}.`
-        : `The account has ${r.author.followers} followers; this program reviews posts from accounts under ${minFollowers}.`,
-      evidence: { followers: r.author.followers, minimum: minFollowers },
+        ? `${whose} has ${followers} followers; this program pays accounts with at least ${minFollowers}.`
+        : `${whose} has ${followers} followers; this program reviews work from accounts under ${minFollowers}.`,
+      evidence: { followers, minimum: minFollowers },
     });
-  }
-
-  // ── Account and engagement (X) ─────────────────────────────────────────
-  if (r.sourceType === "x_post" && r.author.createdAt && ctx.program.minAccountAgeDays > 0) {
-    const ageDays = Math.floor(
-      (ctx.submittedAt.getTime() - new Date(r.author.createdAt).getTime()) / DAY_MS,
-    );
-    if (ageDays < ctx.program.minAccountAgeDays) {
+  if (minAge > 0 && createdAt === null && strict)
+    flags.push({
+      code: "NEW_ACCOUNT",
+      severity: "soft",
+      message: `The X account's age isn't known; this program asks for at least ${minAge} days, so the team reviews it.`,
+      evidence: { accountCreatedAt: null, minAccountAgeDays: minAge },
+    });
+  if (minAge > 0 && createdAt !== null) {
+    const ageDays = Math.floor((ctx.submittedAt.getTime() - createdAt.getTime()) / DAY_MS);
+    if (ageDays < minAge)
       flags.push({
         code: "NEW_ACCOUNT",
         severity: strict ? "hard" : "soft",
         message: strict
-          ? `The X account is ${ageDays} days old; this program pays accounts at least ${ctx.program.minAccountAgeDays} days old.`
-          : `The X account is ${ageDays} days old; this program asks for at least ${ctx.program.minAccountAgeDays}.`,
-        evidence: {
-          accountCreatedAt: r.author.createdAt,
-          ageDays,
-          minAccountAgeDays: ctx.program.minAccountAgeDays,
-        },
+          ? `The X account is ${ageDays} days old; this program pays accounts at least ${minAge} days old.`
+          : `The X account is ${ageDays} days old; this program asks for at least ${minAge}.`,
+        evidence: { accountCreatedAt: createdAt.toISOString(), ageDays, minAccountAgeDays: minAge },
       });
-    }
   }
   if (r.sourceType === "x_post" && r.x) {
     const followers = r.author.followers ?? 0;
