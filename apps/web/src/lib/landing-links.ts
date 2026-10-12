@@ -3,7 +3,8 @@ import type { ChainKey } from "@misthos/shared/chains";
 import { getDeployment } from "@misthos/shared/deployments";
 
 const chain = (process.env.NEXT_PUBLIC_CHAIN ?? "arc-testnet") as ChainKey;
-const explorer = getChainConfig(chain).explorerUrl;
 
 export const factoryAddress = getDeployment(chain).vaultFactory ?? "";
-export const explorerAddress = (a: string) => `${explorer}/address/${a}`;
+/** An address on a network's explorer (default: the app's primary network). */
+export const explorerAddress = (a: string, network: string = chain) =>
+  `${getChainConfig(network).explorerUrl}/address/${a}`;

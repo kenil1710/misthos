@@ -5,7 +5,7 @@ import { ProgramInput } from "@misthos/shared";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { chainConfig } from "@/lib/server/chain";
+import { availableChains } from "@/lib/server/vault";
 import { createProgram, setProgramStatus } from "@/lib/server/programs";
 import { getOwnerSession } from "@/lib/server/session";
 
@@ -22,9 +22,15 @@ export async function createProgramAction(raw: unknown): Promise<CreateProgramSt
     return { error: "Some fields need attention.", fieldErrors };
   }
 
+  // Only networks this deployment can actually serve: a factory there and an agent configured for it.
+  if (!availableChains().includes(parsed.data.network))
+    return {
+      error: "That network isn't available yet. Use Arc Testnet.",
+      fieldErrors: { network: "Not available" },
+    };
   const result = await createProgram(getDb(), {
     ownerUserId: session.sub,
-    chain: chainConfig().key,
+    chain: parsed.data.network,
     input: parsed.data,
   });
   if (!result.ok)

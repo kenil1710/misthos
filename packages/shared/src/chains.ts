@@ -39,7 +39,7 @@ export interface ArcChainConfig {
   key: ChainKey;
   chain: Chain;
   /** Circle Wallets / Contracts blockchain identifier, or null if Circle doesn't support this network. */
-  circleBlockchain: "ARC-TESTNET" | null;
+  circleBlockchain: "ARC-TESTNET" | "ARC" | null;
   explorerUrl: string;
   faucetUrl: string | null;
   cctpDomain: number;
@@ -144,9 +144,9 @@ export const ARC_CHAINS: Record<ChainKey, ArcChainConfig> = {
   "arc-mainnet": {
     key: "arc-mainnet",
     chain: arcMainnet,
-    // As of 2026-09-26 Circle Wallets, Contracts, Agent Wallets and Paymaster list
-    // Arc Testnet only. See PROGRESS.md "Open decisions".
-    circleBlockchain: null,
+    // Developer-Controlled Wallets (EOA, SCA) and Gas Station list Arc Mainnet as "ARC" (checked 2026-10-10:
+    // developers.circle.com/wallets/supported-blockchains, /wallets/gas-station). [CIRCLE-WALLET]
+    circleBlockchain: "ARC",
     explorerUrl: "https://explorer.arc.io",
     faucetUrl: null,
     cctpDomain: 26,
@@ -182,6 +182,18 @@ export function getChainConfig(
   if (!cfg)
     throw new Error(`Unknown NEXT_PUBLIC_CHAIN "${key}". Expected arc-testnet | arc-mainnet.`);
   return cfg;
+}
+
+/** Every network a program can be on, testnet first (the default for new programs). */
+export const CHAIN_KEYS = ["arc-testnet", "arc-mainnet"] as const satisfies readonly ChainKey[];
+
+export function isChainKey(key: unknown): key is ChainKey {
+  return typeof key === "string" && (CHAIN_KEYS as readonly string[]).includes(key);
+}
+
+/** The config for a chain id (from a signed record, a wallet), or null for any other chain. */
+export function chainConfigById(id: number): ArcChainConfig | null {
+  return Object.values(ARC_CHAINS).find((c) => c.chain.id === id) ?? null;
 }
 
 export const explorerTxUrl = (cfg: ArcChainConfig, hash: string) => `${cfg.explorerUrl}/tx/${hash}`;

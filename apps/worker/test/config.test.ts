@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentBackend, directUrl, loadEnv } from "../src/config";
+import { agentBackend, directUrl, loadEnv, mainnetAgent } from "../src/config";
 
 const base = {
   DATABASE_URL: "postgresql://u:p@ep-x-pooler.c-7.us-east-2.aws.neon.tech/db?sslmode=require",
@@ -43,5 +43,45 @@ describe("worker config", () => {
       expect((e as Error).message).toMatch(/AGENT_PRIVATE_KEY/);
       expect((e as Error).message).not.toContain("secretvalue");
     }
+  });
+
+  it("Arc Mainnet agent: on only when fully configured with a LIVE key; anything else is off, never a crash", () => {
+    expect(mainnetAgent(loadEnv(base))).toMatchObject({ agent: null, reason: /not configured/ });
+    const main = {
+      CIRCLE_ENTITY_SECRET: "s",
+      CIRCLE_LIVE_API_KEY: "LIVE_API_KEY:x",
+      CIRCLE_MAINNET_AGENT_WALLET_ID: "w",
+      CIRCLE_MAINNET_AGENT_WALLET_ADDRESS: `0x${"b".repeat(40)}`,
+    };
+    expect(mainnetAgent(loadEnv({ ...base, ...main }))).toMatchObject({
+      agent: { apiKey: "LIVE_API_KEY:x", entitySecret: "s", walletId: "w" },
+    });
+    // A TEST key, a half-set agent or the testnet wallet: mainnet stays off and the worker still loads its env.
+    const off = (extra: Record<string, string | undefined>) =>
+      mainnetAgent(loadEnv({ ...base, ...main, ...extra }));
+    expect(off({ CIRCLE_LIVE_API_KEY: "TEST_API_KEY:x" })).toMatchObject({
+      agent: null,
+      reason: /isn't a Circle production key/,
+    });
+    expect(off({ CIRCLE_MAINNET_AGENT_WALLET_ID: undefined })).toMatchObject({
+      agent: null,
+      reason: "half-configured; missing CIRCLE_MAINNET_AGENT_WALLET_ID",
+    });
+    expect(off({ CIRCLE_ENTITY_SECRET: undefined })).toMatchObject({
+      reason: /missing CIRCLE_MAINNET_ENTITY_SECRET/,
+    });
+    expect(off({ CIRCLE_MAINNET_AGENT_WALLET_ADDRESS: "nope" })).toMatchObject({ agent: null });
+    expect(
+      off({ CIRCLE_AGENT_WALLET_ADDRESS: `0x${"B".repeat(40)}`, CIRCLE_AGENT_WALLET_ID: "t" }),
+    ).toMatchObject({ agent: null, reason: /is the testnet one/ });
+    // Reasons name variables, never values.
+    expect(JSON.stringify(off({ CIRCLE_LIVE_API_KEY: "TEST_API_KEY:secretvalue" }))).not.toContain(
+      "secretvalue",
+    );
+  });
+
+  it("the worker's primary network is always Arc Testnet (a testnet key never serves mainnet)", () => {
+    expect(loadEnv(base).NEXT_PUBLIC_CHAIN).toBe("arc-testnet");
+    expect(() => loadEnv({ ...base, NEXT_PUBLIC_CHAIN: "arc-mainnet" })).toThrow(/arc-testnet/);
   });
 });

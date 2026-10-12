@@ -44,7 +44,7 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
       </div>
     );
   const vault = row.program.vaultAddress as Address | null;
-  const state = vault ? await readVault(vault) : null;
+  const state = vault ? await readVault(vault, row.program.chain) : null;
   const joinUrl = `${appOrigin()}/join/${row.program.slug}`;
   const latest = (await getRounds(id)).at(-1) ?? null;
   const l = state?.limits;
@@ -186,14 +186,18 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
               <dl className="grid gap-3 text-sm sm:grid-cols-[140px_1fr]">
                 <dt className="text-muted-foreground">Address</dt>
                 <dd>
-                  <HexValue value={vault} label="vault address" href={explorerAddress(vault)} />
+                  <HexValue
+                    value={vault}
+                    label="vault address"
+                    href={explorerAddress(vault, row.program.chain)}
+                  />
                 </dd>
                 <dt className="text-muted-foreground">Owner (you)</dt>
                 <dd>
                   <HexValue
                     value={state.owner}
                     label="owner address"
-                    href={explorerAddress(state.owner)}
+                    href={explorerAddress(state.owner, row.program.chain)}
                   />
                 </dd>
                 <dt className="text-muted-foreground">Agent</dt>
@@ -201,7 +205,7 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
                   <HexValue
                     value={state.agent}
                     label="agent address"
-                    href={explorerAddress(state.agent)}
+                    href={explorerAddress(state.agent, row.program.chain)}
                   />
                 </dd>
                 <dt className="text-muted-foreground">Payouts</dt>

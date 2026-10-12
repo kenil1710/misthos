@@ -59,7 +59,7 @@ export default async function ProgramSetupPage({ params }: PageProps<"/app/progr
   const current = setupCurrent(state);
   const steps = setupSteps(state);
   const limits = program.limitsJson;
-  const agent = agentAddress();
+  const agent = agentAddress(program.chain);
   const vault = program.vaultAddress as Address | null;
   const owner = session.addr as Address;
   const joinUrl = `${appOrigin()}/join/${program.slug}`;
@@ -211,7 +211,7 @@ export default async function ProgramSetupPage({ params }: PageProps<"/app/progr
                 <DeployVault
                   size="lg"
                   programId={program.id}
-                  factory={factoryAddress()}
+                  factory={factoryAddress(program.chain)}
                   programIdBytes32={programIdBytes32(program.id)}
                   owner={owner}
                   agent={agent}
@@ -244,7 +244,7 @@ export default async function ProgramSetupPage({ params }: PageProps<"/app/progr
                       "Address",
                       <a
                         key="v"
-                        href={explorerAddress(vault)}
+                        href={explorerAddress(vault, program.chain)}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 font-mono text-[13px] underline-offset-4 hover:underline"
@@ -263,7 +263,7 @@ export default async function ProgramSetupPage({ params }: PageProps<"/app/progr
                   size="lg"
                   programId={program.id}
                   vault={vault}
-                  usdc={usdcAddress()}
+                  usdc={usdcAddress(program.chain)}
                   owner={owner}
                   suggestions={fundSuggestions(BigInt(limits.maxPerRound)).map((s) => ({
                     label: s.label,

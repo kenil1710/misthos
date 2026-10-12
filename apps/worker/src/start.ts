@@ -30,7 +30,8 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { circleClient, circleExecutor, circleSigner } from "./circle";
-import { agentBackend, directUrl, loadEnv } from "./config";
+import { agentBackend, directUrl, loadEnv, mainnetAgent } from "./config";
+import type { WorkerDeps } from "./jobs";
 import { createRunner, runnerIsHealthy } from "./runner";
 
 export interface StartOptions {
@@ -79,7 +80,7 @@ export function buildDeps(opts: Pick<StartOptions, "wrapFetchers"> & { poolMax?:
   };
   const realFetchers = opts.wrapFetchers ? opts.wrapFetchers(real) : real;
 
-  const deps: RoundDeps = {
+  const base: RoundDeps = {
     db,
     reader: viemVaultReader(publicClient),
     executor,
@@ -89,7 +90,35 @@ export function buildDeps(opts: Pick<StartOptions, "wrapFetchers"> & { poolMax?:
     understand: createUnderstander({ client: anthropic.messages, model: env.AGENT_MODEL_JUDGE }),
     fetchers: realFetchers,
   };
-  return { env, chain, deps, pool, signer };
+
+  // One set of chain dependencies per network. Arc Testnet (the primary network) is `base`; Arc Mainnet is added only
+  // when its own Circle agent is fully configured (LIVE key, wallet id, address), never from the testnet key.
+  const byChain = new Map<string, RoundDeps>([[chain.key, base]]);
+  const main = mainnetAgent(env);
+  if (main.agent) {
+    const mainnet = getChainConfig("arc-mainnet");
+    const client = createPublicClient({
+      chain: mainnet.chain,
+      transport: http(main.agent.rpcUrl),
+    }) as PublicClient;
+    const circle = circleClient(main.agent.apiKey, main.agent.entitySecret);
+    byChain.set("arc-mainnet", {
+      ...base,
+      reader: viemVaultReader(client),
+      executor: circleExecutor(circle, main.agent.walletId, main.agent.address),
+      signer: circleSigner(circle, main.agent.walletId, main.agent.address),
+      chainId: mainnet.chain.id,
+    });
+  }
+  const deps: WorkerDeps = {
+    ...base,
+    networks: [...byChain.keys()],
+    // A program on a network this worker has no agent for gets null: its jobs are skipped (logged), never run on
+    // another network's agent.
+    forChain: (key) => byChain.get(key) ?? null,
+  };
+  const disabled = main.agent ? null : `Arc Mainnet off: ${main.reason}`;
+  return { env, chain, deps, pool, signer, networks: [...byChain.keys()], disabled };
 }
 
 /**
@@ -103,7 +132,7 @@ export async function startWorker(opts: StartOptions = {}) {
     name: opts.name ?? "misthos-worker",
     formatters: { level: (label) => ({ level: label }) },
   });
-  const { env, chain, deps, pool, signer } = buildDeps(opts);
+  const { env, chain, deps, pool, signer, networks, disabled } = buildDeps(opts);
   const runner = createRunner({
     // pg-boss without its own timers: it only runs inside a drain, then stops and closes its connections.
     makeBoss: () =>
@@ -155,6 +184,7 @@ export async function startWorker(opts: StartOptions = {}) {
   log.info(
     {
       chain: chain.key,
+      networks,
       signer: signer.address,
       model: env.AGENT_MODEL_JUDGE,
       tickMinutes: env.WORKER_TICK_MINUTES,
@@ -162,6 +192,8 @@ export async function startWorker(opts: StartOptions = {}) {
     },
     "worker ready",
   );
+  // Mainnet programs wait (their jobs are skipped and picked up once the agent is configured); testnet runs as usual.
+  if (disabled) log.warn(`${disabled}. Mainnet programs are skipped; testnet is unaffected.`);
 
   const shutdown = async (signal: string) => {
     log.info({ signal }, "shutting down");

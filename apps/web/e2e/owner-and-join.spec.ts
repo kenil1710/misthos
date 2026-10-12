@@ -68,6 +68,9 @@ test("owner creates and publishes a program; contributor joins and switches wall
     await op.getByLabel("Program name").fill("E2E Builders");
     await expect(op.getByLabel("Join link")).toHaveValue(SLUG);
     await op.getByLabel("Description").fill("End-to-end test program that pays for Arc content.");
+    // Network: testnet by default; mainnet is listed but can't be picked until this deployment has a mainnet agent.
+    await expect(op.getByRole("radio", { name: /Arc Testnet/ })).toBeChecked();
+    await expect(op.getByRole("radio", { name: /Arc Mainnet/ })).toBeDisabled();
     await op.getByRole("button", { name: "Continue" }).click();
     // Context for the agent: required; the summary is optional (no worker reads it in this environment).
     await expect(op.getByRole("heading", { name: "Here's what I understood" })).toBeVisible();

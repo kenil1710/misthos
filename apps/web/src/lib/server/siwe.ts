@@ -27,8 +27,12 @@ export async function verifySiwe(input: {
   message: string;
   signature: Hex;
   expectedOrigin: string;
-  expectedChainId: number;
-  client: Pick<PublicClient, "verifyMessage">;
+  /** One chain id, or every network owners may sign in from (Arc Testnet and Arc Mainnet). */
+  expectedChainId: number | readonly number[];
+  /** The client that checks the signature, or one per chain id (smart wallets verify on their own network). */
+  client:
+    | Pick<PublicClient, "verifyMessage">
+    | ((chainId: number) => Pick<PublicClient, "verifyMessage">);
   consumeNonce: (nonce: string) => Promise<boolean>;
   now?: Date;
 }): Promise<SiweResult> {
@@ -52,7 +56,9 @@ export async function verifySiwe(input: {
     return { ok: false, error: "wrong_uri" };
   }
   if (uriOrigin !== origin.origin) return { ok: false, error: "wrong_uri" };
-  if (chainId !== input.expectedChainId) return { ok: false, error: "wrong_chain" };
+  const allowed =
+    typeof input.expectedChainId === "number" ? [input.expectedChainId] : input.expectedChainId;
+  if (!allowed.includes(chainId)) return { ok: false, error: "wrong_chain" };
 
   const t = now.getTime();
   if (issuedAt.getTime() > t + CLOCK_SKEW_MS || t - issuedAt.getTime() > MAX_AGE_MS)
@@ -60,7 +66,8 @@ export async function verifySiwe(input: {
   if (expirationTime && expirationTime.getTime() <= t) return { ok: false, error: "stale" };
   if (notBefore && notBefore.getTime() > t + CLOCK_SKEW_MS) return { ok: false, error: "stale" };
 
-  const valid = await verifyWalletSignature(input.client, {
+  const client = typeof input.client === "function" ? input.client(chainId) : input.client;
+  const valid = await verifyWalletSignature(client, {
     address,
     message: input.message,
     signature: input.signature,

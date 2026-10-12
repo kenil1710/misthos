@@ -1,6 +1,5 @@
 "use client";
 
-import { getChainConfig } from "@misthos/shared/chains";
 import { shortHex } from "@misthos/shared/money";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -18,9 +17,8 @@ import { classifyWalletError } from "@/lib/wallet-errors";
 import { useSiweSignIn } from "./owner-sign-in";
 import { useWalletAccount } from "./use-wallet-account";
 import { chooseAccount } from "./choose-account";
+import { useTargetNetwork } from "./network";
 import { useWalletUi } from "./web3-provider";
-
-const chain = getChainConfig().chain;
 
 /**
  * The compact "your wallet needs one thing" dialog. Opened only when an action needs the owner wallet, never from
@@ -36,6 +34,7 @@ export function WalletFixDialog({
   onOpenChange: (o: boolean) => void;
 }) {
   const problem = useWalletProblem(owner);
+  const chain = useTargetNetwork().chain;
   const { address, connector } = useWalletAccount();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
   const { openConnect } = useWalletUi();

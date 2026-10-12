@@ -8,7 +8,7 @@ import {
   syncPayee,
   type RoundDeps,
 } from "@misthos/agent";
-import { payouts, rounds, submissions } from "@misthos/db";
+import { contributors, payouts, programs, rounds, submissions, type DbLike } from "@misthos/db";
 import {
   LEGACY_RUN_ROUND_QUEUE,
   OverrideDecisionJob,
@@ -32,6 +32,61 @@ export interface JobOptions {
 type Handler = (job: { data: unknown; retryCount: number; retryLimit: number }) => Promise<void>;
 
 /**
+ * The worker serves every network it has an agent for. `forChain` gives the dependencies (vault reader, executor,
+ * agent signer, chain id) for one network, or null when this worker has no agent there; `networks` lists the served
+ * ones. Each job looks up its program's network first. Without `forChain` (tests, scripts) everything runs on `deps`.
+ */
+export type WorkerDeps = RoundDeps & {
+  forChain?: (chain: string) => RoundDeps | null;
+  networks?: string[];
+};
+
+type JobKind = "submission" | "contributor" | "round";
+
+async function chainOf(db: DbLike, what: JobKind, id: string) {
+  const q =
+    what === "submission"
+      ? db
+          .select({ chain: programs.chain })
+          .from(submissions)
+          .innerJoin(programs, eq(programs.id, submissions.programId))
+          .where(eq(submissions.id, id))
+      : what === "contributor"
+        ? db
+            .select({ chain: programs.chain })
+            .from(contributors)
+            .innerJoin(programs, eq(programs.id, contributors.programId))
+            .where(eq(contributors.id, id))
+        : db
+            .select({ chain: programs.chain })
+            .from(rounds)
+            .innerJoin(programs, eq(programs.id, rounds.programId))
+            .where(eq(rounds.id, id));
+  const [row] = await q.limit(1);
+  return row?.chain ?? null;
+}
+
+/**
+ * The dependencies for the network of the program a job belongs to: `{ deps }` to run it, or `{ skip }` naming a
+ * network this worker has no agent for (unknown ids get `deps`, which reports them not found).
+ */
+export async function depsFor(
+  deps: WorkerDeps,
+  what: JobKind,
+  id: string,
+): Promise<{ deps: RoundDeps; skip?: undefined } | { deps: null; skip: string }> {
+  if (!deps.forChain) return { deps };
+  const chain = await chainOf(deps.db, what, id);
+  if (!chain) return { deps };
+  const d = deps.forChain(chain);
+  return d ? { deps: d } : { deps: null, skip: chain };
+}
+
+/** SQL filter: the program is on a network this worker serves (everything when it doesn't say). */
+const servedBy = (deps: WorkerDeps) =>
+  deps.networks ? inArray(programs.chain, deps.networks) : sql`true`;
+
+/**
  * Create the queues (idempotent). Shared by the worker process and the queue integration test, so the test exercises
  * the real configuration.
  */
@@ -53,32 +108,47 @@ export async function createQueues(boss: PgBoss, opts: JobOptions) {
   await boss.createQueue(QUEUES.readContext, { ...retry, retryLimit: 3 });
 }
 
-function handlers(deps: RoundDeps, log: Logger): Record<string, Handler> {
+function handlers(deps: WorkerDeps, log: Logger): Record<string, Handler> {
+  /** Run `fn` on the job's network, or log and finish the job when this worker has no agent there. */
+  async function onNetwork<T>(what: JobKind, id: string, fn: (d: RoundDeps) => Promise<T>) {
+    const net = await depsFor(deps, what, id);
+    if (!net.deps) {
+      log.warn(
+        { [`${what}Id`]: id, network: net.skip },
+        `skipped: no agent for ${net.skip} on this worker (its rows are unchanged; picked up once configured)`,
+      );
+      return null;
+    }
+    return fn(net.deps);
+  }
   return {
     [QUEUES.processSubmission]: async (job) => {
       const { submissionId } = ProcessSubmissionJob.parse(job.data);
       const finalAttempt = job.retryCount >= job.retryLimit;
       const started = Date.now();
       try {
-        const res = await processSubmission(deps, submissionId, { finalAttempt });
-        log.info({ submissionId, ...res, ms: Date.now() - started }, "submission processed");
+        const res = await onNetwork("submission", submissionId, (d) =>
+          processSubmission(d, submissionId, { finalAttempt }),
+        );
+        if (res)
+          log.info({ submissionId, ...res, ms: Date.now() - started }, "submission processed");
       } catch (e) {
         log.warn(
-          { submissionId, attempt: job.retryCount, err: (e as Error).message },
-          "submission will retry",
+          { submissionId, err: (e as Error).message, retry: job.retryCount, finalAttempt },
+          "submission failed, will retry",
         );
         throw e;
       }
     },
     [QUEUES.overrideDecision]: async (job) => {
       const data = OverrideDecisionJob.parse(job.data);
-      const res = await processOverride(deps, data);
-      log.info({ submissionId: data.submissionId, ...res }, "override processed");
+      const res = await onNetwork("submission", data.submissionId, (d) => processOverride(d, data));
+      if (res) log.info({ submissionId: data.submissionId, ...res }, "override processed");
     },
     [QUEUES.syncPayee]: async (job) => {
       const { contributorId } = SyncPayeeJob.parse(job.data);
-      const res = await syncPayee(deps, contributorId);
-      log.info({ contributorId, ...res }, "payee synced");
+      const res = await onNetwork("contributor", contributorId, (d) => syncPayee(d, contributorId));
+      if (res) log.info({ contributorId, ...res }, "payee synced");
     },
     [QUEUES.readContext]: async (job) => {
       const { contextId } = ReadContextJob.parse(job.data);
@@ -93,7 +163,8 @@ function handlers(deps: RoundDeps, log: Logger): Record<string, Handler> {
   };
   async function runRoundHandler(job: Parameters<Handler>[0]) {
     const { roundId, force } = RunRoundJob.parse(job.data);
-    const res = await runRound(deps, roundId, { force });
+    const res = await onNetwork("round", roundId, (d) => runRound(d, roundId, { force }));
+    if (!res) return;
     log.info(
       {
         roundId,
@@ -107,8 +178,14 @@ function handlers(deps: RoundDeps, log: Logger): Record<string, Handler> {
 }
 
 /** Close rounds whose window ended (programs with a vault). */
-export async function scheduleRounds(boss: PgBoss, deps: RoundDeps, log: Logger, now = new Date()) {
-  const due = await dueRounds(deps.db, now);
+export async function scheduleRounds(
+  boss: PgBoss,
+  deps: WorkerDeps,
+  log: Logger,
+  now = new Date(),
+) {
+  // Only networks this worker has an agent for: a mainnet round waits (open, unchanged) until mainnet is configured.
+  const due = await dueRounds(deps.db, now, deps.networks);
   for (const { id } of due)
     await boss.send(
       QUEUES.runRound,
@@ -125,12 +202,14 @@ export async function scheduleRounds(boss: PgBoss, deps: RoundDeps, log: Logger,
  * runRound reads the chain and database first and every transaction has a deterministic idempotency key, so a
  * repeat run never pays twice. "Nothing to pay" rounds (planned with no payouts) are finished and skipped.
  */
-export async function recoverRounds(boss: PgBoss, deps: RoundDeps, log: Logger) {
+export async function recoverRounds(boss: PgBoss, deps: WorkerDeps, log: Logger) {
   const inFlight = await deps.db
     .select({ id: rounds.id })
     .from(rounds)
+    .innerJoin(programs, eq(programs.id, rounds.programId))
     .where(
       and(
+        servedBy(deps),
         inArray(rounds.status, ["closed", "proposed", "approved"]),
         or(
           sql`${rounds.status} <> 'closed'`,
@@ -156,19 +235,23 @@ export async function recoverRounds(boss: PgBoss, deps: RoundDeps, log: Logger) 
 }
 
 /** Re-enqueue submissions that never got a job or whose worker died mid-claim. Claims make duplicates harmless. */
-export async function sweep(boss: PgBoss, deps: RoundDeps, log: Logger, now = Date.now()) {
+export async function sweep(boss: PgBoss, deps: WorkerDeps, log: Logger, now = Date.now()) {
   const stuck = await deps.db
     .select({ id: submissions.id })
     .from(submissions)
+    .innerJoin(programs, eq(programs.id, submissions.programId))
     .where(
-      or(
-        and(
-          eq(submissions.status, "pending"),
-          lt(submissions.updatedAt, new Date(now - 2 * 60_000)),
-        ),
-        and(
-          eq(submissions.status, "processing"),
-          lt(submissions.updatedAt, new Date(now - CLAIM_LEASE_MS)),
+      and(
+        servedBy(deps),
+        or(
+          and(
+            eq(submissions.status, "pending"),
+            lt(submissions.updatedAt, new Date(now - 2 * 60_000)),
+          ),
+          and(
+            eq(submissions.status, "processing"),
+            lt(submissions.updatedAt, new Date(now - CLAIM_LEASE_MS)),
+          ),
         ),
       ),
     )
@@ -194,7 +277,7 @@ export interface DrainResult {
  */
 export async function runDrain(
   boss: PgBoss,
-  deps: RoundDeps,
+  deps: WorkerDeps,
   log: Logger,
   opts: JobOptions & { maxJobs?: number; housekeeping?: boolean },
 ): Promise<DrainResult> {

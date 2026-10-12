@@ -1,5 +1,6 @@
 "use client";
 
+import { useTargetNetwork } from "@/components/web3/network";
 import { formatUsdc } from "@misthos/shared/money";
 import { misthosVaultAbi } from "@misthos/shared/abi";
 import type { Address, Hex } from "viem";
@@ -18,6 +19,8 @@ export function ApproveRound(p: {
   payoutCount: number;
 }) {
   const { writeContractAsync } = useWriteContract();
+  // Pinned to the program's network: wagmi refuses to send if the wallet is on another one.
+  const target = useTargetNetwork().chain;
   return (
     <TxAction
       owner={p.owner}
@@ -39,6 +42,7 @@ export function ApproveRound(p: {
           label: "Approve round",
           send: () =>
             writeContractAsync({
+              chainId: target.id,
               address: p.vault,
               abi: misthosVaultAbi,
               functionName: "approveRound",

@@ -1,22 +1,35 @@
 import "server-only";
-import { getChainConfig } from "@misthos/shared";
+import { getChainConfig, isChainKey, type ChainKey } from "@misthos/shared";
 import { createPublicClient, http, type PublicClient } from "viem";
 import { env } from "./env";
 
-let client: PublicClient | undefined;
+const clients = new Map<ChainKey, PublicClient>();
 
-export function chainConfig() {
-  return getChainConfig(env().NEXT_PUBLIC_CHAIN);
+/** The app's primary network (NEXT_PUBLIC_CHAIN): where new programs land by default. */
+export function primaryChain(): ChainKey {
+  return env().NEXT_PUBLIC_CHAIN;
 }
 
-/** Server-side public client for the configured Arc network (signature verification, reads). */
-export function publicClient(): PublicClient {
+/**
+ * A network's config. Pass the program's `chain` wherever a program is involved; with no argument it's the primary
+ * network. An unknown key throws rather than silently using another network.
+ */
+export function chainConfig(key?: string) {
+  if (key !== undefined && !isChainKey(key)) throw new Error(`Unknown network "${key}"`);
+  return getChainConfig(key ?? primaryChain());
+}
+
+/** Server-side public client for one Arc network (signature verification, reads). */
+export function publicClient(key?: string): PublicClient {
+  const cfg = chainConfig(key);
+  let client = clients.get(cfg.key);
   if (!client) {
-    const cfg = chainConfig();
+    const rpc = cfg.key === "arc-mainnet" ? env().ARC_MAINNET_RPC_URL : env().ARC_RPC_URL;
     client = createPublicClient({
       chain: cfg.chain,
-      transport: http(env().ARC_RPC_URL || undefined),
+      transport: http(rpc || undefined),
     }) as PublicClient;
+    clients.set(cfg.key, client);
   }
   return client;
 }

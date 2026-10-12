@@ -1,5 +1,6 @@
 "use client";
 
+import { useTargetNetwork } from "@/components/web3/network";
 import { formatUsdc, shortHex } from "@misthos/shared/money";
 import { misthosVaultFactoryAbi } from "@misthos/shared/abi";
 import type { Address, Hex } from "viem";
@@ -26,6 +27,8 @@ export function DeployVault(p: {
   size?: "default" | "lg";
 }) {
   const { writeContractAsync } = useWriteContract();
+  // Pinned to the program's network: wagmi refuses to send if the wallet is on another one.
+  const target = useTargetNetwork().chain;
   const limits = {
     maxPerPayout: BigInt(p.limits.maxPerPayout),
     maxPerRound: BigInt(p.limits.maxPerRound),
@@ -70,6 +73,7 @@ export function DeployVault(p: {
           label: "Deploy vault",
           send: () =>
             writeContractAsync({
+              chainId: target.id,
               address: p.factory,
               abi: misthosVaultFactoryAbi,
               functionName: "createVault",

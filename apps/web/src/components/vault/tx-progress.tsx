@@ -4,7 +4,7 @@ import { Check, Circle, ExternalLink, Loader2, X } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { explorerTxUrl, type StepView } from "./use-owner-tx";
+import { useExplorerTx, type StepView } from "./use-owner-tx";
 
 const SUB: Record<StepView["state"], string> = {
   idle: "Waiting",
@@ -29,6 +29,7 @@ export function TxProgress({
   busy: boolean;
   onRetry: () => void;
 }) {
+  const explorerTxUrl = useExplorerTx();
   if (!steps.length) return null;
   return (
     <div className="grid gap-3 rounded-lg border p-4" aria-live="polite">

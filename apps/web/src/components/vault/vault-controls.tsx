@@ -1,7 +1,7 @@
 "use client";
 
+import { useTargetNetwork } from "@/components/web3/network";
 import { formatUsdc, parseUsdc, shortHex } from "@misthos/shared/money";
-import { getChainConfig } from "@misthos/shared/chains";
 import { misthosVaultAbi } from "@misthos/shared/abi";
 import { useState } from "react";
 import { isAddress, type Address } from "viem";
@@ -12,8 +12,6 @@ import { Label } from "@/components/ui/label";
 import { UsdcInput } from "@/components/ui-kit/usdc-input";
 import { recordTx } from "./use-owner-tx";
 import { TxAction } from "./tx-action";
-
-const explorerAddress = (a: string) => `${getChainConfig().explorerUrl}/address/${a}`;
 
 const record =
   (programId: string, action: "withdraw" | "pause" | "unpause") => (hash: `0x${string}`) =>
@@ -27,6 +25,9 @@ export function WithdrawVault(p: {
   balance: string;
 }) {
   const { writeContractAsync } = useWriteContract();
+  // Pinned to the program's network: wagmi refuses to send if the wallet is on another one.
+  const network = useTargetNetwork();
+  const explorer = network.explorerUrl;
   const [amount, setAmount] = useState("");
   const [to, setTo] = useState<string>(p.owner);
   const [editingTo, setEditingTo] = useState(false);
@@ -86,7 +87,7 @@ export function WithdrawVault(p: {
             />
           ) : (
             <div className="flex h-8 items-center justify-between gap-2 rounded-lg border px-2.5">
-              <HexValue value={to} label="recipient" href={explorerAddress(to)} />
+              <HexValue value={to} label="recipient" href={`${explorer}/address/${to}`} />
               <button
                 type="button"
                 id="withdraw-to"
@@ -132,6 +133,7 @@ export function WithdrawVault(p: {
             label: "Withdraw",
             send: () =>
               writeContractAsync({
+                chainId: network.chain.id,
                 address: p.vault,
                 abi: misthosVaultAbi,
                 functionName: "withdraw",
@@ -156,6 +158,8 @@ export function PauseVault(p: {
   paused: boolean;
 }) {
   const { writeContractAsync } = useWriteContract();
+  // Pinned to the program's network: wagmi refuses to send if the wallet is on another one.
+  const network = useTargetNetwork();
   const fn = p.paused ? "unpause" : "pause";
   return (
     <TxAction
@@ -188,7 +192,12 @@ export function PauseVault(p: {
         {
           label: p.paused ? "Resume vault" : "Pause vault",
           send: () =>
-            writeContractAsync({ address: p.vault, abi: misthosVaultAbi, functionName: fn }),
+            writeContractAsync({
+              chainId: network.chain.id,
+              address: p.vault,
+              abi: misthosVaultAbi,
+              functionName: fn,
+            }),
           record: record(p.programId, fn),
         },
       ]}

@@ -1,7 +1,6 @@
-import type { RoundDeps } from "@misthos/agent";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
-import { createQueues, runDrain, type JobOptions } from "./jobs";
+import { createQueues, runDrain, type JobOptions, type WorkerDeps } from "./jobs";
 
 /** Why a drain ran: the periodic tick, a wake call from the web app, a scheduled retry, or startup. */
 export type DrainReason = "tick" | "wake" | "retry" | "startup";
@@ -25,7 +24,7 @@ export interface RunnerHealth {
  */
 export function createRunner(o: {
   makeBoss: () => PgBoss;
-  deps: RoundDeps;
+  deps: WorkerDeps;
   log: Logger;
   opts: JobOptions;
   tickMinutes: number;

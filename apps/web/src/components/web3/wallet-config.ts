@@ -1,10 +1,12 @@
 "use client";
 
-import { getChainConfig } from "@misthos/shared/chains";
+import { ARC_CHAINS, getChainConfig } from "@misthos/shared/chains";
 import { QueryClient } from "@tanstack/react-query";
 import { createConfig, http, type CreateConnectorFn } from "wagmi";
 
+/** The app's primary network (NEXT_PUBLIC_CHAIN); pages for a program use its own network (see network.tsx). */
 export const chain = getChainConfig().chain;
+const other = Object.values(ARC_CHAINS).find((c) => c.chain.id !== chain.id)!.chain;
 
 /**
  * RainbowKit's connectors, when they were loaded before the config was made (a returning visitor, so the saved
@@ -19,8 +21,9 @@ export function preloadConnectors(fns: CreateConnectorFn[]) {
 function makeConfig() {
   const browser = typeof window !== "undefined";
   return createConfig({
-    chains: [chain],
-    transports: { [chain.id]: http() },
+    // Both Arc networks: testnet campaigns and mainnet campaigns sign on their own network.
+    chains: [chain, other],
+    transports: { [chain.id]: http(), [other.id]: http() },
     // Restore the saved connection once, in an effect (see Web3Provider), not during render.
     ssr: true,
     connectors: browser ? (preloaded ?? []) : [],

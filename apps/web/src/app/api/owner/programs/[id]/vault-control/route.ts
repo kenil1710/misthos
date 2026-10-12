@@ -29,6 +29,7 @@ export async function POST(
       body.data.txHash as Hex,
       program.vaultAddress as Address,
       EVENTS[action],
+      program.chain,
     );
   } catch (e) {
     if (e instanceof ChainVerifyError) return jsonError(e.message, 400);

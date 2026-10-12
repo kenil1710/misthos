@@ -61,7 +61,12 @@ type Limits = {
   autoApproveThreshold: string;
   payeeCooldownHours: string;
 };
+type Network = "arc-testnet" | "arc-mainnet";
 type Form = {
+  /** Where the vault and payouts live. Testnet (test USDC) unless the owner picks mainnet and confirms it. */
+  network: Network;
+  /** The owner ticked "this campaign pays real USDC" (only asked for mainnet). */
+  mainnetConfirmed: boolean;
   basics: { name: string; slug: string; description: string; logoUrl: string };
   context: ContextDraft;
   rubric: { categories: Category[]; generalRules: string };
@@ -116,6 +121,8 @@ const STARTER_CATEGORIES: Category[] = [
 ];
 
 const initialForm = (): Form => ({
+  network: "arc-testnet",
+  mainnetConfirmed: false,
   basics: { name: "", slug: "", description: "", logoUrl: "" },
   context: emptyContextDraft(),
   rubric: { categories: STARTER_CATEGORIES, generalRules: "" },
@@ -210,10 +217,12 @@ function startDate(f: Form, now: Date): Date | null {
 }
 
 /** Convert typed strings into the shape the shared zod schemas expect. */
-function toPayload(f: Form, now: Date) {
+function toPayload(f: Form, now: Date, networks: readonly Network[] = ["arc-testnet"]) {
   const e = effective(f);
   const start = startDate(f, now);
   return {
+    // A saved draft may name a network that isn't offered (any more): it falls back to testnet.
+    network: f.network && networks.includes(f.network) ? f.network : ("arc-testnet" as Network),
     basics: f.basics,
     context: contextPayload(f.context),
     rubric: {
@@ -373,7 +382,7 @@ function UnitInput(props: {
 
 // ─── Wizard ─────────────────────────────────────────────────────────────────
 
-export function ProgramWizard() {
+export function ProgramWizard({ networks = ["arc-testnet"] }: { networks?: Network[] }) {
   const pathname = usePathname();
   const search = useSearchParams();
   // The step lives in React state so a click always moves it at once. The URL mirrors it (shareable, and Back /
@@ -404,11 +413,18 @@ export function ProgramWizard() {
   const submitting = useRef(false);
 
   const [now] = useState(() => new Date());
-  const payload = toPayload(form, now);
+  const payload = toPayload(form, now, networks);
+  const mainnet = payload.network === "arc-mainnet";
   const eff = effective(form);
 
   function validate(s: number): Record<string, string> {
-    if (s === 0) return issues(ProgramBasics, payload.basics, "basics");
+    if (s === 0)
+      return {
+        ...issues(ProgramBasics, payload.basics, "basics"),
+        ...(mainnet && !form.mainnetConfirmed
+          ? { network: "Confirm that this campaign pays real USDC, or pick Arc Testnet." }
+          : {}),
+      };
     if (s === 1)
       return issues(
         ContextReadInput,
@@ -526,7 +542,7 @@ export function ProgramWizard() {
     setFormError(null);
     submitting.current = true;
     startTransition(async () => {
-      const res = await createProgramAction(toPayload(form, new Date()));
+      const res = await createProgramAction(toPayload(form, new Date(), networks));
       // On success the action redirects (and the draft is cleared below); anything returned is an error.
       submitting.current = false;
       if (res?.fieldErrors) {
@@ -699,6 +715,16 @@ export function ProgramWizard() {
                       aria-invalid={!!e["basics.logoUrl"]}
                     />
                   </Field>
+                  <NetworkPicker
+                    value={payload.network}
+                    available={networks}
+                    confirmed={form.mainnetConfirmed}
+                    error={e.network}
+                    onChange={(network) =>
+                      setForm((f) => ({ ...f, network, mainnetConfirmed: false }))
+                    }
+                    onConfirm={(mainnetConfirmed) => setForm((f) => ({ ...f, mainnetConfirmed }))}
+                  />
                 </>
               ) : null}
 
@@ -1256,6 +1282,15 @@ export function ProgramWizard() {
                 <div className="grid gap-4">
                   <ReviewBlock title="Program" onEdit={() => goTo(0)}>
                     <p className="font-medium">{form.basics.name}</p>
+                    <p
+                      className={
+                        mainnet
+                          ? "text-warning mt-0.5 text-xs"
+                          : "text-muted-foreground mt-0.5 text-xs"
+                      }
+                    >
+                      {mainnet ? "Arc Mainnet · pays real USDC" : "Arc Testnet · test USDC"}
+                    </p>
                     <p className="text-muted-foreground mt-0.5 font-mono text-xs">
                       {APP_HOST}/join/{form.basics.slug}
                     </p>
@@ -1665,5 +1700,87 @@ function PreviewContent({
         </div>
       )}
     </div>
+  );
+}
+
+/** Arc Testnet (test USDC, the default) or Arc Mainnet (real USDC, only when this deployment offers it). */
+function NetworkPicker(p: {
+  value: Network;
+  available: readonly Network[];
+  confirmed: boolean;
+  error?: string;
+  onChange: (n: Network) => void;
+  onConfirm: (c: boolean) => void;
+}) {
+  const options: { value: Network; label: string; detail: string }[] = [
+    {
+      value: "arc-testnet",
+      label: "Arc Testnet",
+      detail: "Test USDC from Circle's faucet. Free to try; nothing real is paid.",
+    },
+    {
+      value: "arc-mainnet",
+      label: "Arc Mainnet",
+      detail: "Pays real USDC. The vault deploy, funding and every payout use real funds.",
+    },
+  ];
+  return (
+    <fieldset className="grid gap-2">
+      <legend className="mb-1.5 text-sm font-medium">Network</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((o) => {
+          const offered = p.available.includes(o.value);
+          return (
+            <label
+              key={o.value}
+              className={cn(
+                "has-[:focus-visible]:ring-ring/50 flex gap-2.5 rounded-lg border p-3 text-sm has-[:focus-visible]:ring-[3px]",
+                p.value === o.value && "border-primary bg-brand-subtle/50",
+                offered ? "cursor-pointer" : "cursor-not-allowed opacity-60",
+              )}
+            >
+              <input
+                type="radio"
+                name="network"
+                value={o.value}
+                checked={p.value === o.value}
+                disabled={!offered}
+                onChange={() => p.onChange(o.value)}
+                className="accent-primary mt-0.5"
+              />
+              <span className="grid gap-0.5">
+                <span className="font-medium">
+                  {o.label}
+                  {!offered ? (
+                    <span className="text-muted-foreground font-normal"> · not available yet</span>
+                  ) : null}
+                </span>
+                <span className="text-muted-foreground text-xs leading-relaxed">{o.detail}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      {p.value === "arc-mainnet" ? (
+        <label className="bg-warning-subtle flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-sm">
+          <input
+            type="checkbox"
+            checked={p.confirmed}
+            onChange={(ev) => p.onConfirm(ev.target.checked)}
+            className="accent-primary mt-0.5"
+            aria-invalid={!!p.error}
+          />
+          <span>
+            I understand this campaign pays <span className="font-medium">real USDC</span> on Arc
+            Mainnet, within the vault limits I set.
+          </span>
+        </label>
+      ) : null}
+      {p.error ? (
+        <p role="alert" className="text-danger text-xs">
+          {p.error}
+        </p>
+      ) : null}
+    </fieldset>
   );
 }

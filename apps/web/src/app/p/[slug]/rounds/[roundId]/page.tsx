@@ -85,7 +85,7 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
               <HexValue
                 value={program.vaultAddress}
                 label="vault"
-                href={explorerAddress(program.vaultAddress)}
+                href={explorerAddress(program.vaultAddress, program.chain)}
               />
             ) : (
               "—"
@@ -104,7 +104,7 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
               <dt className="text-muted-foreground">{label}</dt>
               <dd>
                 {hash ? (
-                  <HexValue value={hash} label={label} href={explorerTx(hash)} />
+                  <HexValue value={hash} label={label} href={explorerTx(hash, program.chain)} />
                 ) : (
                   <span className="text-muted-foreground">
                     {label.startsWith("Approved")
@@ -149,7 +149,11 @@ export default async function RoundReceipt({ params }: PageProps<"/p/[slug]/roun
                   <TableRow key={p.id} className="align-top">
                     <TableCell>@{p.handle}</TableCell>
                     <TableCell>
-                      <HexValue value={p.to} label="wallet" href={explorerAddress(p.to)} />
+                      <HexValue
+                        value={p.to}
+                        label="wallet"
+                        href={explorerAddress(p.to, program.chain)}
+                      />
                     </TableCell>
                     <TableCell className="mono-num text-right">
                       {formatUsdc(p.amount, { withSymbol: false })}

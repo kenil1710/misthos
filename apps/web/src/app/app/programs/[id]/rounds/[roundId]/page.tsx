@@ -65,7 +65,9 @@ export default async function RoundPage({
   const verifyBase = row.program.status === "draft" ? null : `/p/${row.program.slug}`;
   // Only a proposed round can need the owner's approval, so only then is the vault read (an RPC call).
   const chain =
-    vault && round.status === "proposed" ? await readVault(vault).catch(() => null) : null;
+    vault && round.status === "proposed"
+      ? await readVault(vault, row.program.chain).catch(() => null)
+      : null;
   const needsApproval =
     round.status === "proposed" && chain && round.totalAmount > chain.limits.autoApproveThreshold;
   const openRound =
@@ -122,7 +124,7 @@ export default async function RoundPage({
           </p>
           {round.txHashExecute ? (
             <a
-              href={explorerTx(round.txHashExecute)}
+              href={explorerTx(round.txHashExecute, row.program.chain)}
               target="_blank"
               rel="noreferrer"
               className="text-brand mt-4 inline-flex items-center gap-1.5 text-sm underline-offset-4 hover:underline"
@@ -163,7 +165,7 @@ export default async function RoundPage({
             meta: st.meta ?? (st.at ? utc(st.at) : undefined),
             detail: st.txHash ? (
               <a
-                href={explorerTx(st.txHash)}
+                href={explorerTx(st.txHash, row.program.chain)}
                 target="_blank"
                 rel="noreferrer"
                 className="font-mono underline-offset-4 hover:underline"
@@ -239,7 +241,7 @@ export default async function RoundPage({
                       <HexValue
                         value={p.toAddress}
                         label="payee wallet"
-                        href={explorerAddress(p.toAddress)}
+                        href={explorerAddress(p.toAddress, row.program.chain)}
                       />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
@@ -270,7 +272,7 @@ export default async function RoundPage({
                         <HexValue
                           value={p.txHash}
                           label="transaction hash"
-                          href={explorerTx(p.txHash)}
+                          href={explorerTx(p.txHash, row.program.chain)}
                         />
                       ) : (
                         <span className="text-muted-foreground capitalize">{p.status}</span>

@@ -1,4 +1,5 @@
 import { ArrowLeft } from "lucide-react";
+import { ProgramNetwork } from "@/components/web3/network";
 import { formatUsdc, Slug } from "@misthos/shared";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -63,7 +64,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
     detail?.submissions
       .filter((s) => s.status === "approved" || s.status === "partial")
       .reduce((sum, s) => sum + (s.amount ?? 0n), 0n) ?? 0n;
-  const explorer = chainConfig().explorerUrl;
+  const explorer = chainConfig(program.chain).explorerUrl;
   const thisRound =
     roundOpen && round
       ? (detail?.submissions ?? [])
@@ -97,7 +98,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
   });
 
   return (
-    <>
+    <ProgramNetwork chain={program.chain}>
       <SiteHeader
         right={
           <>
@@ -387,6 +388,6 @@ export default async function ContributorHome({ params, searchParams }: PageProp
           </aside>
         </div>
       </main>
-    </>
+    </ProgramNetwork>
   );
 }

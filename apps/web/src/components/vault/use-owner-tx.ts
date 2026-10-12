@@ -1,16 +1,19 @@
 "use client";
 
-import { getChainConfig } from "@misthos/shared/chains";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Hex } from "viem";
 import { usePublicClient } from "wagmi";
+import { useTargetNetwork } from "@/components/web3/network";
 import { useWalletAccount } from "@/components/web3/use-wallet-account";
 import { humanizeTxError } from "@/lib/tx-errors";
 
-const chain = getChainConfig().chain;
-export const explorerTxUrl = (hash: string) => `${chain.blockExplorers!.default.url}/tx/${hash}`;
+/** A transaction on the page's network (a program's pages: its network). */
+export function useExplorerTx() {
+  const explorer = useTargetNetwork().explorerUrl;
+  return (hash: string) => `${explorer}/tx/${hash}`;
+}
 
 export type TxStep = {
   label: string;
@@ -38,6 +41,9 @@ export class SessionExpiredError extends Error {
  */
 export function useOwnerTx(ownerAddress: string) {
   const { address, chainId, isConnected, status } = useWalletAccount();
+  const network = useTargetNetwork();
+  const chain = network.chain;
+  const explorer = network.explorerUrl;
   const client = usePublicClient({ chainId: chain.id });
   const router = useRouter();
   const [steps, setSteps] = useState<StepView[]>([]);
@@ -87,7 +93,7 @@ export function useOwnerTx(ownerAddress: string) {
         const finalHash = hashes[txSteps.length - 1];
         toast.success(success, {
           action: finalHash
-            ? { label: "View", onClick: () => window.open(explorerTxUrl(finalHash), "_blank") }
+            ? { label: "View", onClick: () => window.open(`${explorer}/tx/${finalHash}`, "_blank") }
             : undefined,
         });
         last.current = null;
@@ -103,7 +109,7 @@ export function useOwnerTx(ownerAddress: string) {
         setBusy(false);
       }
     },
-    [client, router],
+    [client, router, explorer],
   );
 
   function run(txSteps: TxStep[], success: string) {

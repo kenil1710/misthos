@@ -17,7 +17,7 @@ import { fromPglite, PgBoss } from "pg-boss";
 import pino from "pino";
 import { generatePrivateKey } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createQueues, recoverRounds, runDrain } from "../src/jobs";
+import { createQueues, recoverRounds, runDrain, sweep, type WorkerDeps } from "../src/jobs";
 import { createRunner, runnerIsHealthy } from "../src/runner";
 
 /**
@@ -399,5 +399,79 @@ describe("runner", () => {
     expect(runnerIsHealthy({ ...base, oldestQueuedAt: "2026-10-05T11:40:00Z" }, now).ok).toBe(
       false,
     );
+  });
+});
+
+describe("each program's network (Arc Testnet / Arc Mainnet)", () => {
+  const ok = async () => ({ outcome: { status: "ok" as const, resource }, usage: [] });
+  const onMainnet = () => db.update(programs).set({ chain: "arc-mainnet" });
+  /** A worker with the testnet agent, and the mainnet one only when given. */
+  const worker = (mainnet?: RoundDeps): WorkerDeps => {
+    const testnet = deps(ok);
+    const byChain: Record<string, RoundDeps> = { "arc-testnet": testnet };
+    if (mainnet) byChain["arc-mainnet"] = mainnet;
+    return { ...testnet, networks: Object.keys(byChain), forChain: (k) => byChain[k] ?? null };
+  };
+  const jobStates = async () =>
+    (
+      (await db.execute(
+        `select state from pgboss.job where name = '${QUEUES.processSubmission}'` as never,
+      )) as unknown as { rows: { state: string }[] }
+    ).rows.map((r) => r.state);
+
+  it("no mainnet agent: a mainnet program's job is skipped with a log line, nothing changes, nothing fails", async () => {
+    await onMainnet();
+    await createQueues(boss, opts);
+    await boss.send(QUEUES.processSubmission, { submissionId }, { singletonKey: submissionId });
+    const warn = vi.fn();
+    const spy = pino({ level: "warn" }, { write: (l: string) => warn(JSON.parse(l)) });
+    await runDrain(boss, worker(), spy, opts);
+    expect((await statusOf()).status).toBe("pending");
+    expect(await db.select().from(decisions)).toHaveLength(0);
+    expect(await jobStates()).toEqual(["completed"]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        network: "arc-mainnet",
+        msg: expect.stringMatching(/no agent for arc-mainnet/),
+      }),
+    );
+  });
+
+  it("no mainnet agent: housekeeping doesn't re-queue mainnet work, and testnet work still runs", async () => {
+    await onMainnet();
+    await db
+      .update(submissions)
+      .set({ updatedAt: new Date(Date.now() - 10 * 60_000) })
+      .where(eq(submissions.id, submissionId));
+    await createQueues(boss, opts);
+    expect(await sweep(boss, worker(), log)).toBe(0);
+    // Back on testnet, the same stale submission is swept and decided by the testnet agent.
+    await db.update(programs).set({ chain: "arc-testnet" });
+    expect(await sweep(boss, worker(), log)).toBe(1);
+    await runDrain(boss, worker(), log, { ...opts, housekeeping: false });
+    expect((await statusOf()).status).toBe("approved");
+  });
+
+  it("with a mainnet agent, a mainnet program's decision is signed for Arc Mainnet by the mainnet agent", async () => {
+    await onMainnet();
+    const mainnetSigner = eoaSigner(generatePrivateKey());
+    const mainnet = { ...deps(ok), signer: mainnetSigner, chainId: 5042 };
+    await createQueues(boss, opts);
+    await boss.send(QUEUES.processSubmission, { submissionId }, { singletonKey: submissionId });
+    await runDrain(boss, worker(mainnet), log, opts);
+    const [d] = await db.select().from(decisions);
+    const record = JSON.parse(d!.decisionJson) as { chainId: number; signer: string };
+    expect(record.chainId).toBe(5042);
+    expect(record.signer.toLowerCase()).toBe(mainnetSigner.address.toLowerCase());
+  });
+
+  it("a testnet program on a worker that also has a mainnet agent is still signed on testnet", async () => {
+    const mainnet = { ...deps(ok), signer: eoaSigner(generatePrivateKey()), chainId: 5042 };
+    const w = worker(mainnet);
+    await createQueues(boss, opts);
+    await boss.send(QUEUES.processSubmission, { submissionId }, { singletonKey: submissionId });
+    await runDrain(boss, w, log, opts);
+    const [d] = await db.select().from(decisions);
+    expect((JSON.parse(d!.decisionJson) as { chainId: number }).chainId).toBe(5042002);
   });
 });

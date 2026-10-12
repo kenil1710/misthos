@@ -15,7 +15,8 @@ import { currentRound, isScheduled } from "@/lib/rounds";
 import { readVault, readVaultShared, type VaultState } from "./vault";
 
 /** Vault reads for lists and cards: shared for 15s, so an owner with many programs isn't one RPC per program per view. */
-const readVaultCached = (address: string) => readVaultShared(address as Address);
+const readVaultCached = (address: string, chain: string) =>
+  readVaultShared(address as Address, chain);
 
 export type NeedKind = "review" | "approval" | "payee" | "low_balance" | "appeal";
 export interface NeedItem {
@@ -118,8 +119,8 @@ export async function programSummaries(
       mine.map((m) =>
         m.p.vaultAddress
           ? (opts.freshVault
-              ? readVault(m.p.vaultAddress as Address)
-              : readVaultCached(m.p.vaultAddress)
+              ? readVault(m.p.vaultAddress as Address, m.p.chain)
+              : readVaultCached(m.p.vaultAddress, m.p.chain)
             ).catch(() => null)
           : Promise.resolve(null),
       ),

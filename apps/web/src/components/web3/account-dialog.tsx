@@ -12,7 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { classifyWalletError } from "@/lib/wallet-errors";
-import { chain } from "./wallet-config";
+import { chainConfigById } from "@misthos/shared/chains";
+import { useTargetNetwork } from "./network";
 
 /** The connected wallet: address, network (with a one-click switch to Arc Testnet) and disconnect. */
 export function AccountDialog({
@@ -25,7 +26,9 @@ export function AccountDialog({
   const { address, chainId, connector } = useAccount();
   const { disconnect } = useDisconnect();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
+  const chain = useTargetNetwork().chain;
   const wrongNetwork = chainId !== chain.id;
+  const current = chainId ? chainConfigById(chainId) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -41,7 +44,7 @@ export function AccountDialog({
           <div className="flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm">
             <span className="font-mono text-[13px]">{address ? shortHex(address) : "…"}</span>
             <span className={wrongNetwork ? "text-warning" : "text-muted-foreground"}>
-              {wrongNetwork ? "Other network" : chain.name}
+              {wrongNetwork ? (current ? current.chain.name : "Other network") : chain.name}
             </span>
           </div>
           {wrongNetwork ? (

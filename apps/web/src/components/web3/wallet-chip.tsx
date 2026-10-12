@@ -1,6 +1,5 @@
 "use client";
 
-import { getChainConfig } from "@misthos/shared/chains";
 import { shortHex } from "@misthos/shared/money";
 import { ArrowLeftRight, Network, Wallet } from "lucide-react";
 import { toast } from "sonner";
@@ -10,10 +9,9 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useWalletProblem } from "@/components/vault/owner-wallet";
 import { classifyWalletError } from "@/lib/wallet-errors";
 import { chooseAccount } from "./choose-account";
+import { useTargetNetwork } from "./network";
 import { useWalletAccount } from "./use-wallet-account";
 import { useWalletUi } from "./web3-provider";
-
-const chain = getChainConfig().chain;
 
 /**
  * The owner's account chip with the wallet's state as a dot: green ready, amber another account or network, grey
@@ -29,6 +27,7 @@ export function WalletChipStatus({
   side?: "top" | "bottom";
 }) {
   const problem = useWalletProblem(owner);
+  const chain = useTargetNetwork().chain;
   const { address, connector } = useWalletAccount();
   const { openConnect } = useWalletUi();
   const { switchChainAsync } = useSwitchChain();

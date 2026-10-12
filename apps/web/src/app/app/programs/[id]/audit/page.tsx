@@ -35,7 +35,7 @@ export default async function AuditPage({
   const { id } = await params;
   const member = await getProgramForMember(id, session.sub);
   if (!member) return null;
-  const explorer = chainConfig().explorerUrl;
+  const explorer = chainConfig(member.program.chain).explorerUrl;
   const verifyBase = member.program.status === "draft" ? null : `/p/${member.program.slug}`;
   const sp = await searchParams;
   const group =

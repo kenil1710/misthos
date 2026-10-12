@@ -21,7 +21,12 @@ export async function POST(req: Request) {
   if (!body.success) return jsonError("invalid_body", 400);
 
   const [program] = await getDb()
-    .select({ slug: programs.slug, name: programs.name, status: programs.status })
+    .select({
+      slug: programs.slug,
+      name: programs.name,
+      status: programs.status,
+      chain: programs.chain,
+    })
     .from(programs)
     .where(eq(programs.slug, body.data.programSlug))
     .limit(1);
@@ -36,7 +41,7 @@ export async function POST(req: Request) {
     xHandle: session.xh,
     xUserId: session.xid,
     address: body.data.address,
-    chainId: chainConfig().chain.id,
+    chainId: chainConfig(program.chain).chain.id,
     nonce,
     issuedAt,
   });

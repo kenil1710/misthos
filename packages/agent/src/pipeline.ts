@@ -20,6 +20,7 @@ import { decide, RULE_VERSION, type EngineDecision } from "./engine";
 import { explain } from "./explain";
 import type { Understander } from "./context";
 import { JudgeError, type Judge, type JudgeBrief, type Judgment } from "./judge";
+import { onProgramNetwork } from "./network";
 import { signRecord, type AgentSigner, type DecisionRecord } from "./record";
 import { fromSigned64, hamming, simhash64, toSigned64 } from "./simhash";
 import {
@@ -188,6 +189,9 @@ export async function processSubmission(
   const ctx = await loadContext(db, submissionId);
   if (!ctx) return { status: "skipped", reason: "not_found" };
   const { submission: sub, program, contributor, round } = ctx;
+  // Signed with the program's network's agent only (nothing is claimed otherwise).
+  if (!onProgramNetwork(deps.chainId, program.chain))
+    return { status: "skipped", reason: "wrong_network" };
   const reprocess = opts.reprocess;
   let previous: typeof decisions.$inferSelect | undefined;
   if (reprocess) {
@@ -681,7 +685,13 @@ export type OverrideResult =
   | { ok: true; decisionHash: Hex }
   | {
       ok: false;
-      error: "not_found" | "not_decided" | "invalid_amount" | "not_member" | "in_payout";
+      error:
+        | "not_found"
+        | "not_decided"
+        | "invalid_amount"
+        | "not_member"
+        | "in_payout"
+        | "wrong_network";
     };
 
 /** The item was planned into a payout round, which pays it whatever the database says next. */
@@ -700,6 +710,7 @@ export async function processOverride(
   const ctx = await loadContext(db, job.submissionId);
   if (!ctx) return { ok: false, error: "not_found" };
   const { submission: sub, program, contributor, round } = ctx;
+  if (!onProgramNetwork(deps.chainId, program.chain)) return { ok: false, error: "wrong_network" };
   const memberRows = rowsOf<{ role: string }>(
     await db.execute(
       sql`select role from program_members where program_id = ${program.id} and user_id = ${job.userId} limit 1`,

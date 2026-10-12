@@ -8,7 +8,7 @@ import { factoryAddress } from "./vault";
  * On-chain reads for Verify (N-8). Nothing here trusts Misthos's database: a vault counts only if its address is the
  * factory's CREATE2 prediction for its own owner and programId, and the agent is read at a given block.
  */
-export function verifyChain(client: PublicClient): VerifyDeps["chain"] {
+export function verifyChain(client: PublicClient, chain?: string): VerifyDeps["chain"] {
   const read = (address: Address, functionName: "agent" | "owner" | "programId", block?: bigint) =>
     client.readContract({
       address,
@@ -25,7 +25,7 @@ export function verifyChain(client: PublicClient): VerifyDeps["chain"] {
         read(vault, "programId"),
       ]);
       const predicted = (await client.readContract({
-        address: factoryAddress(),
+        address: factoryAddress(chain),
         abi: misthosVaultFactoryAbi,
         functionName: "predictVaultAddress",
         args: [owner as Address, programId as Hex],

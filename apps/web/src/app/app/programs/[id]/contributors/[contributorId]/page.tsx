@@ -72,7 +72,7 @@ export default async function ContributorPage({
               <HexValue
                 value={c.walletAddress}
                 label="wallet"
-                href={explorerAddress(c.walletAddress)}
+                href={explorerAddress(c.walletAddress, row.program.chain)}
               />
             ) : (
               "Not linked"
@@ -127,7 +127,11 @@ export default async function ContributorPage({
                     Round {roundNumber}
                   </Link>
                   {p.txHash ? (
-                    <HexValue value={p.txHash} label="transaction" href={explorerTx(p.txHash)} />
+                    <HexValue
+                      value={p.txHash}
+                      label="transaction"
+                      href={explorerTx(p.txHash, row.program.chain)}
+                    />
                   ) : (
                     <span className="text-muted-foreground capitalize">{p.status}</span>
                   )}
@@ -160,7 +164,7 @@ export default async function ContributorPage({
                         <HexValue
                           value={data.txHash}
                           label="transaction"
-                          href={explorerTx(data.txHash)}
+                          href={explorerTx(data.txHash, row.program.chain)}
                         />
                       ) : null}
                     </div>

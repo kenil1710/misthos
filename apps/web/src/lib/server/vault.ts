@@ -1,29 +1,56 @@
 import "server-only";
 import { revalidateTag } from "next/cache";
 import { cached } from "./cache";
-import { getDeployment, misthosVaultAbi, misthosVaultFactoryAbi } from "@misthos/shared";
+import {
+  CHAIN_KEYS,
+  getDeployment,
+  misthosVaultAbi,
+  misthosVaultFactoryAbi,
+  type ChainKey,
+} from "@misthos/shared";
 import { parseEventLogs, type Address, type Hex } from "viem";
 import { chainConfig, publicClient } from "./chain";
 import { env } from "./env";
 
 export { programIdBytes32 } from "@misthos/shared";
 
-export function factoryAddress(): Address {
-  const f = getDeployment(chainConfig().key).vaultFactory;
+/** The Misthos factory on a network (`chain`: the program's network; default the primary one). */
+export function factoryAddress(chain?: string): Address {
+  const f = getDeployment(chainConfig(chain).key).vaultFactory;
   if (!f) throw new Error("No vault factory deployed on this network");
   return f;
 }
 
-/** The agent the vault trusts: the Circle SCA (env), never a key the web app holds. */
-export function agentAddress(): Address | null {
-  const a = process.env.CIRCLE_AGENT_WALLET_ADDRESS ?? process.env.AGENT_ADDRESS;
-  return a && /^0x[0-9a-fA-F]{40}$/.test(a) ? (a as Address) : null;
+const isAddress = (a: string | undefined): a is Address => !!a && /^0x[0-9a-fA-F]{40}$/.test(a);
+
+/**
+ * The agent a network's vaults trust: its Circle SCA (env), never a key the web app holds. Arc Mainnet has its own
+ * agent wallet (CIRCLE_MAINNET_AGENT_WALLET_ADDRESS) and never falls back to the testnet one.
+ */
+export function agentAddress(chain?: string): Address | null {
+  const key = chainConfig(chain).key;
+  const a =
+    key === "arc-mainnet"
+      ? process.env.CIRCLE_MAINNET_AGENT_WALLET_ADDRESS
+      : (process.env.CIRCLE_AGENT_WALLET_ADDRESS ?? process.env.AGENT_ADDRESS);
+  return isAddress(a) ? a : null;
+}
+
+/**
+ * Networks new programs can use: the primary network always (as before: drafts don't need the agent yet), any other
+ * only with a factory deployed there and an agent configured for it.
+ */
+export function availableChains(): ChainKey[] {
+  const primary = chainConfig().key;
+  return CHAIN_KEYS.filter(
+    (k) => k === primary || (!!getDeployment(k).vaultFactory && !!agentAddress(k)),
+  );
 }
 
 export class ChainVerifyError extends Error {}
 
-async function receipt(txHash: Hex) {
-  const r = await publicClient()
+async function receipt(txHash: Hex, chain?: string) {
+  const r = await publicClient(chain)
     .getTransactionReceipt({ hash: txHash })
     .catch(() => null);
   if (!r) throw new ChainVerifyError("Transaction not found yet. Wait a moment and try again.");
@@ -34,8 +61,8 @@ async function receipt(txHash: Hex) {
 /** Find a specific vault event in a confirmed transaction, emitted by that vault. */
 export async function findVaultEvent<
   E extends "LimitsUpdated" | "RoundApproved" | "Deposited" | "Withdrawn" | "Paused" | "Unpaused",
->(txHash: Hex, vault: Address, eventName: E) {
-  const r = await receipt(txHash);
+>(txHash: Hex, vault: Address, eventName: E, chain?: string) {
+  const r = await receipt(txHash, chain);
   const logs = parseEventLogs({ abi: misthosVaultAbi, logs: r.logs, eventName }).filter(
     (l) => l.address.toLowerCase() === vault.toLowerCase(),
   );
@@ -44,13 +71,13 @@ export async function findVaultEvent<
   return { log: logs[0]!, blockNumber: r.blockNumber };
 }
 
-export async function findVaultCreated(txHash: Hex) {
-  const r = await receipt(txHash);
+export async function findVaultCreated(txHash: Hex, chain?: string) {
+  const r = await receipt(txHash, chain);
   const logs = parseEventLogs({
     abi: misthosVaultFactoryAbi,
     logs: r.logs,
     eventName: "VaultCreated",
-  }).filter((l) => l.address.toLowerCase() === factoryAddress().toLowerCase());
+  }).filter((l) => l.address.toLowerCase() === factoryAddress(chain).toLowerCase());
   if (!logs.length)
     throw new ChainVerifyError("That transaction didn't create a vault from the Misthos factory.");
   return { ...logs[0]!.args, blockNumber: r.blockNumber };
@@ -74,9 +101,9 @@ export interface VaultState {
   };
 }
 
-export async function readVault(vault: Address): Promise<VaultState> {
+export async function readVault(vault: Address, chain?: string): Promise<VaultState> {
   const c = { address: vault, abi: misthosVaultAbi } as const;
-  const results = await publicClient().multicall({
+  const results = await publicClient(chain).multicall({
     contracts: [
       { ...c, functionName: "balance" },
       { ...c, functionName: "totalDeposited" },
@@ -124,9 +151,11 @@ export async function readVault(vault: Address): Promise<VaultState> {
   };
 }
 
-export const explorerTx = (hash: string) => `${chainConfig().explorerUrl}/tx/${hash}`;
-export const explorerAddress = (a: string) => `${chainConfig().explorerUrl}/address/${a}`;
-export const usdcAddress = () => chainConfig().tokens.usdc;
+export const explorerTx = (hash: string, chain?: string) =>
+  `${chainConfig(chain).explorerUrl}/tx/${hash}`;
+export const explorerAddress = (a: string, chain?: string) =>
+  `${chainConfig(chain).explorerUrl}/address/${a}`;
+export const usdcAddress = (chain?: string) => chainConfig(chain).tokens.usdc;
 export { env };
 
 const vaultTag = (vault: string) => `vault:${vault.toLowerCase()}`;
@@ -136,8 +165,9 @@ const vaultTag = (vault: string) => `vault:${vault.toLowerCase()}`;
  * The owner's own transactions expire it at once (`vaultChanged`), so their change shows on the next render; payouts
  * sent by the agent show within 15 s.
  */
-export function readVaultShared(vault: Address): Promise<VaultState> {
-  return cached(() => readVault(vault), ["vault-state", vault.toLowerCase()], {
+export function readVaultShared(vault: Address, chain?: string): Promise<VaultState> {
+  const key = chainConfig(chain).key;
+  return cached(() => readVault(vault, key), ["vault-state", key, vault.toLowerCase()], {
     revalidate: 15,
     tags: [vaultTag(vault)],
   })();

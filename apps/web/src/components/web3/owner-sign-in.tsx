@@ -1,6 +1,6 @@
 "use client";
 
-import { getChainConfig } from "@misthos/shared/chains";
+import { chainConfigById } from "@misthos/shared/chains";
 import { shortHex } from "@misthos/shared/money";
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -11,15 +11,14 @@ import { useWalletAccount } from "./use-wallet-account";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { classifyWalletError } from "@/lib/wallet-errors";
+import { useTargetNetwork } from "./network";
 import { WalletButton } from "./wallet-button";
-
-const chain = getChainConfig().chain;
 
 const ERRORS: Record<string, string> = {
   bad_signature: "That signature didn't match the connected wallet. Try again.",
   nonce_used: "This sign-in request was already used. Try again.",
   stale: "The sign-in request expired. Try again.",
-  wrong_chain: `Switch your wallet to ${chain.name} and try again.`,
+  wrong_chain: "Switch your wallet to Arc Testnet or Arc Mainnet and try again.",
   wrong_domain: "This sign-in request was made for another address. Reload the page and try again.",
   wrong_uri: "This sign-in request was made for another address. Reload the page and try again.",
   bad_origin:
@@ -31,7 +30,8 @@ const ERRORS: Record<string, string> = {
  * network changes on its own.
  */
 export function useSiweSignIn(onSignedIn?: () => void) {
-  const { address } = useAccount();
+  const { address, chainId: walletChainId } = useAccount();
+  const target = useTargetNetwork().chain;
   const { signMessageAsync } = useSignMessage();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -59,7 +59,8 @@ export function useSiweSignIn(onSignedIn?: () => void) {
       const nonce = nonceBody.nonce;
       const message = createSiweMessage({
         address,
-        chainId: chain.id,
+        // Either Arc network signs in (the server accepts both); anything else asks for the page's network.
+        chainId: walletChainId && chainConfigById(walletChainId) ? walletChainId : target.id,
         domain: window.location.host,
         uri: window.location.origin,
         nonce,
@@ -105,7 +106,9 @@ export function OwnerSignIn() {
   const { switchChain, isPending: switching } = useSwitchChain();
   const { disconnect } = useDisconnect();
   const { signIn, busy, error } = useSiweSignIn();
-  const wrongChain = isConnected && chainId !== chain.id;
+  const chain = useTargetNetwork().chain;
+  // Signing in works from either Arc network; only another chain needs a switch.
+  const wrongChain = isConnected && !!chainId && !chainConfigById(chainId);
 
   return (
     <ol className="grid gap-5">

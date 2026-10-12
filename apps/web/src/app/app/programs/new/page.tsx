@@ -1,3 +1,4 @@
+import { availableChains } from "@/lib/server/vault";
 import { WizardLoader } from "./wizard-loader";
 import { STEPS } from "./wizard-steps";
 
@@ -8,5 +9,5 @@ export default async function NewProgramPage({ searchParams }: PageProps<"/app/p
   const raw = Number((await searchParams).step);
   // The wizard may still step back to the first invalid step once the draft is restored.
   const step = Math.min(STEPS.length, Math.max(1, Number.isFinite(raw) ? raw : 1)) - 1;
-  return <WizardLoader step={step} />;
+  return <WizardLoader step={step} networks={availableChains()} />;
 }

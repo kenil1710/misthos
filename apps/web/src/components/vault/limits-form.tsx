@@ -1,5 +1,6 @@
 "use client";
 
+import { useTargetNetwork } from "@/components/web3/network";
 import { formatUsdc } from "@misthos/shared/money";
 import { misthosVaultAbi } from "@misthos/shared/abi";
 import { LimitsInput } from "@misthos/shared";
@@ -29,6 +30,8 @@ export function LimitsForm(p: {
   current: Record<Key, string>;
 }) {
   const { writeContractAsync } = useWriteContract();
+  // Pinned to the program's network: wagmi refuses to send if the wallet is on another one.
+  const target = useTargetNetwork().chain;
   const [form, setForm] = useState(p.current);
   const [touched, setTouched] = useState<Partial<Record<Key, boolean>>>({});
   const parsed = LimitsInput.safeParse(form);
@@ -96,6 +99,7 @@ export function LimitsForm(p: {
             label: "Update limits",
             send: () =>
               writeContractAsync({
+                chainId: target.id,
                 address: p.vault,
                 abi: misthosVaultAbi,
                 functionName: "setLimits",

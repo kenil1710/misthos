@@ -16,12 +16,17 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/programs/
   const body = TxBody.safeParse(await readJson(req));
   if (!body.success) return jsonError("invalid_body", 400);
   try {
-    await findVaultEvent(body.data.txHash as Hex, program.vaultAddress as Address, "LimitsUpdated");
+    await findVaultEvent(
+      body.data.txHash as Hex,
+      program.vaultAddress as Address,
+      "LimitsUpdated",
+      program.chain,
+    );
   } catch (e) {
     if (e instanceof ChainVerifyError) return jsonError(e.message, 400);
     throw e;
   }
-  const { limits: l } = await readVault(program.vaultAddress as Address);
+  const { limits: l } = await readVault(program.vaultAddress as Address, program.chain);
   const next = {
     ...program.limitsJson,
     maxPerPayout: l.maxPerPayout.toString(),

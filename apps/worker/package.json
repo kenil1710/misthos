@@ -16,7 +16,8 @@
     "live:round": "tsx --env-file=../../.env scripts/live-round.ts",
     "live:crash": "tsx --env-file=../../.env scripts/live-crash.ts",
     "seed:showcase": "tsx --env-file=../../.env scripts/seed-showcase.ts",
-    "reprocess": "tsx --env-file=../../.env scripts/reprocess.ts"
+    "reprocess": "tsx --env-file=../../.env scripts/reprocess.ts",
+    "circle:setup:mainnet": "tsx --env-file=../../.env scripts/circle-setup-mainnet.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

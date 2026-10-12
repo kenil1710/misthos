@@ -15,13 +15,20 @@ const ProgramWizard = lazy(() => import("./wizard").then((m) => ({ default: m.Pr
  * server paints the same frame with the requested step's real headline (fast first paint, nothing jumps), and the
  * form fields as placeholders.
  */
-export function WizardLoader({ step }: { step: number }) {
+export function WizardLoader({
+  step,
+  networks,
+}: {
+  step: number;
+  /** Networks this deployment offers for new campaigns (testnet always; mainnet once it's set up). */
+  networks: ("arc-testnet" | "arc-mainnet")[];
+}) {
   const hydrated = useHydrated();
   const first = <WizardFirstPaint step={step} />;
   if (!hydrated) return first;
   return (
     <Suspense fallback={first}>
-      <ProgramWizard />
+      <ProgramWizard networks={networks} />
     </Suspense>
   );
 }

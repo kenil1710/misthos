@@ -18,3 +18,4 @@ export * from "./rounds/ids";
 export * from "./rounds/plan";
 export * from "./rounds/vault";
 export * from "./rounds/job";
+export * from "./network";

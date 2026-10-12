@@ -7,6 +7,7 @@ const ServerEnv = z.object({
   DATABASE_URL: z.string().min(1),
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
   ARC_RPC_URL: z.string().optional(),
+  ARC_MAINNET_RPC_URL: z.string().optional(),
   X_CLIENT_ID: z.string().min(1),
   X_CLIENT_SECRET: z.string().min(1),
   /** GitHub OAuth app for verifying contributors' GitHub accounts (optional: GitHub work is refused without it). */

@@ -37,8 +37,13 @@ export async function linkContributorWallet(
     nonce: string;
     issuedAt: Date;
     signature: Hex;
-    chainId: number;
-    verify: (args: { address: `0x${string}`; message: string; signature: Hex }) => Promise<boolean>;
+    /** The chain id in the signed message: a number, or one looked up from the program's network. */
+    chainId: number | ((chain: string) => number);
+    /** Checks the signature (EOA or ERC-1271), on the program's network. */
+    verify: (
+      args: { address: `0x${string}`; message: string; signature: Hex },
+      chain: string,
+    ) => Promise<boolean>;
     consumeNonce: (nonce: string, userId: string) => Promise<boolean>;
     now?: Date;
   },
@@ -50,6 +55,7 @@ export async function linkContributorWallet(
       slug: programs.slug,
       name: programs.name,
       status: programs.status,
+      chain: programs.chain,
       minXFollowers: programs.minXFollowers,
       minAccountAgeDays: programs.minAccountAgeDays,
       belowMinimum: programs.belowMinimum,
@@ -93,11 +99,11 @@ export async function linkContributorWallet(
     xHandle: p.user.xHandle,
     xUserId: p.user.xUserId,
     address,
-    chainId: p.chainId,
+    chainId: typeof p.chainId === "number" ? p.chainId : p.chainId(program.chain),
     nonce: p.nonce,
     issuedAt: p.issuedAt,
   });
-  if (!(await p.verify({ address, message, signature: p.signature })))
+  if (!(await p.verify({ address, message, signature: p.signature }, program.chain)))
     return { ok: false, error: "bad_signature" };
   if (!(await p.consumeNonce(p.nonce, p.user.id))) return { ok: false, error: "nonce_used" };
 

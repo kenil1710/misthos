@@ -1,7 +1,7 @@
 "use client";
 
+import { useTargetNetwork } from "@/components/web3/network";
 import { formatUsdc, parseUsdc, shortHex } from "@misthos/shared/money";
-import { getChainConfig } from "@misthos/shared/chains";
 import { misthosVaultAbi } from "@misthos/shared/abi";
 import { useState } from "react";
 import { erc20Abi, type Address } from "viem";
@@ -9,8 +9,6 @@ import { useReadContract, useWriteContract } from "wagmi";
 import { UsdcInput } from "@/components/ui-kit/usdc-input";
 import { recordTx } from "./use-owner-tx";
 import { TxAction } from "./tx-action";
-
-const faucet = getChainConfig().faucetUrl;
 
 /** Approve + deposit USDC (6-decimal ERC-20 interface) into the vault. */
 export function FundVault(p: {
@@ -23,6 +21,11 @@ export function FundVault(p: {
   size?: "default" | "lg";
 }) {
   const { writeContractAsync } = useWriteContract();
+  // Pinned to the program's network: wagmi refuses to send if the wallet is on another one.
+  const network = useTargetNetwork();
+  const target = network.chain;
+  // Test USDC from Circle's faucet on testnet; never offered on mainnet (real USDC).
+  const faucet = network.faucetUrl;
   const [amount, setAmount] = useState("");
   const { data: walletBalance, refetch } = useReadContract({
     address: p.usdc,
@@ -122,7 +125,9 @@ export function FundVault(p: {
         success={`Deposited ${units ? formatUsdc(units) : ""} into the vault.`}
         confirm={{
           title: `Deposit ${units ? formatUsdc(units) : ""}`,
-          description: "Two wallet prompts: allow the vault to take this amount, then deposit it.",
+          description: network.isTestnet
+            ? "Two wallet prompts: allow the vault to take this amount, then deposit it."
+            : "Real USDC on Arc Mainnet. Two wallet prompts: allow the vault to take this amount, then deposit it.",
           rows: [
             { label: "Amount", value: units ? formatUsdc(units) : "", mono: true },
             { label: "From", value: shortHex(p.owner), mono: true },
@@ -136,6 +141,7 @@ export function FundVault(p: {
             label: "Allow the vault to take USDC",
             send: () =>
               writeContractAsync({
+                chainId: target.id,
                 address: p.usdc,
                 abi: erc20Abi,
                 functionName: "approve",
@@ -146,6 +152,7 @@ export function FundVault(p: {
             label: "Deposit",
             send: () =>
               writeContractAsync({
+                chainId: target.id,
                 address: p.vault,
                 abi: misthosVaultAbi,
                 functionName: "deposit",

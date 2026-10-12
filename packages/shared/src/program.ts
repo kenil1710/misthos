@@ -177,6 +177,11 @@ export const BudgetInput = z.object({
 export type BudgetInput = z.infer<typeof BudgetInput>;
 
 export const ProgramInput = z.object({
+  /**
+   * The network the campaign's vault and payouts live on. Testnet (test USDC) is the default; Arc Mainnet pays real
+   * USDC and is only accepted when the server has a factory and an agent for it.
+   */
+  network: z.enum(["arc-testnet", "arc-mainnet"]).default("arc-testnet"),
   basics: ProgramBasics,
   /** Context for the agent (required for new programs). */
   context: ContextSaveInput,

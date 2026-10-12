@@ -1,13 +1,11 @@
 "use client";
 
-import { getChainConfig } from "@misthos/shared/chains";
 import { shortHex } from "@misthos/shared/money";
 import { Loader2 } from "lucide-react";
+import { useTargetNetwork } from "@/components/web3/network";
 import { useWalletAccount } from "@/components/web3/use-wallet-account";
 import { WalletButton } from "@/components/web3/wallet-button";
 import { useHydrated } from "@/lib/use-hydrated";
-
-const chain = getChainConfig().chain;
 
 export type WalletProblem =
   "reconnecting" | "disconnected" | "wrong_account" | "wrong_network" | null;
@@ -15,6 +13,7 @@ export type WalletProblem =
 /** What, if anything, stops the signed-in owner from signing right now. */
 export function useWalletProblem(owner: string): WalletProblem {
   const { address, status, chainId } = useWalletAccount();
+  const chain = useTargetNetwork().chain;
   if (status === "reconnecting" || status === "connecting") return "reconnecting";
   if (status !== "connected") return "disconnected";
   if (address?.toLowerCase() !== owner.toLowerCase()) return "wrong_account";

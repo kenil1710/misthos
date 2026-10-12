@@ -3,6 +3,7 @@ import { z } from "zod";
 import { audit } from "@/lib/server/audit";
 import { chainConfig, publicClient } from "@/lib/server/chain";
 import { upsertWalletUser } from "@/lib/server/contributors";
+import { CHAIN_KEYS, chainConfigById } from "@misthos/shared";
 import { appOrigin } from "@/lib/server/env";
 import { jsonError, readJson, sameOrigin } from "@/lib/server/http";
 import { consumeNonce } from "@/lib/server/nonces";
@@ -29,8 +30,9 @@ export async function POST(req: Request) {
     message: body.data.message,
     signature: body.data.signature as `0x${string}`,
     expectedOrigin: appOrigin(),
-    expectedChainId: chainConfig().chain.id,
-    client: publicClient(),
+    // Owners sign in from either Arc network; a smart-wallet signature is checked on the network it names.
+    expectedChainId: CHAIN_KEYS.map((k) => chainConfig(k).chain.id),
+    client: (chainId) => publicClient(chainConfigById(chainId)!.key),
     consumeNonce: (n) => consumeNonce(n, "siwe"),
   });
   if (!result.ok) return jsonError(result.error, 401);

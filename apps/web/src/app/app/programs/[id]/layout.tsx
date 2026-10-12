@@ -6,6 +6,7 @@ import { NoProgramAccess } from "@/components/app/no-access";
 import { getProgramForMember, listProgramsForUser } from "@/lib/server/queries";
 import { getOwnerSession } from "@/lib/server/session";
 import { readVault } from "@/lib/server/vault";
+import { ProgramNetwork } from "@/components/web3/network";
 import type { Address } from "viem";
 
 export default async function ProgramLayout({
@@ -28,28 +29,36 @@ export default async function ProgramLayout({
     );
   const vault = row.program.vaultAddress as Address | null;
   return (
-    <>
+    // Wallet actions, "wrong network" checks and explorer links on this program's pages use its network.
+    <ProgramNetwork chain={row.program.chain}>
       {vault ? (
         // The vault read is an RPC call: stream the banner in rather than hold up the page.
         <Suspense fallback={null}>
-          <PausedBanner vault={vault} programId={id} owner={row.role === "owner"} />
+          <PausedBanner
+            vault={vault}
+            chain={row.program.chain}
+            programId={id}
+            owner={row.role === "owner"}
+          />
         </Suspense>
       ) : null}
       {children}
-    </>
+    </ProgramNetwork>
   );
 }
 
 async function PausedBanner({
   vault,
+  chain,
   programId,
   owner,
 }: {
   vault: Address;
+  chain: string;
   programId: string;
   owner: boolean;
 }) {
-  const paused = await readVault(vault)
+  const paused = await readVault(vault, chain)
     .then((v) => v.paused)
     .catch(() => false);
   return paused ? <VaultPausedBanner programId={programId} owner={owner} /> : null;

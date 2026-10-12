@@ -48,7 +48,10 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
         </EmptyState>
       </div>
     );
-  const [state, activity] = await Promise.all([readVaultShared(vault), treasuryActivity(id)]);
+  const [state, activity] = await Promise.all([
+    readVaultShared(vault, row.program.chain),
+    treasuryActivity(id),
+  ]);
   const capPct =
     state.limits.maxPerDay > 0n
       ? Number((state.spentInWindow * 1000n) / state.limits.maxPerDay) / 10
@@ -65,7 +68,11 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
           <>
             Read from the <Term k="vault">vault</Term> on Arc (at most 15 seconds old).
             <span className="mt-1 block">
-              <HexValue value={vault} label="vault address" href={explorerAddress(vault)} />
+              <HexValue
+                value={vault}
+                label="vault address"
+                href={explorerAddress(vault, row.program.chain)}
+              />
             </span>
           </>
         }
@@ -151,7 +158,12 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
       {owner ? (
         <div className="grid items-start gap-6 lg:grid-cols-2">
           <Card title="Add funds" description="Deposit USDC from your wallet.">
-            <FundVault programId={id} vault={vault} usdc={usdcAddress()} owner={me} />
+            <FundVault
+              programId={id}
+              vault={vault}
+              usdc={usdcAddress(row.program.chain)}
+              owner={me}
+            />
           </Card>
           <Card
             id="vault-controls"
@@ -204,7 +216,7 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
                         <HexValue
                           value={d.txHash}
                           label="deposit transaction"
-                          href={explorerTx(d.txHash)}
+                          href={explorerTx(d.txHash, row.program.chain)}
                         />
                       </TableCell>
                       <TableCell className="mono-num text-right">
@@ -247,7 +259,7 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
                           <HexValue
                             value={o.txHash}
                             label="payout transaction"
-                            href={explorerTx(o.txHash)}
+                            href={explorerTx(o.txHash, row.program.chain)}
                           />
                         ) : (
                           "—"

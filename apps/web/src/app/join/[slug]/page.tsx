@@ -1,4 +1,5 @@
 import { decisions, getDb, submissions } from "@misthos/db";
+import { ProgramNetwork } from "@/components/web3/network";
 import { formatUsdc, Slug } from "@misthos/shared";
 import { listSources } from "@misthos/shared/sources";
 import { and, desc, eq } from "drizzle-orm";
@@ -97,7 +98,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   const roundOpen = !!round && round.status === "open" && !isScheduled(round);
 
   return (
-    <>
+    <ProgramNetwork chain={program.chain}>
       {preview ? <PreviewBanner programId={program.id} what="join page" /> : null}
       <SiteHeader right={session ? <ContributorAccount handle={session.xh} /> : null} />
       <main
@@ -127,7 +128,11 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
             <li className="bg-card shadow-soft rounded-full px-3.5 py-1.5">
               Up to <span className="mono-num font-medium">{formatUsdc(best)}</span> per piece
             </li>
-            <li className="bg-card shadow-soft rounded-full px-3.5 py-1.5">Paid in USDC on Arc</li>
+            <li className="bg-card shadow-soft rounded-full px-3.5 py-1.5">
+              {program.chain === "arc-mainnet"
+                ? "Paid in USDC on Arc Mainnet"
+                : "Paid in test USDC on Arc Testnet"}
+            </li>
           </ul>
 
           {brief ? (
@@ -363,7 +368,7 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
           )}
         </aside>
       </main>
-    </>
+    </ProgramNetwork>
   );
 }
 

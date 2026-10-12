@@ -49,8 +49,8 @@ export async function POST(req: Request) {
     nonce: b.nonce,
     issuedAt: new Date(b.issuedAt),
     signature: b.signature as `0x${string}`,
-    chainId: chainConfig().chain.id,
-    verify: (args) => verifyWalletSignature(publicClient(), args),
+    chainId: (chain) => chainConfig(chain).chain.id,
+    verify: (args, chain) => verifyWalletSignature(publicClient(chain), args),
     consumeNonce: (n, userId) => consumeNonce(n, "wallet_link", userId),
   });
   if (!result.ok) return jsonError(result.error, STATUS[result.error] ?? 400);

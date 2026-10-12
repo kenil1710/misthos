@@ -293,7 +293,7 @@ export default async function Home() {
                   <>
                     {" "}
                     <a
-                      href={explorerAddress(featured.vaultAddress)}
+                      href={explorerAddress(featured.vaultAddress, featured.chain)}
                       target="_blank"
                       rel="noreferrer"
                       className="text-foreground inline-flex items-center gap-0.5 underline underline-offset-4"

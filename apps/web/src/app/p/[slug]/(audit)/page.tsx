@@ -1,4 +1,5 @@
 import { formatUsdc, shortHex, SOURCE_LABEL } from "@misthos/shared";
+import { NetworkBadge } from "@/components/network-badge";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -73,6 +74,7 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
       <header className="grid gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-brand text-sm font-medium">Public audit</p>
+          <NetworkBadge chain={program.chain} />
           {program.isDemo ? (
             <span className="bg-warning-subtle text-warning rounded-md px-1.5 py-0.5 text-xs font-medium">
               Demo program: excluded from Misthos metrics
@@ -91,7 +93,7 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
               <HexValue
                 value={program.vaultAddress}
                 label="vault address"
-                href={explorerAddress(program.vaultAddress)}
+                href={explorerAddress(program.vaultAddress, program.chain)}
               />
             </span>
           ) : null}
@@ -207,7 +209,7 @@ export default async function PublicAuditPage({ params }: PageProps<"/p/[slug]">
                         <HexValue
                           value={p.txHash}
                           label="transaction hash"
-                          href={explorerTx(p.txHash)}
+                          href={explorerTx(p.txHash, program.chain)}
                         />
                       ) : null}
                     </TableCell>

@@ -1,4 +1,5 @@
 import { formatUsdc } from "@misthos/shared";
+import { NetworkBadge } from "@/components/network-badge";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -61,7 +62,12 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
     <div className="grid grid-cols-[minmax(0,1fr)] gap-8">
       <PageHeader
         title={program.name}
-        meta={<ProgramStatus status={program.status} />}
+        meta={
+          <span className="flex flex-wrap items-center gap-2">
+            <ProgramStatus status={program.status} />
+            <NetworkBadge chain={program.chain} />
+          </span>
+        }
         description={program.description}
         actions={
           <>

@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, lte, gt, or, sql } from "drizzle-orm";
 import type { Address, Hex } from "viem";
 import { ChainError, idempotencyUuid, type AgentExecutor } from "../chain/executor";
+import { onProgramNetwork } from "../network";
 import { fetcherFor, rejectAtPayout, type PipelineDeps } from "../pipeline";
 import type { Flag } from "../types";
 import { contributorIdBytes32, programIdBytes32, roundIdBytes32 } from "./ids";
@@ -76,15 +77,27 @@ async function hasPayoutInFlight(db: DbLike, contributorId: string) {
 export async function syncPayee(
   deps: RoundDeps,
   contributorId: string,
-): Promise<{ status: "skipped" | "unchanged" | "registered" | "deferred"; txHash?: Hex }> {
+): Promise<{
+  status: "skipped" | "unchanged" | "registered" | "deferred";
+  reason?: "wrong_network";
+  txHash?: Hex;
+}> {
   const db = deps.db;
   const [row] = await db
-    .select({ c: contributors, vault: programs.vaultAddress, programId: programs.id })
+    .select({
+      c: contributors,
+      vault: programs.vaultAddress,
+      programId: programs.id,
+      chain: programs.chain,
+    })
     .from(contributors)
     .innerJoin(programs, eq(programs.id, contributors.programId))
     .where(eq(contributors.id, contributorId))
     .limit(1);
   if (!row?.vault || !row.c.walletAddress || !row.c.walletVerifiedAt) return { status: "skipped" };
+  // The vault is on the program's network: register only with that network's agent.
+  if (!onProgramNetwork(deps.chainId, row.chain))
+    return { status: "skipped", reason: "wrong_network" };
   const vault = row.vault as Address;
   const cb = contributorIdBytes32(row.c.id);
   const wallet = row.c.walletAddress as Address;
@@ -556,6 +569,9 @@ export async function runRound(
   if (!row) return { status: "skipped", reason: "not_found" };
   const { r: round, p: program } = row;
   if (!program.vaultAddress) return { status: "skipped", reason: "no_vault" };
+  // Reads, proposals and payouts go through the program's network's agent only; nothing is locked otherwise.
+  if (!onProgramNetwork(deps.chainId, program.chain))
+    return { status: "skipped", reason: "wrong_network" };
   const vault = program.vaultAddress as Address;
   const programBytes = (program.programIdBytes32 ?? programIdBytes32(program.id)) as Hex;
   const leaseMs = deps.roundLeaseMs ?? DEFAULT_LEASE_MS;
@@ -954,7 +970,8 @@ async function runLocked(
 }
 
 /** Rounds whose window has ended for programs with a vault, oldest first. */
-export async function dueRounds(db: DbLike, now: Date) {
+/** Open rounds past their end (programs with a vault), on `networks` only when given (a worker's served networks). */
+export async function dueRounds(db: DbLike, now: Date, networks?: string[]) {
   return db
     .select({ id: rounds.id })
     .from(rounds)
@@ -965,6 +982,7 @@ export async function dueRounds(db: DbLike, now: Date) {
         lte(rounds.endsAt, now),
         sql`${programs.vaultAddress} is not null`,
         eq(programs.status, "active"),
+        networks ? inArray(programs.chain, networks) : undefined,
       ),
     )
     .orderBy(asc(rounds.endsAt))

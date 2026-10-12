@@ -32,6 +32,7 @@ export async function landingData() {
         isDemo: programs.isDemo,
         limits: programs.limitsJson,
         vaultAddress: programs.vaultAddress,
+        chain: programs.chain,
         paid: sql<number>`count(${payouts.id})::int`,
       })
       .from(programs)

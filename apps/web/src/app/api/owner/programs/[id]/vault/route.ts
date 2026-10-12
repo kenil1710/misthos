@@ -26,12 +26,12 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/programs/
 
   let created;
   try {
-    created = await findVaultCreated(body.data.txHash as Hex);
+    created = await findVaultCreated(body.data.txHash as Hex, program.chain);
   } catch (e) {
     if (e instanceof ChainVerifyError) return jsonError(e.message, 400);
     throw e;
   }
-  const expectedAgent = agentAddress();
+  const expectedAgent = agentAddress(program.chain);
   if (created.programId !== programIdBytes32(program.id))
     return jsonError("That vault was created for a different program.", 400);
   if (created.owner.toLowerCase() !== session.addr.toLowerCase())
@@ -40,7 +40,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/programs/
     return jsonError("The vault's agent isn't the Misthos agent wallet.", 400);
 
   // Limits on-chain are the source of truth from here on.
-  const state = await readVault(created.vault);
+  const state = await readVault(created.vault, program.chain);
   const limits: StoredLimits = {
     ...program.limitsJson,
     maxPerPayout: state.limits.maxPerPayout.toString(),

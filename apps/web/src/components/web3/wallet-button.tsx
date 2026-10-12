@@ -5,7 +5,7 @@ import { Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useWalletAccount } from "./use-wallet-account";
-import { chain } from "./wallet-config";
+import { useTargetNetwork } from "./network";
 import { useWalletUi } from "./web3-provider";
 
 /** Opens the wallet picker (or, once connected, the account panel) from a button in our own design system. */
@@ -22,6 +22,7 @@ export function WalletButton({
 }) {
   const { openConnect, prefetchConnect, opening } = useWalletUi();
   const { address, isConnected, chainId } = useWalletAccount();
+  const chain = useTargetNetwork().chain;
   return (
     <Button
       type="button"

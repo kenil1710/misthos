@@ -81,7 +81,7 @@ export default async function ContributorsPage({
                         <HexValue
                           value={c.walletAddress}
                           label="wallet"
-                          href={explorerAddress(c.walletAddress)}
+                          href={explorerAddress(c.walletAddress, row.program.chain)}
                         />
                         {c.walletChangedAt ? (
                           <span className="bg-warning-subtle text-warning rounded px-1.5 text-xs">

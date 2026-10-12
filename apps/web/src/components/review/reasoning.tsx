@@ -1,6 +1,5 @@
 "use client";
 
-import { getChainConfig } from "@misthos/shared/chains";
 import { shortHex } from "@misthos/shared/money";
 import { AlertTriangle, Check, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
@@ -10,9 +9,9 @@ import { Stepper, type Step } from "@/components/ui-kit/stepper";
 import { EVIDENCE_LABELS } from "@/lib/flags";
 import type { CheckLine, JourneyStep, ScoreLine } from "@/lib/journey";
 import { cn } from "@/lib/utils";
+import { useTargetNetwork } from "@/components/web3/network";
 import { utc } from "@/lib/time";
 
-const ARC_TX = (h: string) => `${getChainConfig().chain.blockExplorers!.default.url}/tx/${h}`;
 const time = (iso?: string) => (iso ? utc(new Date(iso)) : undefined);
 
 /**
@@ -22,12 +21,14 @@ const time = (iso?: string) => (iso ? utc(new Date(iso)) : undefined);
 export function JourneyStepper({
   steps,
   audience,
-  explorerTx = ARC_TX,
+  explorerTx,
 }: {
   steps: JourneyStep[];
   audience: "owner" | "contributor";
   explorerTx?: (hash: string) => string;
 }) {
+  const explorer = useTargetNetwork().explorerUrl;
+  const txUrl = explorerTx ?? ((h: string) => `${explorer}/tx/${h}`);
   const view: Step[] = steps.map((s) => ({
     key: s.key,
     label: s.label,
@@ -40,7 +41,7 @@ export function JourneyStepper({
           : undefined,
     detail: s.txHash ? (
       <a
-        href={explorerTx(s.txHash)}
+        href={txUrl(s.txHash)}
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-1 font-mono underline-offset-4 hover:underline"

@@ -3,7 +3,7 @@
 import "@rainbow-me/rainbowkit/styles.css";
 import { RainbowKitProvider, useConnectModal } from "@rainbow-me/rainbowkit";
 import { useEffect, useRef } from "react";
-import { chain } from "./wallet-config";
+import { useTargetNetwork } from "./network";
 import { walletTheme } from "./wallet-theme";
 
 /** How long a click's request to open the list may wait for RainbowKit (a disconnect settling, the chunk loading). */
@@ -20,6 +20,7 @@ export function RainbowLayer({
   request: { n: number; at: number };
   onOpenChange: (open: boolean) => void;
 }) {
+  const chain = useTargetNetwork().chain;
   return (
     <RainbowKitProvider
       theme={walletTheme}
