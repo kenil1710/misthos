@@ -3,7 +3,87 @@
 Branch: `mainnet` (never merged into `main` by an agent). Production (https://misthos.world, `main`) stays on Arc
 Testnet and is unchanged. Deadline: Oct 17, 2026 11:59 PM ET.
 
-> Morning report: see the top section once the overnight run finishes.
+## Morning report (2026-10-13)
+
+**1. Built and tested.** Everything in the brief is built on `mainnet`, except creating the mainnet agent wallet
+(hard stop). Arc Mainnet stays "Coming soon" until that wallet exists.
+
+- **Network switch:** header switch (Testnet / Mainnet, remembered, default Testnet). Every page has a badge; on a
+  campaign's pages it shows that campaign's network. Lists, `/c`, "See it live", landing numbers and metrics follow it.
+- **Wizard:** network picker with confirmation and safe mainnet limits; "Coming soon" when mainnet isn't configured.
+- **Campaign pages and wallets:** every on-chain read, check, wallet action and explorer link uses the campaign's
+  network, and owner transactions ask the wallet to switch to or add it.
+- **Worker:** two Circle clients and two agent wallets; every job runs on its program's network. If the mainnet
+  variables are missing, the worker starts normally and skips mainnet programs with a log line.
+- **Verify:** checks records on their own network.
+- **Metrics and copy:** metrics split everywhere, including the copy text; real vs test USDC wording, faucet only on
+  testnet.
+- **Docs:** `docs/MAINNET.md`, `.env.example`.
+
+Tests:
+
+| Suite                                                                         | Result                                                                                                                                                               |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit: shared                                                                  | 49 passed (+4 live tests skipped)                                                                                                                                    |
+| Unit: db                                                                      | 12 passed                                                                                                                                                            |
+| Unit: agent                                                                   | 215 passed (+1 skipped)                                                                                                                                              |
+| Unit: worker                                                                  | 30 passed                                                                                                                                                            |
+| Unit: web                                                                     | 173 passed (+1 opt-in fork test, skipped by default)                                                                                                                 |
+| Contracts                                                                     | 90 passed (+1 skipped)                                                                                                                                               |
+| Fork loop (`ARC_MAINNET_FORK=1 pnpm --filter @misthos/web test:mainnet-fork`) | 1/1                                                                                                                                                                  |
+| e2e (both networks, incl. two axe tests in both themes)                       | **33/33** on a production build (main server with mainnet off + a second server with a mainnet agent); axe: 0 serious/critical on every scanned page, light and dark |
+| Lighthouse mobile                                                             | landing 92, sign-in 92, program overview 91 (desktop 100); `docs/perf/lighthouse-mainnet-branch.json`                                                                |
+
+- **Fork loop scope:** deploy from the real mainnet factory → fund → signed decision for chain 5042 → payee →
+  propose → owner approval → execute → Verify on Arc Mainnet.
+- **Security review:** an independent review found no Critical or High issues. Low items fixed: the worker checks the
+  mainnet RPC chain id and the Circle wallet (ARC, matching address) before serving mainnet; mainnet idempotency keys
+  are network-prefixed; the reprocess script routes each submission by network. The rest are listed in `docs/MAINNET.md`
+  under "Known limits".
+
+**2. Mainnet contracts:** deployed 2026-10-10 and not redeployed; verified on-chain tonight.
+
+- MisthosVault template: `0x36E677De57Ce0f59eFed05a748B07c7Bb07d5dBb`
+  (tx `0x336c7fc4d57cc56c1923ac1842a4c16e964284926fec535092372d2f34836476`)
+- MisthosVaultFactory: `0x9075CbB50639216C2e4E32013514baa01f2b0C1b`
+  (tx `0x430aedcedc4ce351843ed14cbf74565b93d66cb625f6c580fd78fb61a80f05a0`)
+- Deployer `0x6B48…fdff`: **0.453901 USDC** left, nonce 2, so no other transaction was ever sent from it. Nothing
+  else touched mainnet tonight.
+
+**3. Preview:** https://misthos-git-mainnet-kenils-projects-a3f732d1.vercel.app
+
+- Vercel builds it automatically from this branch. It's behind Vercel Authentication, so log in to Vercel to open it.
+- The landing page and docs work. App pages don't, because every Vercel env var is scoped to Production only; I didn't
+  change any settings.
+- For a working preview, add Preview-scoped variables pointing at a throwaway database (e.g. a Neon branch, never
+  production): `DATABASE_URL`, `SESSION_SECRET`, `X_CLIENT_ID`, `X_CLIENT_SECRET`, `NEXT_PUBLIC_CHAIN=arc-testnet`,
+  `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`, `CIRCLE_AGENT_WALLET_ADDRESS`. No mainnet secrets.
+
+**4. What you do next, in order:**
+
+1. **Circle LIVE key.** Create a production API key in the Circle Console and put it in the root `.env` as
+   `CIRCLE_LIVE_API_KEY` (it starts with `LIVE_API_KEY:`).
+2. **Agent wallet.** Run `pnpm --filter @misthos/worker circle:setup:mainnet -- --confirm-mainnet`. Add
+   `--new-entity-secret` if Circle says the entity secret isn't registered for production. It writes
+   `CIRCLE_MAINNET_AGENT_WALLET_ID` and `CIRCLE_MAINNET_AGENT_WALLET_ADDRESS` to `.env` and deploys the SCA with one
+   sponsored call.
+3. **Gas Station.** Before step 2's deploy call can succeed: Circle Console (production) → Gas Station → a policy for
+   `ARC` covering the agent's wallet set, with a daily cap and billing.
+4. **Railway (worker)** env: `CIRCLE_LIVE_API_KEY`, `CIRCLE_MAINNET_AGENT_WALLET_ID`,
+   `CIRCLE_MAINNET_AGENT_WALLET_ADDRESS` (+ `CIRCLE_MAINNET_ENTITY_SECRET` if you made one). Keep
+   `NEXT_PUBLIC_CHAIN=arc-testnet`.
+5. **Vercel (web)** env: `CIRCLE_MAINNET_AGENT_WALLET_ADDRESS` only.
+6. **Merge and deploy:** review, merge `mainnet` → `main` yourself, then deploy as usual (`git push` for Vercel,
+   `railway up` for the worker; no database migration needed). Check that the worker log says
+   `networks: ["arc-testnet","arc-mainnet"]` and has no "Arc Mainnet off" line.
+7. **Smoke test with a few USDC:**
+   - Create a mainnet campaign with the safe limits, deploy the vault, deposit ~2 USDC.
+   - Join with a second wallet and submit something.
+   - Close the round and approve it (every round needs you).
+   - Check the payout on explorer.arc.io, Verify it on the public audit page, then withdraw the rest.
+
+**Blocked:** only the hard stops: the mainnet agent wallet (needs your LIVE key), any other mainnet transaction, and
+merging or deploying.
 
 ## Hard rules (from the owner)
 
@@ -68,11 +148,13 @@ Checked on-chain 2026-10-12: both have code; `factory.implementation()` = the te
 - e2e: `networks.spec.ts` (switch, Coming soon, mainnet wizard on a second server, badges, lists, wrong-network
   add+switch) and a second axe test over every network-affected page in both themes.
 
-### Left (in order)
+- Lighthouse (mobile ≥ 90 on landing, sign-in, overview), independent security review (no Critical/High; Lows fixed
+  or documented), morning report.
 
-1. Full e2e + axe results recorded; Lighthouse mobile on landing, sign-in, program overview (e2e stack).
-2. Independent security review (running); fix Critical/High with tests.
-3. Morning report at the top of this file.
+### Left
+
+- Nothing in scope. Follow-ups (not blocking): chain-scoped owner sessions for contract signers; the worker publishing
+  its served networks so the web app can gate Mainnet on it (see `docs/MAINNET.md` → Known limits).
 
 ### Blocked / needs the owner
 
@@ -108,5 +190,8 @@ Checked on-chain 2026-10-12: both have code; `factory.implementation()` = the te
   switch only filters lists and public summaries. The cookie is only a display preference (parsed to one of two keys).
 - D12 e2e runs a second `next start` (:3101) from the same build with a chain-free mainnet agent address, so both
   "Coming soon" and the enabled mainnet wizard are tested; the e2e PGlite server allows 3 connections.
+- D13 e2e `navigation.spec.ts` (sign-out): it now waits for the wallet chip to reach "Wallet ready" before opening the
+  account menu. Under full-suite load the chip remounted when its wallet code loaded and closed the open menu (an
+  existing test race, not a product change). The e2e database must be fresh per full run (two specs use fixed slugs).
 - D7 Unit tests run with `--concurrency=1` across packages: in parallel, PGlite-heavy suites time out on this machine
   (not failures in the code; each package passes alone).

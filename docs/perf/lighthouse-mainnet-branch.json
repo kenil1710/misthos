@@ -1,0 +1,96 @@
+{
+  "base": "http://localhost:3100",
+  "at": "2026-10-12T18:34:06.700Z",
+  "rows": [
+    {
+      "page": "Landing",
+      "form": "mobile",
+      "scores": {
+        "performance": 92,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 3399,
+      "tbtMs": 40,
+      "cls": 0,
+      "jsKb": 221,
+      "failing": ["performance:largest-contentful-paint (3.4 s)"]
+    },
+    {
+      "page": "Landing",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 100
+      },
+      "lcpMs": 608,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 279,
+      "failing": []
+    },
+    {
+      "page": "Sign-in",
+      "form": "mobile",
+      "scores": {
+        "performance": 92,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 3372,
+      "tbtMs": 8,
+      "cls": 0.02,
+      "jsKb": 300,
+      "failing": ["performance:largest-contentful-paint (3.4 s)", "seo:is-crawlable"]
+    },
+    {
+      "page": "Sign-in",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 573,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 300,
+      "failing": ["seo:is-crawlable"]
+    },
+    {
+      "page": "Owner overview",
+      "form": "mobile",
+      "scores": {
+        "performance": 91,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 3530,
+      "tbtMs": 8,
+      "cls": 0,
+      "jsKb": 261,
+      "failing": ["performance:largest-contentful-paint (3.5 s)", "seo:is-crawlable"]
+    },
+    {
+      "page": "Owner overview",
+      "form": "desktop",
+      "scores": {
+        "performance": 100,
+        "accessibility": 100,
+        "best-practices": 100,
+        "seo": 63
+      },
+      "lcpMs": 573,
+      "tbtMs": 0,
+      "cls": 0,
+      "jsKb": 360,
+      "failing": ["seo:is-crawlable"]
+    }
+  ]
+}

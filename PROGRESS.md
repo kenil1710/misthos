@@ -23,6 +23,15 @@ Railway, Neon; misthos-iota.vercel.app and www redirect there). Repository publi
 3. `~/CLAUDE.md` Latch API-routing rule does not apply to this project; secrets come from root `.env`
    (gitignored, never committed or logged). Mainnet deploys and real funds need explicit owner OK.
 
+## Arc Mainnet support (branch `mainnet`, 2026-10-12/13, not merged)
+
+Overnight build on the `mainnet` branch only; `main` and production (Vercel, Railway, Neon) unchanged. Everything is
+in `docs/MAINNET_PLAN.md` (log, decisions, morning report) and `docs/MAINNET.md` (how it works, setup, security).
+Header network switch (Testnet default), per-campaign network end to end (web, worker, agent, Verify, metrics),
+mainnet "Coming soon" until the owner's Circle LIVE agent wallet exists. Mainnet vault template + factory deployed
+2026-10-10 (not redeployed). Whole mainnet loop tested on a local Anvil fork; e2e 33/33 on both networks; independent
+security review: no Critical/High.
+
 ## Code freeze (2026-10-10)
 
 **main is frozen.** No feature changes unless the owner asks. State at freeze:

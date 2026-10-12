@@ -259,6 +259,10 @@ test("owner: a protected page signs in in place and stays there; sign-out lands 
   expect(path(page)).toBe(`/app/programs/${programId}/treasury`);
 
   // Sign out: the landing page says so, and the app asks to sign in again (no blank or error page).
+  // Wait for the wallet chip to settle first: it remounts when its wallet code loads, which closes an open menu.
+  await expect(
+    page.getByRole("button", { name: /^Account 0x.*Wallet ready$/ }).first(),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: /^Account 0x/ })
     .first()

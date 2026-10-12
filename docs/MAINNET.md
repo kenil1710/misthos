@@ -110,6 +110,9 @@ trust the campaign's flow.
   wallet and the testnet EOA fallback can never act on mainnet: the worker's primary network must be Arc Testnet, the
   mainnet agent comes only from the `CIRCLE_LIVE_*` / `CIRCLE_MAINNET_*` variables, and a mainnet wallet id or address
   equal to the testnet one is refused.
+- **Checked before serving.** At startup the worker confirms the mainnet RPC answers chain 5042 and that
+  `CIRCLE_MAINNET_AGENT_WALLET_ID` is an `ARC` wallet at `CIRCLE_MAINNET_AGENT_WALLET_ADDRESS`; otherwise mainnet stays
+  off. Mainnet Circle idempotency keys are network-prefixed, so they can't collide with testnet ones.
 - **Nothing reaches mainnet without its variables.** Missing, partial or invalid mainnet values turn mainnet off (one
   warning naming the variables, never their values); the worker still starts and serves testnet as before; mainnet jobs
   are skipped with a log line and their rows stay untouched; due rounds and stuck work are only picked up for networks
@@ -122,6 +125,20 @@ trust the campaign's flow.
   all run there.
 - **Wallet prompts.** Every owner transaction is pinned to the campaign's chain id; the wallet is asked to switch or add
   the network first. The faucet link appears only on testnet; funding screens on mainnet say "real USDC".
+
+## Known limits and follow-ups (from the independent review, all Low/Info)
+
+- Owner sessions aren't scoped to a chain: an owner who signed in on either Arc network acts on their campaigns on
+  both. For EOAs and CREATE2 smart wallets that's the same key; a contract wallet whose address differs per chain could
+  in theory sign in as someone else's address on the other network. Follow-up: keep the SIWE chain id in the session
+  and require it for contract signers.
+- The web app decides "Mainnet is open" from its own env (factory + `CIRCLE_MAINNET_AGENT_WALLET_ADDRESS`); the worker
+  from its own (LIVE key, wallet id, address, and the startup check). Set both together with the same address.
+  Follow-up: have the worker publish the networks it serves and gate the wizard on it.
+- The web app trusts `ARC_MAINNET_RPC_URL` / `ARC_RPC_URL` to be the right chain (the worker checks the mainnet RPC's
+  chain id at startup). Leave them unset unless you need a private RPC.
+- The worker checks the mainnet RPC and the Circle wallet once at startup; if Circle or the RPC is down at that moment,
+  mainnet stays off until the next restart (logged).
 
 ## Testing without real money
 
