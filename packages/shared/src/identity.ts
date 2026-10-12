@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { arcMainnet } from "./chains";
 
 /** GitHub username rules: 1–39 chars, alphanumeric or single hyphens, no leading/trailing hyphen. */
 export const GithubLogin = z
@@ -38,6 +39,8 @@ export function buildWalletLinkMessage(p: WalletLinkParams): string {
     `X account: @${p.xHandle} (${p.xUserId})`,
     `Wallet: ${p.address.toLowerCase()}`,
     `Chain ID: ${p.chainId}`,
+    // Arc Mainnet campaigns say so in words (real money); the testnet message is unchanged.
+    ...(p.chainId === arcMainnet.id ? ["Network: Arc Mainnet (real USDC)"] : []),
     `Nonce: ${p.nonce}`,
     `Issued at: ${p.issuedAt.toISOString()}`,
     "",

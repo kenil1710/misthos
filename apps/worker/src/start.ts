@@ -29,8 +29,8 @@ import {
   type PublicClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { circleClient, circleExecutor, circleSigner } from "./circle";
-import { agentBackend, directUrl, loadEnv, mainnetAgent } from "./config";
+import { circleClient, circleExecutor, circleSigner, type CircleClient } from "./circle";
+import { agentBackend, directUrl, loadEnv, mainnetAgent, type MainnetAgent } from "./config";
 import type { WorkerDeps } from "./jobs";
 import { createRunner, runnerIsHealthy } from "./runner";
 
@@ -95,21 +95,7 @@ export function buildDeps(opts: Pick<StartOptions, "wrapFetchers"> & { poolMax?:
   // when its own Circle agent is fully configured (LIVE key, wallet id, address), never from the testnet key.
   const byChain = new Map<string, RoundDeps>([[chain.key, base]]);
   const main = mainnetAgent(env);
-  if (main.agent) {
-    const mainnet = getChainConfig("arc-mainnet");
-    const client = createPublicClient({
-      chain: mainnet.chain,
-      transport: http(main.agent.rpcUrl),
-    }) as PublicClient;
-    const circle = circleClient(main.agent.apiKey, main.agent.entitySecret);
-    byChain.set("arc-mainnet", {
-      ...base,
-      reader: viemVaultReader(client),
-      executor: circleExecutor(circle, main.agent.walletId, main.agent.address),
-      signer: circleSigner(circle, main.agent.walletId, main.agent.address),
-      chainId: mainnet.chain.id,
-    });
-  }
+  if (main.agent) byChain.set("arc-mainnet", mainnetDeps(base, main.agent));
   const deps: WorkerDeps = {
     ...base,
     networks: [...byChain.keys()],
@@ -119,6 +105,31 @@ export function buildDeps(opts: Pick<StartOptions, "wrapFetchers"> & { poolMax?:
   };
   const disabled = main.agent ? null : `Arc Mainnet off: ${main.reason}`;
   return { env, chain, deps, pool, signer, networks: [...byChain.keys()], disabled };
+}
+
+/**
+ * Arc Mainnet's dependencies: everything chain-bound (vault reader, executor, decision signer, chain id) comes from the
+ * mainnet agent alone (its Circle LIVE key and wallet, the mainnet RPC); the rest (database, judge, fetchers) is shared.
+ * `makeCircle` is only replaced in tests (the fork loop's CircleLiveClientStub).
+ */
+export function mainnetDeps(
+  base: RoundDeps,
+  agent: MainnetAgent,
+  makeCircle: (apiKey: string, entitySecret: string) => CircleClient = circleClient,
+): RoundDeps {
+  const mainnet = getChainConfig("arc-mainnet");
+  const client = createPublicClient({
+    chain: mainnet.chain,
+    transport: http(agent.rpcUrl),
+  }) as PublicClient;
+  const circle = makeCircle(agent.apiKey, agent.entitySecret);
+  return {
+    ...base,
+    reader: viemVaultReader(client),
+    executor: circleExecutor(circle, agent.walletId, agent.address),
+    signer: circleSigner(circle, agent.walletId, agent.address),
+    chainId: mainnet.chain.id,
+  };
 }
 
 /**

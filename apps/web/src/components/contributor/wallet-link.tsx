@@ -4,7 +4,8 @@ import { shortHex } from "@misthos/shared/money";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useDisconnect, useSignMessage } from "wagmi";
+import { useDisconnect, useSignMessage, useSwitchChain } from "wagmi";
+import { useTargetNetwork } from "@/components/web3/network";
 import { useWalletAccount } from "@/components/web3/use-wallet-account";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,7 +55,10 @@ export function WalletLink({
   /** Open the wallet picker once if no wallet reconnects (the person just clicked "Connect"). */
   autoOpen?: boolean;
 }) {
-  const { address, isConnected, status, connector } = useWalletAccount();
+  const { address, isConnected, status, connector, chainId } = useWalletAccount();
+  // The campaign's network (join and contributor pages wrap themselves in it).
+  const network = useTargetNetwork();
+  const { switchChainAsync } = useSwitchChain();
   const { openConnect } = useWalletUi();
   const opened = useRef(false);
   useEffect(() => {
@@ -98,6 +102,10 @@ export function WalletLink({
         });
         return;
       }
+      // Arc Mainnet campaigns: the wallet signs on Arc Mainnet (a smart wallet's signature is checked there), so it's
+      // asked to switch to it first, adding it if it doesn't know it. Testnet campaigns sign as they always have.
+      if (!network.isTestnet && chainId !== network.chain.id)
+        await switchChainAsync({ chainId: network.chain.id });
       const signature = await signMessageAsync({ message: challenge.message });
       const res = await fetch("/api/contributor/wallet/verify", {
         method: "POST",
@@ -215,6 +223,11 @@ export function WalletLink({
         send a transaction.
         {mode === "change" && cooldownHours
           ? ` For your safety, payouts to a new wallet start ${cooldownHours} hours after the change.`
+          : ""}
+        {!network.isTestnet
+          ? isConnected && chainId !== network.chain.id
+            ? " Your wallet will first switch to Arc Mainnet, where this campaign pays real USDC."
+            : " This campaign pays real USDC on Arc Mainnet."
           : ""}
       </p>
       {error ? (

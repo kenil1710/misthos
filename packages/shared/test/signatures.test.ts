@@ -41,6 +41,25 @@ describe("buildWalletLinkMessage", () => {
     }
   });
 
+  it("testnet message is exactly as before; a mainnet one names Arc Mainnet and real USDC", () => {
+    expect(buildWalletLinkMessage(linkParams)).toBe(
+      [
+        "Misthos: link this wallet to receive payouts from Arc Builders.",
+        "",
+        "Program: arc-builders",
+        "X account: @alice (12345)",
+        "Wallet: 0x0000000000000000000000000000000000000001",
+        "Chain ID: 5042002",
+        "Nonce: n0nce",
+        "Issued at: 2026-10-02T12:00:00.000Z",
+        "",
+        "Signing is free and does not send a transaction.",
+      ].join("\n"),
+    );
+    const main = buildWalletLinkMessage({ ...linkParams, chainId: 5042 });
+    expect(main).toContain("Chain ID: 5042\nNetwork: Arc Mainnet (real USDC)\nNonce: n0nce");
+  });
+
   it("lowercases the wallet so checksum casing can't change the message", () => {
     const a = buildWalletLinkMessage({
       ...linkParams,

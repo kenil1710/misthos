@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:mainnet-fork": "ARC_MAINNET_FORK=1 vitest run test/mainnet-fork.test.ts"
   },
   "dependencies": {
     "@misthos/db": "workspace:*",

@@ -17,7 +17,6 @@ import { useAccount, useAccountEffect, useSwitchChain, WagmiContext, WagmiProvid
 import { classifyWalletError, isWalletNoise, WALLET_NOTICE_EVENT } from "@/lib/wallet-errors";
 import { AccountDialog } from "./account-dialog";
 import type { RainbowLayer as RainbowLayerType } from "./rainbow-layer";
-import { chainConfigById } from "@misthos/shared/chains";
 import { useTargetNetwork } from "./network";
 import { ensureRainbowConnectors, getQueryClient, getWalletConfig } from "./wallet-config";
 
@@ -124,10 +123,9 @@ function WalletUiBridge({ children }: { children: ReactNode }) {
     onConnect({ chainId, isReconnected }) {
       if (isReconnected || !asked.current) return;
       asked.current = false;
-      // wagmi adds the chain (wallet_addEthereumChain) when the wallet doesn't know it yet.
-      // Only a non-Arc chain is switched (to the page's network); the other Arc network is the owner's choice and
-      // is flagged on the action that needs this program's network.
-      if (!chainConfigById(chainId))
+      // wagmi adds the chain (wallet_addEthereumChain) when the wallet doesn't know it yet. The page's network: a
+      // campaign's own (Arc Testnet or Arc Mainnet), else Arc Testnet, as before.
+      if (chainId !== chain.id)
         switchChainAsync({ chainId: chain.id }).catch((e) => {
           const err = classifyWalletError(e);
           if (err.kind !== "rejected" && err.kind !== "closed") toast(err.message);
