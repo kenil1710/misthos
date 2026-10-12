@@ -157,7 +157,14 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
 
       {owner ? (
         <div className="grid items-start gap-6 lg:grid-cols-2">
-          <Card title="Add funds" description="Deposit USDC from your wallet.">
+          <Card
+            title="Add funds"
+            description={
+              row.program.chain === "arc-mainnet"
+                ? "Deposit real USDC from your wallet (Arc Mainnet)."
+                : "Deposit USDC from your wallet."
+            }
+          >
             <FundVault
               programId={id}
               vault={vault}

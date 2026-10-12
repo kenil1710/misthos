@@ -6,15 +6,27 @@ import { SiteHeader } from "@/components/app/site-header";
 import { JoinedCard } from "@/components/contributor/joined-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui-kit";
+import { NetworkEmpty } from "@/components/network-empty";
 import { joinedPrograms } from "@/lib/server/joined";
+import { selectedNetwork } from "@/lib/server/network";
 import { getContributorSession, getOwnerSession } from "@/lib/server/session";
 
 export const metadata = { title: "Programs you joined", robots: { index: false } };
 
 /** The contributor's home: every program they joined, with its round, what's waiting and what they've earned. */
 export default async function ContributorHomeIndex() {
-  const [session, owner] = await Promise.all([getContributorSession(), getOwnerSession()]);
-  const joined = session ? await joinedPrograms(session.xid) : [];
+  const [session, owner, network] = await Promise.all([
+    getContributorSession(),
+    getOwnerSession(),
+    selectedNetwork(),
+  ]);
+  // The header's network only: testnet and mainnet USDC are never added together.
+  const [joined, other] = session
+    ? await Promise.all([
+        joinedPrograms(session.xid, network),
+        joinedPrograms(session.xid, network === "arc-mainnet" ? "arc-testnet" : "arc-mainnet"),
+      ])
+    : [[], []];
   return (
     <>
       <SiteHeader
@@ -47,7 +59,9 @@ export default async function ContributorHomeIndex() {
           {session && joined.length > 0 ? (
             <dl className="bg-card shadow-soft flex gap-8 rounded-[1.25rem] px-6 py-4">
               <div>
-                <dt className="text-muted-foreground text-xs">Earned in total</dt>
+                <dt className="text-muted-foreground text-xs">
+                  Earned on {network === "arc-mainnet" ? "Arc Mainnet" : "Arc Testnet"}
+                </dt>
                 <dd className="display text-[2rem] leading-none tabular-nums">
                   {formatUsdc(
                     joined.reduce((s, j) => s + j.earned, 0n),
@@ -76,6 +90,8 @@ export default async function ContributorHomeIndex() {
               <a href={`/api/auth/x/start?next=${encodeURIComponent("/c")}`}>Sign in with X</a>
             </Button>
           </section>
+        ) : joined.length === 0 && other.length ? (
+          <NetworkEmpty network={network} what="programs you joined" otherCount={other.length} />
         ) : joined.length === 0 ? (
           <EmptyState art="link" title="No programs yet">
             You haven&apos;t joined a program yet. Open a program&apos;s join link (owners share it

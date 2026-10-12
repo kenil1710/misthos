@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/brand/wordmark";
+import { NetworkSwitch } from "@/components/network-switch";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
@@ -45,6 +46,7 @@ export function FocusHeader({
           ) : null}
           {status ? <span className="hidden items-center sm:flex">{status}</span> : null}
           {exit}
+          <NetworkSwitch />
           <ThemeToggle />
         </div>
       </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Mark, Wordmark } from "@/components/brand/wordmark";
+import { NetworkSwitch } from "@/components/network-switch";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { explorerAddress, factoryAddress } from "@/lib/landing-links";
@@ -24,6 +25,7 @@ export function SiteHeader() {
               <Link href="/docs">Docs</Link>
             </Button>
           </div>
+          <NetworkSwitch className="mx-1" />
           <ThemeToggle />
           <AccountNav />
         </nav>
@@ -32,15 +34,18 @@ export function SiteHeader() {
   );
 }
 
-export function SiteFooter() {
+/** `mainnet`: Arc Mainnet campaigns are open (factory and agent configured); otherwise testnet only, as before. */
+export function SiteFooter({ mainnet = false }: { mainnet?: boolean }) {
   return (
     <footer className="bg-card mt-32 rounded-t-[2rem] md:mt-40">
       <div className="mx-auto grid max-w-[1240px] gap-12 px-4 pt-16 pb-10 sm:px-6 md:grid-cols-12 md:pt-20">
         <div className="md:col-span-5">
           <Wordmark />
           <p className="text-soft mt-4 max-w-xs leading-relaxed">
-            Launch a campaign. AI pays your community for real work. Live on Arc testnet with test
-            USDC.
+            Launch a campaign. AI pays your community for real work.{" "}
+            {mainnet
+              ? "Live on Arc Testnet (test USDC) and Arc Mainnet (real USDC)."
+              : "Live on Arc testnet with test USDC."}
           </p>
           <Button asChild className="mt-6">
             <Link href="/app" prefetch={false}>
@@ -80,7 +85,9 @@ export function SiteFooter() {
           <Mark className="text-brand size-4" />
           Misthos pays in USDC on Arc. You keep the keys and the funds.
         </span>
-        <span className="text-muted-foreground">Arc testnet · test USDC only</span>
+        <span className="text-muted-foreground">
+          {mainnet ? "Arc Testnet · Arc Mainnet" : "Arc testnet · test USDC only"}
+        </span>
       </div>
     </footer>
   );

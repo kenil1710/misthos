@@ -6,13 +6,16 @@ import { currentRound } from "@/lib/rounds";
 
 export interface JoinedProgram extends JoinedCounts {
   contributorId: string;
-  program: { id: string; name: string; slug: string; status: string };
+  program: { id: string; name: string; slug: string; status: string; chain: string };
   round: { number: number; startsAt: Date; endsAt: Date; status: string } | null;
   earned: bigint;
 }
 
-/** Every program an X account joined, with what's waiting, approved and paid there. Queries run in parallel. */
-export async function joinedPrograms(xUserId: string): Promise<JoinedProgram[]> {
+/**
+ * Every program an X account joined, with what's waiting, approved and paid there. Queries run in parallel. With
+ * `chain`, only programs on that network (the header's switch): testnet and mainnet USDC are never added together.
+ */
+export async function joinedPrograms(xUserId: string, chain?: string): Promise<JoinedProgram[]> {
   const db = getDb();
   const rows = await db
     .select({ c: contributors, p: programs })
@@ -23,6 +26,7 @@ export async function joinedPrograms(xUserId: string): Promise<JoinedProgram[]> 
         eq(contributors.xUserId, xUserId),
         ne(contributors.status, "removed"),
         ne(programs.status, "draft"),
+        chain ? eq(programs.chain, chain) : undefined,
       ),
     )
     .orderBy(desc(contributors.createdAt));
@@ -57,7 +61,7 @@ export async function joinedPrograms(xUserId: string): Promise<JoinedProgram[]> 
     const r = currentRound(roundRows.filter((x) => x.programId === p.id));
     return {
       contributorId: c.id,
-      program: { id: p.id, name: p.name, slug: p.slug, status: p.status },
+      program: { id: p.id, name: p.name, slug: p.slug, status: p.status, chain: p.chain },
       round: r
         ? { number: r.number, startsAt: r.startsAt, endsAt: r.endsAt, status: r.status }
         : null,

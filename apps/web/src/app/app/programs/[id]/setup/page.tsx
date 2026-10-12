@@ -194,7 +194,10 @@ export default async function ProgramSetupPage({ params }: PageProps<"/app/progr
                     >
                       Change them first
                     </Link>
-                    . Arc charges a small network fee in USDC.
+                    .{" "}
+                    {program.chain === "arc-mainnet"
+                      ? "This deploys on Arc Mainnet; the network fee is paid in real USDC."
+                      : "Arc charges a small network fee in USDC."}
                   </>
                 }
               />
@@ -234,7 +237,11 @@ export default async function ProgramSetupPage({ params }: PageProps<"/app/progr
                   Fund the <em>vault</em>
                 </>
               }
-              intro="Deposit the USDC this program will pay out. Payouts can never exceed what's in the vault, and you can withdraw unused funds at any time, even while it's paused."
+              intro={
+                program.chain === "arc-mainnet"
+                  ? "Deposit the real USDC this program will pay out on Arc Mainnet. Payouts can never exceed what's in the vault, and you can withdraw unused funds at any time, even while it's paused."
+                  : "Deposit the USDC this program will pay out. Payouts can never exceed what's in the vault, and you can withdraw unused funds at any time, even while it's paused."
+              }
             >
               {vault ? (
                 <Facts

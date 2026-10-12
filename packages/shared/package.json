@@ -14,7 +14,8 @@
     "./signatures": "./src/signatures.ts",
     "./ids": "./src/ids.ts",
     "./deployments": "./src/deployments.ts",
-    "./context": "./src/context.ts"
+    "./context": "./src/context.ts",
+    "./network": "./src/network.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { NETWORK_SCRIPT } from "@/components/network-switch";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -47,6 +48,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${displaySerif.variable} h-full antialiased`}
     >
+      <head>
+        {/* The visitor's network (header switch) before first paint, like the theme: no flash of the other one. */}
+        <script dangerouslySetInnerHTML={{ __html: NETWORK_SCRIPT }} />
+      </head>
       <body className="flex min-h-full flex-col">
         <ThemeProvider
           attribute="class"

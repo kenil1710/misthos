@@ -3,6 +3,7 @@
 import { Bell, CheckCircle2, Copy, ExternalLink, Share2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { NetworkSwitch } from "@/components/network-switch";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -147,6 +148,7 @@ export function TopBar({
         {current?.roundPill ? <RoundPill pill={current.roundPill} /> : null}
       </div>
       <div className="flex items-center gap-1.5">
+        <NetworkSwitch program={current?.chain} />
         <NeedsBell needs={needs} />
         {current && published ? <ShareMenu program={current} /> : null}
         <ThemeToggle />

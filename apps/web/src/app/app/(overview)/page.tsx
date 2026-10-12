@@ -8,7 +8,10 @@ import { JoinedCard } from "@/components/contributor/joined-card";
 import { ProductFrame } from "@/components/landing/product-frame";
 import { Button } from "@/components/ui/button";
 import { PageHeader, Section } from "@/components/ui-kit";
+import { NetworkEmpty } from "@/components/network-empty";
 import { joinedPrograms } from "@/lib/server/joined";
+import { selectedNetwork } from "@/lib/server/network";
+import { availableChains } from "@/lib/server/vault";
 import { exampleAuditSlug } from "@/lib/server/landing";
 import { programSummaries } from "@/lib/server/program-summary";
 import { getContributorSession, getOwnerSession } from "@/lib/server/session";
@@ -21,13 +24,16 @@ export async function generateMetadata() {
 export default async function OverviewPage() {
   const session = await getOwnerSession();
   if (!session) return null; // layout renders sign-in
-  const [summaries, contributor] = await Promise.all([
+  const [all, contributor, network] = await Promise.all([
     programSummaries(session.sub),
     getContributorSession(),
+    selectedNetwork(),
   ]);
-  const joined = contributor ? await joinedPrograms(contributor.xid) : [];
+  // The header's network: only that network's campaigns (testnet and mainnet USDC are never mixed).
+  const summaries = all.filter((s) => s.program.chain === network);
+  const joined = contributor ? await joinedPrograms(contributor.xid, network) : [];
 
-  if (!summaries.length) {
+  if (!all.length) {
     const example = await exampleAuditSlug();
     return (
       <div className="grid gap-8">
@@ -93,6 +99,19 @@ export default async function OverviewPage() {
     );
   }
 
+  if (!summaries.length)
+    return (
+      <div className="grid gap-8">
+        <PageHeader title="Your programs" />
+        <NetworkEmpty
+          network={network}
+          what="campaigns"
+          createHref="/app/programs/new"
+          comingSoon={!availableChains().includes(network)}
+          otherCount={all.length}
+        />
+      </div>
+    );
   if (summaries.length === 1) redirect(`/app/programs/${summaries[0]!.program.id}`);
   return <AllPrograms summaries={summaries} joined={joined} />;
 }

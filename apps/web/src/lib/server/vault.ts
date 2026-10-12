@@ -6,6 +6,7 @@ import {
   getDeployment,
   misthosVaultAbi,
   misthosVaultFactoryAbi,
+  networkConfig,
   type ChainKey,
 } from "@misthos/shared";
 import { parseEventLogs, type Address, type Hex } from "viem";
@@ -21,29 +22,21 @@ export function factoryAddress(chain?: string): Address {
   return f;
 }
 
-const isAddress = (a: string | undefined): a is Address => !!a && /^0x[0-9a-fA-F]{40}$/.test(a);
-
 /**
  * The agent a network's vaults trust: its Circle SCA (env), never a key the web app holds. Arc Mainnet has its own
  * agent wallet (CIRCLE_MAINNET_AGENT_WALLET_ADDRESS) and never falls back to the testnet one.
  */
 export function agentAddress(chain?: string): Address | null {
-  const key = chainConfig(chain).key;
-  const a =
-    key === "arc-mainnet"
-      ? process.env.CIRCLE_MAINNET_AGENT_WALLET_ADDRESS
-      : (process.env.CIRCLE_AGENT_WALLET_ADDRESS ?? process.env.AGENT_ADDRESS);
-  return isAddress(a) ? a : null;
+  return networkConfig(chainConfig(chain).key).agentWallet;
 }
 
 /**
- * Networks new programs can use: the primary network always (as before: drafts don't need the agent yet), any other
- * only with a factory deployed there and an agent configured for it.
+ * Networks new programs can use: Arc Testnet always (as before: drafts don't need the agent yet); Arc Mainnet only
+ * with its factory deployed and its own agent configured.
  */
 export function availableChains(): ChainKey[] {
-  const primary = chainConfig().key;
   return CHAIN_KEYS.filter(
-    (k) => k === primary || (!!getDeployment(k).vaultFactory && !!agentAddress(k)),
+    (k) => k === "arc-testnet" || (!!getDeployment(k).vaultFactory && !!agentAddress(k)),
   );
 }
 

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app/app-shell";
 import { Wordmark } from "@/components/brand/wordmark";
+import { NetworkSwitch } from "@/components/network-switch";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { OwnerSignIn } from "@/components/web3/islands";
 import { isFounder } from "@/lib/server/founders";
+import { selectedNetwork } from "@/lib/server/network";
 import { appOrigin } from "@/lib/server/env";
 import { programSummaries } from "@/lib/server/program-summary";
 import { shareOnXUrl } from "@/lib/share";
@@ -25,7 +27,10 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
             <Link href="/" aria-label="Misthos home" className="rounded-md">
               <Wordmark />
             </Link>
-            <ThemeToggle />
+            <div className="flex items-center gap-1">
+              <NetworkSwitch />
+              <ThemeToggle />
+            </div>
           </header>
           <main
             id="main"
@@ -91,10 +96,11 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
       </>
     );
 
-  const [summaries, founder, contributor] = await Promise.all([
+  const [summaries, founder, contributor, network] = await Promise.all([
     programSummaries(session.sub),
     isFounder(session),
     Promise.resolve(contributorOnly),
+    selectedNetwork(),
   ]);
   const origin = appOrigin();
   return (
@@ -102,8 +108,10 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
       address={session.addr}
       founder={founder}
       contributor={!!contributor}
+      network={network}
       programs={summaries.map(({ program: p, waitingReview, needs, round }) => ({
         id: p.id,
+        chain: p.chain,
         name: p.name,
         slug: p.slug,
         status: p.status,

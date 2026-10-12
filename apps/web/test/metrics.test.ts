@@ -295,3 +295,30 @@ describe("metrics count each submission once (F-11)", () => {
     expect(after.programsOnboarded).toBe(before.programsOnboarded);
   });
 });
+
+describe("computeMetrics per network (Arc Testnet and Arc Mainnet apart)", () => {
+  it("a network filter counts only that network's programs; testnet and mainnet USDC never mix", async () => {
+    const all = await computeMetrics(db);
+    expect(await computeMetrics(db, "arc-testnet")).toEqual(all);
+    const mainnet = await computeMetrics(db, "arc-mainnet");
+    expect(mainnet).toMatchObject({
+      programsOnboarded: 0,
+      submissionsReviewed: 0,
+      usdcPaidTestnet: 0n,
+      usdcPaidMainnet: 0n,
+      contributorsPaid: 0,
+    });
+    // The same program moved to mainnet: its numbers move with it, and testnet goes to zero.
+    await db.update(programs).set({ chain: "arc-mainnet" }).where(eq(programs.id, real));
+    expect(await computeMetrics(db, "arc-mainnet")).toMatchObject({
+      programsOnboarded: 1,
+      submissionsReviewed: 3,
+      usdcPaidMainnet: 2_000_000n,
+      usdcPaidTestnet: 0n,
+    });
+    expect(await computeMetrics(db, "arc-testnet")).toMatchObject({
+      programsOnboarded: 0,
+      usdcPaidTestnet: 0n,
+    });
+  });
+});

@@ -31,6 +31,7 @@ import { ActionBadge } from "@/components/public/action-badge";
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/ui-kit/stepper";
 import { explorerAddress } from "@/lib/landing-links";
+import { availableChains } from "@/lib/server/vault";
 import { type Example, landingData } from "@/lib/server/landing";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +44,12 @@ export const metadata: Metadata = {
 };
 
 export default async function Home() {
-  const { metrics, showMetrics, featured, examples } = await landingData();
+  const { metrics, showMetrics, featured, examples, mainnet } = await landingData();
+  // Arc Mainnet is open for new campaigns once its factory and agent wallet are configured.
+  const mainnetOpen = availableChains().includes("arc-mainnet");
+  const faq = FAQ.map(([q, a]): [string, string] =>
+    q === "What does it cost?" && mainnetOpen ? [q, MAINNET_COST] : [q, a],
+  );
   // Always offer the live showcase, so visitors can see it working without signing in.
   const auditHref = `/p/${featured?.slug ?? "kency-arc-creators"}`;
   const verifyHref = featured
@@ -78,22 +84,19 @@ export default async function Home() {
                   Launch a campaign
                 </Link>
               </Button>
-              {auditHref ? (
-                <Button
-                  asChild
-                  variant="ghost"
-                  size="lg"
-                  className="bg-card/70 hover:bg-card h-12 rounded-xl px-6 text-base"
-                >
-                  <Link href={auditHref} prefetch={false}>
-                    See it live
-                    <ArrowUpRight className="size-4" strokeWidth={1.5} aria-hidden="true" />
-                  </Link>
-                </Button>
+              {/* "See it live" follows the header's network: that network's showcase campaign. */}
+              <SeeItLive href={auditHref} className="net-testnet" />
+              {mainnet.featured ? (
+                <SeeItLive href={`/p/${mainnet.featured.slug}`} className="net-mainnet" />
               ) : null}
             </div>
-            <p className="text-muted-foreground mt-6 text-sm">
+            <p className="net-testnet text-muted-foreground mt-6 text-sm">
               Live on Arc testnet with test USDC.
+            </p>
+            <p className="net-mainnet text-muted-foreground mt-6 text-sm">
+              {mainnet.featured
+                ? "Live on Arc Mainnet with real USDC."
+                : "Arc Mainnet: no public campaigns yet. Pick Testnet in the header to see one live."}
             </p>
           </div>
           <div className="flex justify-center lg:justify-end">
@@ -101,27 +104,23 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Live numbers: real, non-demo programs only, hidden until there is something to show. */}
+        {/* Live numbers: real, non-demo programs only, per network (the header's switch), hidden until there is
+            something to show. Testnet and mainnet USDC are never added together. */}
         {showMetrics && metrics ? (
-          <section aria-label="Live numbers" className="mx-auto mt-28 max-w-[1240px] px-4 sm:px-6">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4">
-              <BigNumber label="USDC paid out">
-                <CountUp
-                  value={Number(metrics.usdcPaidTestnet + metrics.usdcPaidMainnet) / 1e6}
-                  decimals={2}
-                />
-              </BigNumber>
-              <BigNumber label="Submissions reviewed">
-                <CountUp value={metrics.submissionsReviewed} />
-              </BigNumber>
-              <BigNumber label="People paid">
-                <CountUp value={metrics.contributorsPaid} />
-              </BigNumber>
-              <BigNumber label="Rounds paid on Arc">
-                <CountUp value={metrics.roundsExecuted} />
-              </BigNumber>
-            </dl>
-          </section>
+          <LiveNumbers
+            className="net-testnet"
+            usdc={metrics.usdcPaidTestnet}
+            usdcLabel="USDC paid out"
+            m={metrics}
+          />
+        ) : null}
+        {mainnet.showMetrics && mainnet.metrics ? (
+          <LiveNumbers
+            className="net-mainnet"
+            usdc={mainnet.metrics.usdcPaidMainnet}
+            usdcLabel="USDC paid out"
+            m={mainnet.metrics}
+          />
         ) : null}
 
         {/* 2 · The problem */}
@@ -448,7 +447,7 @@ export default async function Home() {
               </p>
             </div>
             <div className="grid gap-3">
-              {FAQ.map(([q, a]) => (
+              {faq.map(([q, a]) => (
                 <details key={q} className="group bg-card shadow-soft rounded-2xl px-5 sm:px-6">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-[17px] font-medium [&::-webkit-details-marker]:hidden">
                     {q}
@@ -500,10 +499,13 @@ export default async function Home() {
           </div>
         </Section>
       </main>
-      <SiteFooter />
+      <SiteFooter mainnet={mainnetOpen} />
     </>
   );
 }
+
+const MAINNET_COST =
+  "Campaigns on Arc Testnet use free test USDC. On Arc Mainnet you fund your own vault with real USDC and only work your rules approve is paid, never above the vault's limits.";
 
 const FAQ: [string, string][] = [
   [
@@ -615,5 +617,55 @@ function DecisionCard({ example: e, slug }: { example: Example; slug: string }) 
         </Link>
       </div>
     </article>
+  );
+}
+
+function SeeItLive({ href, className }: { href: string; className?: string }) {
+  return (
+    <Button
+      asChild
+      variant="ghost"
+      size="lg"
+      className={`bg-card/70 hover:bg-card h-12 rounded-xl px-6 text-base ${className ?? ""}`}
+    >
+      <Link href={href} prefetch={false}>
+        See it live
+        <ArrowUpRight className="size-4" strokeWidth={1.5} aria-hidden="true" />
+      </Link>
+    </Button>
+  );
+}
+
+function LiveNumbers({
+  m,
+  usdc,
+  usdcLabel,
+  className,
+}: {
+  m: { submissionsReviewed: number; contributorsPaid: number; roundsExecuted: number };
+  usdc: bigint;
+  usdcLabel: string;
+  className: string;
+}) {
+  return (
+    <section
+      aria-label="Live numbers"
+      className={`mx-auto mt-28 max-w-[1240px] px-4 sm:px-6 ${className}`}
+    >
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-4">
+        <BigNumber label={usdcLabel}>
+          <CountUp value={Number(usdc) / 1e6} decimals={2} />
+        </BigNumber>
+        <BigNumber label="Submissions reviewed">
+          <CountUp value={m.submissionsReviewed} />
+        </BigNumber>
+        <BigNumber label="People paid">
+          <CountUp value={m.contributorsPaid} />
+        </BigNumber>
+        <BigNumber label="Rounds paid on Arc">
+          <CountUp value={m.roundsExecuted} />
+        </BigNumber>
+      </dl>
+    </section>
   );
 }

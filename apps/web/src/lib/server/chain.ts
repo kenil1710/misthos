@@ -1,5 +1,5 @@
 import "server-only";
-import { getChainConfig, isChainKey, type ChainKey } from "@misthos/shared";
+import { getChainConfig, isChainKey, networkConfig, type ChainKey } from "@misthos/shared";
 import { createPublicClient, http, type PublicClient } from "viem";
 import { env } from "./env";
 
@@ -24,10 +24,10 @@ export function publicClient(key?: string): PublicClient {
   const cfg = chainConfig(key);
   let client = clients.get(cfg.key);
   if (!client) {
-    const rpc = cfg.key === "arc-mainnet" ? env().ARC_MAINNET_RPC_URL : env().ARC_RPC_URL;
     client = createPublicClient({
       chain: cfg.chain,
-      transport: http(rpc || undefined),
+      // ARC_RPC_URL (testnet) or ARC_MAINNET_RPC_URL, else the network's public RPC.
+      transport: http(networkConfig(cfg.key).rpcUrl),
     }) as PublicClient;
     clients.set(cfg.key, client);
   }

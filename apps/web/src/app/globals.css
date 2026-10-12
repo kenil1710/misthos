@@ -326,3 +326,10 @@ div:has(> [data-theme-toggle]) {
 #nd-toc a[data-active="true"] {
   color: var(--brand);
 }
+
+/* The header's network switch (html[data-network], set before paint): cached pages render both networks' content and
+   show the visitor's. */
+html[data-network="arc-mainnet"] .net-testnet,
+html:not([data-network="arc-mainnet"]) .net-mainnet {
+  display: none !important;
+}

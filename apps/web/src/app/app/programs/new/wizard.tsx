@@ -32,7 +32,9 @@ import { CooldownWarning } from "@/components/vault/cooldown-warning";
 import { LIMIT_HELP } from "@/lib/limits-help";
 import {
   deriveDefaultLimits,
+  deriveMainnetLimits,
   limitWarnings,
+  MAINNET_SAFE_LIMITS,
   itemNoun,
   perfectPayout,
   tryParseUsdc,
@@ -148,6 +150,11 @@ const initialForm = (): Form => ({
   slugEdited: false,
 });
 
+const MAINNET_SAFE = {
+  payout: formatUsdc(MAINNET_SAFE_LIMITS.maxPerPayout, { withSymbol: false }),
+  round: formatUsdc(MAINNET_SAFE_LIMITS.maxPerRound, { withSymbol: false }),
+};
+
 const DRAFT_KEY = "misthos:new-program-draft:v1";
 
 function loadDraft(): { form: Form; savedAt: string } | null {
@@ -194,7 +201,9 @@ function effective(f: Form) {
     rate !== null && Number(c.maxPoints) > 0 ? perfectPayout(Number(c.maxPoints), rate) : null,
   );
   const maxItem = perfect.reduce<bigint>((m, p) => (p !== null && p > m ? p : m), 0n);
-  const derived = deriveDefaultLimits(maxItem);
+  // Arc Mainnet pays real USDC: lower caps and the owner's approval for every round, until the owner edits them.
+  const derived =
+    f.network === "arc-mainnet" ? deriveMainnetLimits(maxItem) : deriveDefaultLimits(maxItem);
   const limits: Limits = f.limitsEdited
     ? f.limits
     : {
@@ -1226,6 +1235,31 @@ export function ProgramWizard({ networks = ["arc-testnet"] }: { networks?: Netwo
                           ? "You've edited these."
                           : "Suggested from your rubric, and they follow it until you edit one."}
                       </p>
+                      {mainnet ? (
+                        <div
+                          className="bg-warning-subtle mt-3 grid gap-2 rounded-lg px-3 py-2.5 text-sm"
+                          data-testid="mainnet-limits"
+                        >
+                          <p>
+                            <span className="font-medium">Real USDC on Arc Mainnet.</span> Safe
+                            starting limits: at most {MAINNET_SAFE.payout} USDC per contributor per
+                            round, {MAINNET_SAFE.round} USDC per round and per day, and{" "}
+                            <span className="font-medium">every round waits for your approval</span>
+                            . Raise them later in Settings.
+                          </p>
+                          {form.limitsEdited ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="justify-self-start"
+                              onClick={() => setForm((f) => ({ ...f, limitsEdited: false }))}
+                            >
+                              Use the safe limits
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
                       {(
@@ -1361,7 +1395,11 @@ export function ProgramWizard({ networks = ["arc-testnet"] }: { networks?: Netwo
                         {eff.limits.maxPerRound} USDC per round · {eff.limits.maxPerDay} USDC per 24
                         hours
                       </li>
-                      <li>Your approval for rounds above {eff.limits.autoApproveThreshold} USDC</li>
+                      <li>
+                        {tryParseUsdc(eff.limits.autoApproveThreshold) === 0n
+                          ? "Your approval for every round"
+                          : `Your approval for rounds above ${eff.limits.autoApproveThreshold} USDC`}
+                      </li>
                       <li>
                         {form.limits.payeeCooldownHours} h before a new payout wallet can be paid
                       </li>
@@ -1671,7 +1709,7 @@ function PreviewContent({
           <ol className="text-soft mt-3 grid gap-2">
             {[
               "Deploy the program's vault (one transaction)",
-              "Fund it with test USDC",
+              form.network === "arc-mainnet" ? "Fund it with real USDC" : "Fund it with test USDC",
               "Publish the join page and share the link",
             ].map((t, i) => (
               <li key={t} className="flex gap-2.5">
@@ -1752,7 +1790,9 @@ function NetworkPicker(p: {
                 <span className="font-medium">
                   {o.label}
                   {!offered ? (
-                    <span className="text-muted-foreground font-normal"> · not available yet</span>
+                    <span className="bg-muted text-soft ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium">
+                      Coming soon
+                    </span>
                   ) : null}
                 </span>
                 <span className="text-muted-foreground text-xs leading-relaxed">{o.detail}</span>

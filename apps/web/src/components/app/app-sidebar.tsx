@@ -43,6 +43,8 @@ export interface ShellProgram {
   needs: { text: string; href: string; action: string; kind: string }[];
   joinUrl: string;
   shareHref: string;
+  /** The campaign's network ("arc-testnet" | "arc-mainnet"). */
+  chain: string;
 }
 
 const STATUS_DOT: Record<ShellProgram["status"], string> = {

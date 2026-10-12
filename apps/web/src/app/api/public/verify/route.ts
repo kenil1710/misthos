@@ -24,8 +24,8 @@ export async function POST(req: Request) {
     return jsonError("Too many verifications. Wait a minute and try again.", 429);
   const body = Body.safeParse(await readJson(req));
   if (!body.success) return jsonError("Paste a decision record to verify.", 400);
-  // The record names its network (signed, so a changed chainId fails the signature check). Any other chain id is
-  // checked against the primary network, where it fails as it should.
+  // The record names its network (signed: a changed chainId changes the hash). verifyDecision refuses a record whose
+  // network isn't its campaign's before any chain read; an unknown chain id reads nothing on-chain.
   const key = chainConfigById(recordChainId(body.data.record))?.key;
   const client = publicClient(key);
   const result = await verifyDecision(
@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       client,
       getReceipt: (hash) => client.getTransactionReceipt({ hash }).catch(() => null),
       explorerTx: (hash) => explorerTx(hash, key),
+      chainKey: key ?? "unknown",
       chain: verifyChain(client, key),
     },
     body.data.record,

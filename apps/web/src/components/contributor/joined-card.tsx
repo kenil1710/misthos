@@ -1,6 +1,7 @@
 import { formatUsdc } from "@misthos/shared/money";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { NetworkBadge } from "@/components/network-badge";
 import type { JoinedProgram } from "@/lib/server/joined";
 import { isScheduled } from "@/lib/rounds";
 import { roundPhrase } from "@/lib/status-line";
@@ -11,6 +12,7 @@ export function JoinedCard({ j }: { j: JoinedProgram }) {
   const open = !!j.round && j.round.status === "open" && !isScheduled(j.round);
   return (
     <article className="bg-card shadow-soft hover:shadow-lift relative flex flex-col rounded-[1.5rem] p-6 transition-shadow">
+      <NetworkBadge chain={j.program.chain} short className="mb-3 self-start" />
       <h2 className="display truncate text-[1.625rem] leading-tight">
         <Link href={href} className="after:absolute after:inset-0 after:rounded-[1.5rem]">
           {j.program.name}

@@ -1,6 +1,7 @@
 import { decisions, payouts, programs, submissions, type DbLike } from "@misthos/db";
 import { misthosVaultAbi } from "@misthos/shared/abi";
 import { canonicalize } from "@misthos/shared/canonical";
+import { chainConfigById, isChainKey } from "@misthos/shared/chains";
 import { hashOfHashes } from "@misthos/shared/ids";
 import { verifyDecisionRecord } from "@misthos/shared/signatures";
 import { desc, eq, inArray } from "drizzle-orm";
@@ -34,6 +35,8 @@ export interface VerifyDeps {
   client: Pick<PublicClient, "verifyMessage" | "getCode">;
   getReceipt: (hash: Hex) => Promise<TransactionReceipt | null>;
   explorerTx: (hash: string) => string;
+  /** The network `client`, `getReceipt` and `chain` read (the record's); checked against the campaign's network. */
+  chainKey?: string;
   /** On-chain reads that pin the signer to a genuine vault's agent (F-09, N-8). */
   chain: {
     /** The vault's `agent()` at a block (historical read); null if it can't be read. */
@@ -110,6 +113,36 @@ export async function verifyDecision(deps: VerifyDeps, pasted: string): Promise<
     });
     return done(false, hash, "Not verified: this record doesn't match any published decision.");
   }
+  // The network: the record names it (signed, so it can't be changed), and it must be its campaign's network. Every
+  // check after this one (signature, factory, agent, payout event) runs on that network only.
+  const named = (() => {
+    try {
+      return Number((JSON.parse(canonical) as { chainId?: unknown }).chainId);
+    } catch {
+      return Number.NaN;
+    }
+  })();
+  const [home] = await deps.db
+    .select({ chain: programs.chain })
+    .from(submissions)
+    .innerJoin(programs, eq(programs.id, submissions.programId))
+    .where(eq(submissions.id, d.submissionId))
+    .limit(1);
+  const recordNet = chainConfigById(named);
+  const programNet = home && isChainKey(home.chain) ? home.chain : null;
+  if (
+    !recordNet ||
+    recordNet.key !== programNet ||
+    (deps.chainKey && deps.chainKey !== programNet)
+  ) {
+    steps.push({
+      id: "published",
+      label: "Published by Misthos",
+      state: "fail",
+      detail: `The record names chain ${Number.isNaN(named) ? "none" : named}${recordNet ? ` (${recordNet.chain.name})` : ""}, but its campaign runs on ${programNet ? (programNet === "arc-mainnet" ? "Arc Mainnet" : "Arc Testnet") : "another network"}. Records are only checked on their campaign's network.`,
+    });
+    return done(false, hash, "Not verified: the record's network doesn't match its campaign's.");
+  }
   const [newer] = await deps.db
     .select({ hash: decisions.decisionHash })
     .from(decisions)
@@ -180,7 +213,7 @@ export async function verifyDecision(deps: VerifyDeps, pasted: string): Promise<
       return "The vault's agent couldn't be read on Arc, so the signer can't be confirmed. Try again in a moment.";
     if (agent.toLowerCase() !== recordSigner)
       return `Signed by ${d.signerAddress}, but ${when} (block ${block}) the vault's agent was ${agent}.`;
-    sigStep.detail += `; it was the agent of vault ${vault} (created by the Misthos factory) ${when}, read on Arc at block ${block}.`;
+    sigStep.detail += `; it was the agent of vault ${vault} (created by the Misthos factory) ${when}, read on ${recordNet.chain.name} at block ${block}.`;
     return null;
   };
   const pinFailed = (message: string) => {

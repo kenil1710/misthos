@@ -1,4 +1,5 @@
 import { formatUsdc } from "@misthos/shared/money";
+import { NetworkBadge } from "@/components/network-badge";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -123,6 +124,7 @@ export function ProgramCard({ s }: { s: ProgramSummary }) {
       {/* Badges above the name, so a name is never cut short to make room for them. */}
       <div className="flex flex-wrap items-center gap-1.5">
         <ProgramStatus status={p.status} />
+        <NetworkBadge chain={p.chain} short />
         {s.needs.length ? (
           <span className="bg-warning-subtle text-warning inline-flex h-5 items-center rounded-md px-1.5 text-xs font-medium">
             Needs you · {s.needs.length}

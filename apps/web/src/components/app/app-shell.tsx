@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Wordmark } from "@/components/brand/wordmark";
+import { NetworkSwitch } from "@/components/network-switch";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -17,13 +18,16 @@ import { NeedsBell, RoundPill, TopBar } from "./top-bar";
  * bar with the round pill, "Needs you", sharing and theme. Below 1024px: a header with the menu sheet.
  */
 export function AppShell({
-  programs,
+  programs: all,
+  network,
   founder,
   address,
   contributor = false,
   children,
 }: {
   programs: ShellProgram[];
+  /** The network picked in the header: the switcher and "Needs you" list that network's campaigns. */
+  network: string;
   founder: boolean;
   address: string;
   contributor?: boolean;
@@ -41,7 +45,9 @@ export function AppShell({
   }, []);
   const path = usePathname();
   const currentId = /^\/app\/programs\/([0-9a-f-]{36})/.exec(path)?.[1];
-  const current = programs.find((p) => p.id === currentId);
+  const current = all.find((p) => p.id === currentId);
+  // The campaign being viewed always shows, even when it's on the other network.
+  const programs = all.filter((p) => p.chain === network || p.id === currentId);
   const allNeeds = current
     ? current.needs
     : programs.flatMap((p) => p.needs.map((n) => ({ ...n, programName: p.name })));
@@ -83,7 +89,8 @@ export function AppShell({
             <Wordmark />
           </Link>
         </div>
-        <div className="flex items-center">
+        <div className="flex items-center gap-1">
+          <NetworkSwitch program={current?.chain} />
           <NeedsBell needs={allNeeds} />
           <ThemeToggle />
         </div>

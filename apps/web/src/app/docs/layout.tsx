@@ -1,6 +1,7 @@
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { Wordmark } from "@/components/brand/wordmark";
+import { NetworkSwitch } from "@/components/network-switch";
 import { source } from "@/lib/source";
 
 export default function Layout({ children }: LayoutProps<"/docs">) {
@@ -9,7 +10,7 @@ export default function Layout({ children }: LayoutProps<"/docs">) {
     <RootProvider theme={{ enabled: false }} search={{ enabled: false }}>
       <DocsLayout
         tree={source.getPageTree()}
-        nav={{ title: <Wordmark />, url: "/" }}
+        nav={{ title: <Wordmark />, url: "/", children: <NetworkSwitch /> }}
         links={[{ text: "Open app", url: "/app", active: "none" }]}
       >
         {children}

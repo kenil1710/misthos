@@ -14,6 +14,11 @@ export function ProgramNetwork({ chain, children }: { chain: string; children: R
   return <NetworkContext.Provider value={key}>{children}</NetworkContext.Provider>;
 }
 
+/** The program's network on a program's pages, else null. */
+export function useProgramNetwork(): ChainKey | null {
+  return useContext(NetworkContext);
+}
+
 /** The target network's config: the program's (inside ProgramNetwork), else the app's primary network. */
 export function useTargetNetwork() {
   return getChainConfig(useContext(NetworkContext) ?? undefined);

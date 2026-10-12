@@ -1,4 +1,5 @@
 import { decisions, getDb, submissions } from "@misthos/db";
+import { NetworkDot } from "@/components/network-switch";
 import { ProgramNetwork } from "@/components/web3/network";
 import { formatUsdc, Slug } from "@misthos/shared";
 import { listSources } from "@misthos/shared/sources";
@@ -128,9 +129,13 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
             <li className="bg-card shadow-soft rounded-full px-3.5 py-1.5">
               Up to <span className="mono-num font-medium">{formatUsdc(best)}</span> per piece
             </li>
-            <li className="bg-card shadow-soft rounded-full px-3.5 py-1.5">
+            <li
+              className="bg-card shadow-soft inline-flex items-center gap-2 rounded-full px-3.5 py-1.5"
+              data-testid="join-network"
+            >
+              <NetworkDot chain={program.chain === "arc-mainnet" ? "arc-mainnet" : "arc-testnet"} />
               {program.chain === "arc-mainnet"
-                ? "Paid in USDC on Arc Mainnet"
+                ? "Paid in real USDC on Arc Mainnet"
                 : "Paid in test USDC on Arc Testnet"}
             </li>
           </ul>

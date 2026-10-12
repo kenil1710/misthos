@@ -16,9 +16,10 @@ import { and, eq, gte, inArray, ne, sql } from "drizzle-orm";
 /**
  * Traction numbers for the hackathon submission. Real rows only: every query is restricted to real programs (not
  * demo, published, with a deployed vault), and USDC paid is split by network. Each submission counts once, by its
- * first agent decision; re-processing or payout re-checks don't add to the counts (F-11).
+ * first agent decision; re-processing or payout re-checks don't add to the counts (F-11). With `chain`, only that
+ * network's programs (Arc Testnet and Arc Mainnet are reported apart everywhere).
  */
-export async function computeMetrics(db: DbLike = getDb()) {
+export async function computeMetrics(db: DbLike = getDb(), chain?: string) {
   const real = await db
     .select({ id: programs.id, chain: programs.chain, status: programs.status })
     .from(programs)
@@ -27,6 +28,7 @@ export async function computeMetrics(db: DbLike = getDb()) {
         eq(programs.isDemo, false),
         ne(programs.status, "draft"),
         sql`${programs.vaultAddress} is not null`,
+        chain ? eq(programs.chain, chain) : undefined,
       ),
     );
   const ids = real.map((p) => p.id);

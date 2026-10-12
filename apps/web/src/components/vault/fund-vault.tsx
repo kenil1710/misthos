@@ -81,6 +81,7 @@ export function FundVault(p: {
         hint={
           walletBalance !== undefined ? (
             <>
+              {network.isTestnet ? null : <span className="font-medium">Real USDC. </span>}
               Your wallet has {formatUsdc(walletBalance)}.{" "}
               {walletBalance > 0n ? (
                 <button

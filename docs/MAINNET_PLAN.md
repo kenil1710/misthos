@@ -16,10 +16,10 @@ Testnet and is unchanged. Deadline: Oct 17, 2026 11:59 PM ET.
 
 ## Mainnet contracts (Arc Mainnet, chain 5042) — deployed 2026-10-10, not redeployed
 
-| Contract                      | Address                                      | Tx                                                                   |
-| ----------------------------- | -------------------------------------------- | -------------------------------------------------------------------- |
-| MisthosVault (template)       | `0x36E677De57Ce0f59eFed05a748B07c7Bb07d5dBb` | `0x336c7fc4d57cc56c1923ac1842a4c16e964284926fec535092372d2f34836476` |
-| MisthosVaultFactory           | `0x9075CbB50639216C2e4E32013514baa01f2b0C1b` | `0x430aedcedc4ce351843ed14cbf74565b93d66cb625f6c580fd78fb61a80f05a0` |
+| Contract                | Address                                      | Tx                                                                   |
+| ----------------------- | -------------------------------------------- | -------------------------------------------------------------------- |
+| MisthosVault (template) | `0x36E677De57Ce0f59eFed05a748B07c7Bb07d5dBb` | `0x336c7fc4d57cc56c1923ac1842a4c16e964284926fec535092372d2f34836476` |
+| MisthosVaultFactory     | `0x9075CbB50639216C2e4E32013514baa01f2b0C1b` | `0x430aedcedc4ce351843ed14cbf74565b93d66cb625f6c580fd78fb61a80f05a0` |
 
 Checked on-chain 2026-10-12: both have code; `factory.implementation()` = the template. Deployer
 `0x6B4824a6399D778D1bBfE982551082673c62fdff` holds 0.453901 USDC (0.50 − 0.046 gas).

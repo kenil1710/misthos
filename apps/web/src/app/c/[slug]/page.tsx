@@ -1,4 +1,5 @@
 import { ArrowLeft } from "lucide-react";
+import { NetworkBadge } from "@/components/network-badge";
 import { ProgramNetwork } from "@/components/web3/network";
 import { formatUsdc, Slug } from "@misthos/shared";
 import Link from "next/link";
@@ -118,7 +119,10 @@ export default async function ContributorHome({ params, searchParams }: PageProp
             <ArrowLeft className="size-3.5" aria-hidden="true" />
             Programs you joined
           </Link>
-          <p className="text-muted-foreground text-sm">{program.name}</p>
+          <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
+            {program.name}
+            <NetworkBadge chain={program.chain} />
+          </p>
           <h1 className="display mt-1 text-[2.5rem] leading-[1.05] sm:text-[3.25rem]">
             Your <em>contributions</em>
           </h1>

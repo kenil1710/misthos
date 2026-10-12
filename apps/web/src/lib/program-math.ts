@@ -42,6 +42,34 @@ export function deriveDefaultLimits(maxItem: bigint) {
   };
 }
 
+/** Starting caps for a campaign that pays real USDC (Arc Mainnet): low, and every round waits for the owner. */
+export const MAINNET_SAFE_LIMITS = {
+  maxPerPayout: 5_000_000n,
+  maxPerRound: 25_000_000n,
+  maxPerDay: 25_000_000n,
+  autoApproveThreshold: 0n,
+} as const;
+
+/**
+ * Safe limits on Arc Mainnet: the rubric-derived ones, never above the low mainnet caps, with owner approval for every
+ * round (threshold 0). A perfect item above the per-payout cap is paid at the cap, as on testnet.
+ */
+export function deriveMainnetLimits(maxItem: bigint) {
+  const d = deriveDefaultLimits(maxItem);
+  const min = (a: bigint, b: bigint) => (a < b ? a : b);
+  const S = MAINNET_SAFE_LIMITS;
+  const perPayout = min(parseUsdc(d.maxPerPayout), S.maxPerPayout);
+  const perRound = min(parseUsdc(d.maxPerRound), S.maxPerRound);
+  const perDay = min(parseUsdc(d.maxPerDay), S.maxPerDay);
+  return {
+    maxAutoApproveItem: dec(min(parseUsdc(d.maxAutoApproveItem), perPayout)),
+    maxPerPayout: dec(perPayout),
+    maxPerRound: dec(perRound < perPayout ? perPayout : perRound),
+    maxPerDay: dec(perDay < perRound ? perRound : perDay),
+    autoApproveThreshold: dec(S.autoApproveThreshold),
+  };
+}
+
 export interface LimitNumbers {
   maxCategoryPayout: bigint | null;
   maxAutoApproveItem: bigint | null;

@@ -19,30 +19,17 @@ import { computeMetrics } from "./metrics";
 export async function landingData() {
   try {
     const db = getDb();
-    const metrics = await computeMetrics(db);
-    const showMetrics =
-      metrics.submissionsReviewed > 0 && metrics.usdcPaidTestnet + metrics.usdcPaidMainnet > 0n;
+    const metrics = await computeMetrics(db, "arc-testnet");
+    const showMetrics = metrics.submissionsReviewed > 0 && metrics.usdcPaidTestnet > 0n;
+    // The header's network switch: Arc Mainnet's own numbers and showcase, shown when the visitor picks it.
+    const mainnetMetrics = await computeMetrics(db, "arc-mainnet");
+    const mainnet = {
+      metrics: mainnetMetrics,
+      showMetrics: mainnetMetrics.submissionsReviewed > 0 && mainnetMetrics.usdcPaidMainnet > 0n,
+      featured: await featuredProgram(db, "arc-mainnet"),
+    };
 
-    // Prefer a real program that has paid someone; else the most recent public demo program.
-    const paidPrograms = await db
-      .select({
-        id: programs.id,
-        slug: programs.slug,
-        name: programs.name,
-        isDemo: programs.isDemo,
-        limits: programs.limitsJson,
-        vaultAddress: programs.vaultAddress,
-        chain: programs.chain,
-        paid: sql<number>`count(${payouts.id})::int`,
-      })
-      .from(programs)
-      .innerJoin(rounds, eq(rounds.programId, programs.id))
-      .innerJoin(payouts, and(eq(payouts.roundId, rounds.id), eq(payouts.status, "executed")))
-      .where(ne(programs.status, "draft"))
-      .groupBy(programs.id)
-      .orderBy(programs.isDemo, desc(sql`count(${payouts.id})`))
-      .limit(1);
-    const featured = paidPrograms[0] ?? null;
+    const featured = await featuredProgram(db, "arc-testnet");
 
     let examples: { approved: Example | null; rejected: Example | null } = {
       approved: null,
@@ -87,7 +74,7 @@ export async function landingData() {
       };
       examples = { approved: pick("approve"), rejected: pick("reject") };
     }
-    return { metrics, showMetrics, featured, examples };
+    return { metrics, showMetrics, featured, examples, mainnet };
   } catch {
     // The landing page must render even if the database is unreachable.
     return {
@@ -95,8 +82,32 @@ export async function landingData() {
       showMetrics: false,
       featured: null,
       examples: { approved: null, rejected: null },
+      mainnet: { metrics: null, showMetrics: false, featured: null },
     };
   }
+}
+
+/** A network's showcase: a real program that has paid someone, else the most-paid public demo program there. */
+async function featuredProgram(db: ReturnType<typeof getDb>, chain: string) {
+  const [row] = await db
+    .select({
+      id: programs.id,
+      slug: programs.slug,
+      name: programs.name,
+      isDemo: programs.isDemo,
+      limits: programs.limitsJson,
+      vaultAddress: programs.vaultAddress,
+      chain: programs.chain,
+      paid: sql<number>`count(${payouts.id})::int`,
+    })
+    .from(programs)
+    .innerJoin(rounds, eq(rounds.programId, programs.id))
+    .innerJoin(payouts, and(eq(payouts.roundId, rounds.id), eq(payouts.status, "executed")))
+    .where(and(ne(programs.status, "draft"), eq(programs.chain, chain)))
+    .groupBy(programs.id)
+    .orderBy(programs.isDemo, desc(sql`count(${payouts.id})`))
+    .limit(1);
+  return row ?? null;
 }
 
 export type Example = {

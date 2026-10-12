@@ -22,7 +22,7 @@ import {
   type TransactionReceipt,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { verifyDecision, type VerifyDeps } from "@/lib/verify";
 
 const VAULT = "0x00000000000000000000000000000000000000f1" as Address;
@@ -43,6 +43,7 @@ let ctx: Awaited<ReturnType<typeof testDb>>;
 let db: DbLike;
 let recordJson: string;
 let rejectedJson: string;
+let wrongNetJson: string;
 let payoutIdBytes32: Hex;
 let aggregate: Hex;
 
@@ -154,7 +155,12 @@ beforeEach(async () => {
     .insert(contributors)
     .values({ programId: p!.id, userId: u!.id, xUserId: "1", xHandle: "alice", walletAddress: TO })
     .returning();
-  const mk = async (rid: string, action: "approve" | "reject", status: "paid" | "rejected") => {
+  const mk = async (
+    rid: string,
+    action: "approve" | "reject",
+    status: "paid" | "rejected",
+    chainId = 5042002,
+  ) => {
     const [s] = await db
       .insert(submissions)
       .values({
@@ -170,6 +176,7 @@ beforeEach(async () => {
       .returning();
     const rec = await signed({
       schema: "misthos.decision/v1",
+      chainId,
       submission: { id: s!.id },
       decision: { action, amount: action === "approve" ? "1000000" : "0" },
       signer: agent.address,
@@ -193,6 +200,8 @@ beforeEach(async () => {
   const rejected = await mk("11", "reject", "rejected");
   recordJson = JSON.stringify(JSON.parse(paid.rec.json), null, 2); // what a person would paste: pretty-printed
   rejectedJson = rejected.rec.json;
+  // A genuine, agent-signed record that names Arc Mainnet, filed under this Arc Testnet campaign.
+  wrongNetJson = (await mk("12", "reject", "rejected", 5042)).rec.json;
   payoutIdBytes32 = keccak256(toBytes("payout"));
   aggregate = hashOfHashes([paid.rec.hash]);
   const [po] = await db
@@ -219,6 +228,38 @@ afterEach(async () => {
 
 const states = (v: Awaited<ReturnType<typeof verifyDecision>>) =>
   v.steps.map((s) => `${s.id}:${s.state}`);
+
+describe("verifyDecision: each record on its campaign's network", () => {
+  it("refuses a record that names the other network, before reading any chain", async () => {
+    const reads = vi.fn();
+    const d = deps();
+    const v = await verifyDecision(
+      { ...d, client: { ...d.client, getCode: reads, verifyMessage: reads } as never },
+      wrongNetJson,
+    );
+    expect(v.verified).toBe(false);
+    expect(states(v)).toEqual([
+      "record:pass",
+      "published:fail",
+      "signature:skip",
+      "payout:skip",
+      "chain:skip",
+    ]);
+    expect(v.steps[1]!.detail).toMatch(/names chain 5042 \(Arc Mainnet\).*runs on Arc Testnet/);
+    expect(reads).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the reads would run on another network than the campaign's", async () => {
+    const v = await verifyDecision({ ...deps(), chainKey: "arc-mainnet" }, recordJson);
+    expect(v.verified).toBe(false);
+    expect(v.steps.find((s) => s.id === "published")!.state).toBe("fail");
+  });
+
+  it("the campaign's own network passes as before", async () => {
+    const v = await verifyDecision({ ...deps(), chainKey: "arc-testnet" }, recordJson);
+    expect(v.verified).toBe(true);
+  });
+});
 
 describe("verifyDecision", () => {
   it("verifies a paid decision end to end, even when the pasted JSON is pretty-printed", async () => {

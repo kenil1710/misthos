@@ -100,7 +100,7 @@ export const arcTestnet = defineChain({
 
 export const arcMainnet = defineChain({
   id: 5042, // [ARC-CONNECT], verified via eth_chainId
-  name: "Arc",
+  name: "Arc Mainnet",
   nativeCurrency,
   rpcUrls: {
     default: { http: ["https://rpc.mainnet.arc.io"] }, // [ARC-CONNECT]

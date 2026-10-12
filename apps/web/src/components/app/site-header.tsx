@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Wordmark } from "@/components/brand/wordmark";
+import { NetworkSwitch } from "@/components/network-switch";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export function SiteHeader({
@@ -12,6 +13,7 @@ export function SiteHeader({
   nav?: ReactNode;
   right?: ReactNode;
 }) {
+  // The network switch (or, on a campaign's pages inside ProgramNetwork, that campaign's network).
   return (
     <header className="border-b">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
@@ -27,6 +29,7 @@ export function SiteHeader({
         </div>
         <div className="flex items-center gap-1">
           {right}
+          <NetworkSwitch className="mx-1" />
           <ThemeToggle />
         </div>
       </div>
