@@ -15,12 +15,12 @@ const db = await PGlite.create({ extensions: { pg_trgm } });
 await migrate(drizzle(db), {
   migrationsFolder: path.resolve(import.meta.dirname, "../../../packages/db/migrations"),
 });
-// Two connections: the app (pool of 1) and the test's verification queries.
+// Three connections: the app (pool of 1), the mainnet-configured app on :3101 (pool of 1) and the test's queries.
 const server = new PGLiteSocketServer({
   db,
   port: E2E_DB_PORT,
   host: "127.0.0.1",
-  maxConnections: 2,
+  maxConnections: 3,
 });
 await server.start();
 console.log(`e2e db ready on 127.0.0.1:${E2E_DB_PORT}`);

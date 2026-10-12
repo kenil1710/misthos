@@ -18,8 +18,12 @@ nextEnv.loadEnvConfig(root);
 const BASE = process.env.LH_BASE ?? "http://localhost:3200";
 const OUT = path.join(root, process.env.LH_OUT ?? "docs/perf/lighthouse.json");
 const RUNS = Number(process.env.LH_RUNS ?? 1);
+// LH_SHOWCASE: ids of another seeded stack (e.g. the e2e stack), same shape as the showcase file.
 const show = JSON.parse(
-  readFileSync(path.join(root, "apps/worker/scripts/.showcase.json"), "utf8"),
+  readFileSync(
+    process.env.LH_SHOWCASE ?? path.join(root, "apps/worker/scripts/.showcase.json"),
+    "utf8",
+  ),
 ) as {
   programId: string;
   setupProgramId: string;
@@ -49,6 +53,7 @@ const contributorCookie = `misthos_contributor=${await token({
 const ONLY = process.env.LH_ONLY?.split(",");
 const ALL_PAGES = [
   { name: "Landing", path: "/" },
+  { name: "Sign-in", path: "/app" },
   { name: "Join", path: `/join/${show.slug}` },
   { name: "Contributor home", path: `/c/${show.slug}`, cookie: contributorCookie },
   { name: "Public audit", path: `/p/${show.slug}` },
@@ -65,7 +70,11 @@ const ALL_PAGES = [
   },
   { name: "Treasury", path: `/app/programs/${show.programId}/treasury`, cookie: ownerCookie },
   { name: "Wizard", path: "/app/programs/new", cookie: ownerCookie },
-  { name: "Program ready", path: `/app/programs/${show.setupProgramId}/ready`, cookie: ownerCookie },
+  {
+    name: "Program ready",
+    path: `/app/programs/${show.setupProgramId}/ready`,
+    cookie: ownerCookie,
+  },
   { name: "Setup", path: `/app/programs/${show.setupProgramId}/setup`, cookie: ownerCookie },
   { name: "Programs joined", path: "/c", cookie: contributorCookie },
   { name: "Docs", path: "/docs" },
@@ -107,8 +116,7 @@ try {
         const js =
           (
             lhr.audits["resource-summary"]?.details as
-              | { items?: { resourceType: string; transferSize: number }[] }
-              | undefined
+              { items?: { resourceType: string; transferSize: number }[] } | undefined
           )?.items?.find((x) => x.resourceType === "script")?.transferSize ?? 0;
         runs.push({
           page: page.name,

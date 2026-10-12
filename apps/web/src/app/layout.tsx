@@ -48,11 +48,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${displaySerif.variable} h-full antialiased`}
     >
-      <head>
-        {/* The visitor's network (header switch) before first paint, like the theme: no flash of the other one. */}
-        <script dangerouslySetInnerHTML={{ __html: NETWORK_SCRIPT }} />
-      </head>
       <body className="flex min-h-full flex-col">
+        {/* The visitor's network (header switch) before first paint, like next-themes' theme script: no flash. */}
+        <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: NETWORK_SCRIPT }} />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

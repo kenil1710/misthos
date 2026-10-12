@@ -75,12 +75,14 @@ export async function seedProgram(
     status?: "draft" | "active" | "paused";
     vault?: string | null;
     roundStartsInDays?: number;
+    /** The campaign's network (default Arc Testnet). */
+    chain?: "arc-testnet" | "arc-mainnet";
   },
 ) {
   const { rows } = await db.query<{ id: string }>(
     `insert into programs (slug, name, description, owner_user_id, chain, rubric_json, rate_per_point, limits_json,
        auto_approve_confidence, round_length_days, first_round_starts_at, status, vault_address)
-     values ($1, $2, 'Pays for original threads about building on Arc.', $3, 'arc-testnet', $4, 500000, $5, 0.8, 7,
+     values ($1, $2, 'Pays for original threads about building on Arc.', $3, $8, $4, 500000, $5, 0.8, 7,
        now(), $6, $7) returning id`,
     [
       p.slug,
@@ -90,6 +92,7 @@ export async function seedProgram(
       JSON.stringify(LIMITS),
       p.status ?? "active",
       p.vault ?? null,
+      p.chain ?? "arc-testnet",
     ],
   );
   const id = rows[0]!.id;

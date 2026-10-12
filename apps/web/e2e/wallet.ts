@@ -112,9 +112,17 @@ export async function injectWallet(
               emit("chainChanged", state.chainId);
               return null;
             }
-            case "wallet_addEthereumChain":
-              state.known?.add((params![0] as { chainId: string }).chainId);
+            case "wallet_addEthereumChain": {
+              // Like MetaMask: adding a network also switches to it (wagmi checks for that).
+              const added = (params![0] as { chainId: string }).chainId;
+              state.known?.add(added);
+              if (state.chainId !== added) {
+                state.chainId = added;
+                save();
+                emit("chainChanged", state.chainId);
+              }
               return null;
+            }
             case "wallet_requestPermissions":
               state.authorized = true;
               save();

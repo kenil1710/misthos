@@ -69,5 +69,14 @@ Arc testnet (chain id 5042002). Both contracts are verified on the explorer.
 | Agent wallet (Circle smart-contract wallet) | [`0x74a60caa5e6c14a33be4ebf1507a209ac61b78a1`](https://explorer.testnet.arc.io/address/0x74a60caa5e6c14a33be4ebf1507a209ac61b78a1) |
 | USDC (Arc testnet) | [`0x3600000000000000000000000000000000000000`](https://explorer.testnet.arc.io/address/0x3600000000000000000000000000000000000000) |
 
+Arc Mainnet (chain id 5042): the same contracts, deployed from a separate single-purpose key. Campaigns on Arc Mainnet
+pay real USDC and get their own agent wallet; see the network badge on every page.
+
+| Contract | Address |
+| --- | --- |
+| MisthosVaultFactory | [`0x9075CbB50639216C2e4E32013514baa01f2b0C1b`](https://explorer.arc.io/address/0x9075CbB50639216C2e4E32013514baa01f2b0C1b) |
+| MisthosVault (implementation) | [`0x36E677De57Ce0f59eFed05a748B07c7Bb07d5dBb`](https://explorer.arc.io/address/0x36E677De57Ce0f59eFed05a748B07c7Bb07d5dBb) |
+| USDC (Arc Mainnet) | [`0x3600000000000000000000000000000000000000`](https://explorer.arc.io/address/0x3600000000000000000000000000000000000000) |
+
 Program vaults are minimal clones of the implementation, created by the factory at a deterministic address per owner
-and program.
+and program, on the campaign's network.

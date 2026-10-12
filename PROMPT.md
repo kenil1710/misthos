@@ -8,7 +8,7 @@
 
 You are the founding engineer and product designer for **Misthos**, an AI payroll agent for Web3 contributor programs, settled in USDC on Arc (Circle's stablecoin-native L1).
 
-We are building this for the **Tameion Agents Hackathon (Canteen × Circle × Arc)**, Sep 27 – Oct 10, 2026. Submission deadline: **Oct 10, 11:59 PM ET**. Judges read the GitHub repo directly and click around the live product alone, without us in the room.
+We are building this for the **Tameion Agents Hackathon (Canteen × Circle × Arc)**, Sep 27 – Oct 17, 2026. Submission deadline: **Oct 17, 11:59 PM ET** (extended from Oct 10). Judges read the GitHub repo directly and click around the live product alone, without us in the room.
 
 **Judging criteria (build toward these):**
 - **30% Agentic sophistication:** the AI must actually *decide* (score work, catch fraud, set payouts, escalate) and *explain why*. Not a cron job with an LLM bolted on.

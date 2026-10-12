@@ -3,7 +3,7 @@
 **Current phase:** Phase 7 done: live on Arc testnet at https://misthos.world (web on Vercel, worker on
 Railway, Neon; misthos-iota.vercel.app and www redirect there). Repository public. No mainnet without the owner's explicit OK.
 **Last updated:** 2026-10-10 (code freeze)
-**Deadline:** Oct 10, 2026 11:59 PM ET
+**Deadline:** Oct 17, 2026 11:59 PM ET (extended from Oct 10)
 
 ## Reduced scope (owner decision, 2026-10-02)
 
