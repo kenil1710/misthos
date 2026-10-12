@@ -8,6 +8,7 @@ import { processSubmission } from "@misthos/agent";
 import { submissions } from "@misthos/db";
 import { classifySubmissionUrl } from "@misthos/shared";
 import { and, eq } from "drizzle-orm";
+import { depsFor } from "../src/jobs";
 import { buildDeps } from "../src/start";
 
 const args = process.argv.slice(2);
@@ -43,7 +44,14 @@ for (const target of targets) {
     if (!ids.length) console.error(`${target}: no submission found`);
   }
   for (const id of ids) {
-    const res = await processSubmission(deps, id, { reprocess: { reason, actor: "system" } });
+    // On the submission's own network (a mainnet submission needs the mainnet agent configured).
+    const net = await depsFor(deps, "submission", id);
+    if (!net.deps) {
+      console.error(`${id}: no agent for ${net.skip} on this machine; skipped`);
+      failed = true;
+      continue;
+    }
+    const res = await processSubmission(net.deps, id, { reprocess: { reason, actor: "system" } });
     console.log(JSON.stringify({ submissionId: id, ...res }, null, 2));
     if (res.status !== "decided") failed = true;
   }

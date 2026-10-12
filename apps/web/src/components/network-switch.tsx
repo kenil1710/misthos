@@ -104,7 +104,8 @@ export function NetworkSwitch({
       </span>
     );
   return (
-    <DropdownMenu>
+    // Non-modal: the rest of the page isn't hidden from assistive tech while this small menu is open.
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         className={cn(
           pill,

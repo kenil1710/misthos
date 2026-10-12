@@ -96,15 +96,32 @@ export function buildDeps(opts: Pick<StartOptions, "wrapFetchers"> & { poolMax?:
   const byChain = new Map<string, RoundDeps>([[chain.key, base]]);
   const main = mainnetAgent(env);
   if (main.agent) byChain.set("arc-mainnet", mainnetDeps(base, main.agent));
+  const networks = [...byChain.keys()];
   const deps: WorkerDeps = {
     ...base,
-    networks: [...byChain.keys()],
+    networks,
     // A program on a network this worker has no agent for gets null: its jobs are skipped (logged), never run on
     // another network's agent.
     forChain: (key) => byChain.get(key) ?? null,
   };
   const disabled = main.agent ? null : `Arc Mainnet off: ${main.reason}`;
-  return { env, chain, deps, pool, signer, networks: [...byChain.keys()], disabled };
+  /** Stop serving a network (its jobs are skipped from here on, as if it were never configured). */
+  const disableNetwork = (key: string) => {
+    byChain.delete(key);
+    const i = networks.indexOf(key);
+    if (i >= 0) networks.splice(i, 1);
+  };
+  return {
+    env,
+    chain,
+    deps,
+    pool,
+    signer,
+    networks,
+    disabled,
+    mainnetAgent: main.agent,
+    disableNetwork,
+  };
 }
 
 /**
@@ -133,6 +150,43 @@ export function mainnetDeps(
 }
 
 /**
+ * Before serving Arc Mainnet: its RPC must answer chain 5042, and the Circle wallet must be an ARC wallet at the
+ * configured address (a wallet on another chain would turn every vault call into a paid no-op there). Returns why not,
+ * or null. Names variables only, never values.
+ */
+export async function checkMainnetAgent(
+  agent: MainnetAgent,
+  o: {
+    circle?: Pick<CircleClient, "getWallet">;
+    client?: Pick<PublicClient, "getChainId">;
+  } = {},
+): Promise<string | null> {
+  const mainnet = getChainConfig("arc-mainnet");
+  const client =
+    o.client ?? createPublicClient({ chain: mainnet.chain, transport: http(agent.rpcUrl) });
+  try {
+    const id = await client.getChainId();
+    if (id !== mainnet.chain.id)
+      return `the Arc Mainnet RPC (ARC_MAINNET_RPC_URL) answers chain ${id}, not ${mainnet.chain.id}`;
+  } catch {
+    return "the Arc Mainnet RPC didn't answer";
+  }
+  try {
+    const circle = o.circle ?? circleClient(agent.apiKey, agent.entitySecret);
+    const w = (await circle.getWallet({ id: agent.walletId })).data?.wallet;
+    if (!w) return "Circle didn't return CIRCLE_MAINNET_AGENT_WALLET_ID";
+    if (w.blockchain !== "ARC")
+      return `CIRCLE_MAINNET_AGENT_WALLET_ID is a ${w.blockchain} wallet, not ARC`;
+    if (w.address.toLowerCase() !== agent.address.toLowerCase())
+      return "CIRCLE_MAINNET_AGENT_WALLET_ADDRESS isn't the address of CIRCLE_MAINNET_AGENT_WALLET_ID";
+  } catch (e) {
+    const status = (e as { response?: { status?: number } }).response?.status;
+    return `Circle wallet lookup failed (${status ?? "network"}; check CIRCLE_LIVE_API_KEY and the entity secret)`;
+  }
+  return null;
+}
+
+/**
  * Build the real dependencies and run the queues in drains (see runner.ts): at startup, every WORKER_TICK_MINUTES,
  * for scheduled retries, and when the web app calls POST /wake after enqueueing work. GET /health answers from
  * memory, so monitoring never wakes the database.
@@ -143,7 +197,11 @@ export async function startWorker(opts: StartOptions = {}) {
     name: opts.name ?? "misthos-worker",
     formatters: { level: (label) => ({ level: label }) },
   });
-  const { env, chain, deps, pool, signer, networks, disabled } = buildDeps(opts);
+  const { env, chain, deps, pool, signer, networks, disabled, mainnetAgent, disableNetwork } =
+    buildDeps(opts);
+  // Arc Mainnet is served only once its RPC and Circle wallet check out (before the first drain).
+  const mainnetProblem = mainnetAgent ? await checkMainnetAgent(mainnetAgent) : null;
+  if (mainnetProblem) disableNetwork("arc-mainnet");
   const runner = createRunner({
     // pg-boss without its own timers: it only runs inside a drain, then stops and closes its connections.
     makeBoss: () =>
@@ -204,7 +262,10 @@ export async function startWorker(opts: StartOptions = {}) {
     "worker ready",
   );
   // Mainnet programs wait (their jobs are skipped and picked up once the agent is configured); testnet runs as usual.
-  if (disabled) log.warn(`${disabled}. Mainnet programs are skipped; testnet is unaffected.`);
+  if (disabled ?? mainnetProblem)
+    log.warn(
+      `${disabled ?? `Arc Mainnet off: ${mainnetProblem}`}. Mainnet programs are skipped; testnet is unaffected.`,
+    );
 
   const shutdown = async (signal: string) => {
     log.info({ signal }, "shutting down");

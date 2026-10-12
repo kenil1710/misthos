@@ -49,21 +49,30 @@ Checked on-chain 2026-10-12: both have code; `factory.implementation()` = the te
   runRound — wrong-network deps change nothing (tested).
 - `circle:setup:mainnet` script (needs `--confirm-mainnet` and a LIVE key; not run).
 
+- Shared `networkConfig(chain)`: chain id, RPC, explorer, USDC, factory/template, Circle blockchain, agent wallet.
+- Header network switch (cookie `misthos_network` + localStorage fallback, default Testnet, applied before paint by an
+  inline script in `<body>`); badge on every page (campaign pages show the campaign's network). Owner list, switcher,
+  Needs you, `/c` (+ card badges, "Earned on …"), landing "See it live" + numbers follow it; empty states offer the
+  other network.
+- Wizard: Mainnet "Coming soon" when not configured; mainnet confirmation; safe limits (≤5/25/25 USDC, threshold 0 =
+  every round needs the owner) with "Use the safe limits".
+- Join / contributor / public audit pages show the network; wallet-link on mainnet switches the wallet to Arc Mainnet
+  first and the message adds "Network: Arc Mainnet (real USDC)" (testnet message byte-identical, tested).
+- Verify: record chainId must equal the campaign's network before any chain read (tests incl. a genuine signed record
+  naming the other network).
+- Metrics: both networks side by side; Copy for submission form reports them apart (tested).
+- Copy: real vs test USDC on funding screens, faucet only on testnet; FAQ/footer mention mainnet only when it's open.
+- `.env.example`, `docs/MAINNET.md`, guardrails docs list mainnet contracts; deadline Oct 17 in PROGRESS/PROMPT.
+- Fork loop (`ARC_MAINNET_FORK=1 pnpm --filter @misthos/web test:mainnet-fork`): passes — deploy from the real
+  mainnet factory, fund, signed decision (chain 5042), payee, propose, owner approval, execute, Verify on mainnet.
+- e2e: `networks.spec.ts` (switch, Coming soon, mainnet wizard on a second server, badges, lists, wrong-network
+  add+switch) and a second axe test over every network-affected page in both themes.
+
 ### Left (in order)
 
-1. Shared `networkConfig(chain)` helper (chain id, RPC, explorer, USDC, factory, Circle blockchain, agent wallet).
-2. Network switch in the header (cookie, default Testnet) + badge on every page; filters owner lists, `/c`,
-   landing "See it live"/metrics strip, public pages, admin metrics.
-3. Wizard: "Coming soon" wording, safe mainnet limits, owner approval for every mainnet round.
-4. Join / contributor pages: badge; wallet link message names the network.
-5. Verify: record chain must match the program's chain; explorer links per record.
-6. Metrics split testnet/mainnet everywhere incl. "Copy for submission form".
-7. Copy: real vs test USDC, faucet only on testnet.
-8. `.env.example`, `docs/MAINNET.md`, update Oct 10 → Oct 17 deadline in docs.
-9. Anvil fork of Arc Mainnet: full loop with a Circle LIVE client stub.
-10. e2e both networks, axe both themes, Lighthouse.
-11. Independent security review; fix Critical/High.
-12. Preview deployment (see Blocked).
+1. Full e2e + axe results recorded; Lighthouse mobile on landing, sign-in, program overview (e2e stack).
+2. Independent security review (running); fix Critical/High with tests.
+3. Morning report at the top of this file.
 
 ### Blocked / needs the owner
 
@@ -86,5 +95,18 @@ Checked on-chain 2026-10-12: both have code; `factory.implementation()` = the te
 - D5 Agent-level guard as defense in depth: each entry point compares `deps.chainId` with the program's chain before
   claiming, locking, signing or sending.
 - D6 The mainnet factory/template are not redeployed (already on-chain, verified).
+- D8 Mainnet safe limits (wizard suggestion, not enforced): per payout ≤ 5, per round ≤ 25, per day ≤ 25 USDC, never
+  above the rubric-derived testnet numbers; auto-approve threshold 0 so every round waits for the owner.
+- D9 Fork test: Anvil can't run Arc's native USDC precompile (`0x1800…0000::transfer`), so on the local fork only the
+  code at `0x3600…` is replaced by `ForkUsdcStub` (6-dec ERC-20). Factory and template are mainnet's real code. The
+  Circle LIVE client is `CircleLiveClientStub` (test-only, logs itself). The test lives in apps/web (Verify and the
+  server chain code are there) and imports the worker's code by path.
+- D10 Testnet stays the same: testnet copy unchanged except the wizard/join wording that now says "test USDC"
+  explicitly; testnet wallet-link message unchanged; connect-time network switch unchanged (switches to the page's
+  network); contributors on testnet campaigns are never asked to switch before signing.
+- D11 The header switch never changes what a campaign is: campaign pages always use the campaign's own network; the
+  switch only filters lists and public summaries. The cookie is only a display preference (parsed to one of two keys).
+- D12 e2e runs a second `next start` (:3101) from the same build with a chain-free mainnet agent address, so both
+  "Coming soon" and the enabled mainnet wizard are tested; the e2e PGlite server allows 3 connections.
 - D7 Unit tests run with `--concurrency=1` across packages: in parallel, PGlite-heavy suites time out on this machine
   (not failures in the code; each package passes alone).

@@ -14,7 +14,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, isNull, lte, gt, or, sql } from "drizzle-orm";
 import type { Address, Hex } from "viem";
 import { ChainError, idempotencyUuid, type AgentExecutor } from "../chain/executor";
-import { onProgramNetwork } from "../network";
+import { networkSeed, onProgramNetwork } from "../network";
 import { fetcherFor, rejectAtPayout, type PipelineDeps } from "../pipeline";
 import type { Flag } from "../types";
 import { contributorIdBytes32, programIdBytes32, roundIdBytes32 } from "./ids";
@@ -125,7 +125,9 @@ export async function syncPayee(
   const { txHash } = await deps.executor.send({
     to: vault,
     data: vaultCalls.registerPayee(cb, wallet),
-    idempotencyKey: idempotencyUuid(`payee:${vault}:${cb}:${wallet.toLowerCase()}`),
+    idempotencyKey: idempotencyUuid(
+      networkSeed(deps.chainId, `payee:${vault}:${cb}:${wallet.toLowerCase()}`),
+    ),
     label: "registerPayee",
   });
   const after = await deps.reader.payee(vault, cb);
@@ -356,7 +358,7 @@ async function cancelOnChain(deps: RoundDeps, ctx: RunCtx, roundBytes: Hex) {
       await deps.executor.send({
         to: vault,
         data: vaultCalls.cancelRound(roundBytes),
-        idempotencyKey: idempotencyUuid(`cancel:${vault}:${roundBytes}`),
+        idempotencyKey: idempotencyUuid(networkSeed(deps.chainId, `cancel:${vault}:${roundBytes}`)),
         label: `cancelRound #${number}`,
       });
     } catch (e) {
@@ -801,7 +803,9 @@ async function runLocked(
             })),
             planned!.decisionRoot as Hex,
           ),
-          idempotencyKey: idempotencyUuid(`propose:${vault}:${roundBytes}`),
+          idempotencyKey: idempotencyUuid(
+            networkSeed(deps.chainId, `propose:${vault}:${roundBytes}`),
+          ),
           label: `proposeRound #${planned!.number}`,
         });
         await db.transaction(async (tx) => {
@@ -952,7 +956,9 @@ async function runLocked(
       const { txHash } = await deps.executor.send({
         to: vault,
         data: vaultCalls.executeRound(roundBytes),
-        idempotencyKey: idempotencyUuid(`execute:${vault}:${roundBytes}`),
+        idempotencyKey: idempotencyUuid(
+          networkSeed(deps.chainId, `execute:${vault}:${roundBytes}`),
+        ),
         label: `executeRound #${planned!.number}`,
       });
       return recordExecuted(deps, ctx, roundBytes, txHash);
