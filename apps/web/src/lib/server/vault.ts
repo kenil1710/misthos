@@ -166,6 +166,17 @@ export function readVaultShared(vault: Address, chain?: string): Promise<VaultSt
   })();
 }
 
+/**
+ * The shared vault state for a page, or null when Arc can't be read right now (timeout, RPC down): the page shows a
+ * "vault data unavailable" notice instead of failing. A failed read isn't cached, so a reload tries again.
+ */
+export function readVaultForPage(vault: Address, chain?: string): Promise<VaultState | null> {
+  return readVaultShared(vault, chain).catch((e: unknown) => {
+    console.warn(`[vault] read failed for ${vault}: ${(e as Error)?.message ?? e}`);
+    return null;
+  });
+}
+
 /** Call after recording an owner transaction on this vault (deposit, withdraw, pause, limits, approval). */
 export function vaultChanged(vault: string) {
   revalidateTag(vaultTag(vault), { expire: 0 });

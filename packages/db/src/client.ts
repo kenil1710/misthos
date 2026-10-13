@@ -73,9 +73,31 @@ export function withConnectRetry<P extends Connectable>(
   return pool;
 }
 
-export function createDb(url: string, opts: { max?: number } = {}): { db: Db; pool: pg.Pool } {
+/**
+ * Bounds for the web app's pool, so a page can't hang on the database: a connect that takes longer fails and is retried
+ * (withConnectRetry), and a query that takes longer is abandoned. Client-side, because Neon's pooler refuses
+ * `statement_timeout` as a startup parameter. The worker doesn't pass these and keeps waiting as before.
+ */
+export const WEB_DB_TIMEOUTS = {
+  connectionTimeoutMillis: 5_000,
+  queryTimeoutMillis: 15_000,
+} as const;
+
+export function createDb(
+  url: string,
+  opts: { max?: number; connectionTimeoutMillis?: number; queryTimeoutMillis?: number } = {},
+): { db: Db; pool: pg.Pool } {
   const max = opts.max ?? (Number(process.env.DB_POOL_MAX) || 5);
-  const pool = withConnectRetry(new pg.Pool({ connectionString: normalizeDatabaseUrl(url), max }));
+  const pool = withConnectRetry(
+    new pg.Pool({
+      connectionString: normalizeDatabaseUrl(url),
+      max,
+      ...(opts.connectionTimeoutMillis
+        ? { connectionTimeoutMillis: opts.connectionTimeoutMillis }
+        : {}),
+      ...(opts.queryTimeoutMillis ? { query_timeout: opts.queryTimeoutMillis } : {}),
+    }),
+  );
   // Serverless Postgres closes idle connections; pg reports that as an 'error' on the pool. Without a listener
   // Node treats it as an uncaught exception and the process exits. The pool drops the dead client and reconnects
   // on the next query, so logging is all that's needed.
@@ -87,12 +109,12 @@ export function createDb(url: string, opts: { max?: number } = {}): { db: Db; po
 
 const globalForDb = globalThis as unknown as { __misthosDb?: Db };
 
-/** Process-wide singleton (survives Next.js dev hot reloads). Reads DATABASE_URL lazily. */
+/** The web app's process-wide singleton (survives Next.js dev hot reloads). Reads DATABASE_URL lazily. */
 export function getDb(): Db {
   if (!globalForDb.__misthosDb) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL is not set");
-    globalForDb.__misthosDb = createDb(url).db;
+    globalForDb.__misthosDb = createDb(url, WEB_DB_TIMEOUTS).db;
   }
   return globalForDb.__misthosDb;
 }

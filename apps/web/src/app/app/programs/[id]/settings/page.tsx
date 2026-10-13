@@ -14,7 +14,8 @@ import { appOrigin } from "@/lib/server/env";
 import { currentContext, getProgramForMember, getRounds } from "@/lib/server/queries";
 import { RoundSchedule } from "@/components/app/round-schedule";
 import { getOwnerSession } from "@/lib/server/session";
-import { explorerAddress, readVault } from "@/lib/server/vault";
+import { explorerAddress, readVaultForPage } from "@/lib/server/vault";
+import { VaultUnavailable } from "@/components/vault/vault-unavailable";
 import { PublishButton } from "../publish-button";
 import { ShareOnX } from "@/components/app/share-on-x";
 import { shareOnXUrl } from "@/lib/share";
@@ -44,7 +45,8 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
       </div>
     );
   const vault = row.program.vaultAddress as Address | null;
-  const state = vault ? await readVault(vault, row.program.chain) : null;
+  // Shared 15 s read: the owner's own transactions expire it at once (vaultChanged), so this still reflects them.
+  const state = vault ? await readVaultForPage(vault, row.program.chain) : null;
   const joinUrl = `${appOrigin()}/join/${row.program.slug}`;
   const latest = (await getRounds(id)).at(-1) ?? null;
   const l = state?.limits;
@@ -219,6 +221,8 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
                   </Link>
                 </dd>
               </dl>
+            ) : vault ? (
+              <VaultUnavailable href={`${base}/settings`} />
             ) : (
               <EmptyState
                 art="vault"
@@ -248,6 +252,8 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
                   payeeCooldownHours: String(Number(l.payeeCooldown) / 3600),
                 }}
               />
+            ) : vault ? (
+              <VaultUnavailable href={`${base}/settings#limits`} />
             ) : (
               <p className="text-muted-foreground text-sm">
                 Limits can be changed once the vault is deployed.

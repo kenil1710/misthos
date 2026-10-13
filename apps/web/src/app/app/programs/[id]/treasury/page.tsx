@@ -18,7 +18,8 @@ import { getProgramForMember } from "@/lib/server/queries";
 import { treasuryActivity } from "@/lib/server/rounds-view";
 import { getOwnerSession } from "@/lib/server/session";
 import { utcDay } from "@/lib/time";
-import { explorerAddress, explorerTx, readVaultShared, usdcAddress } from "@/lib/server/vault";
+import { explorerAddress, explorerTx, readVaultForPage, usdcAddress } from "@/lib/server/vault";
+import { VaultUnavailable } from "@/components/vault/vault-unavailable";
 
 export const metadata = { title: "Treasury" };
 
@@ -49,11 +50,11 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
       </div>
     );
   const [state, activity] = await Promise.all([
-    readVaultShared(vault, row.program.chain),
+    readVaultForPage(vault, row.program.chain),
     treasuryActivity(id),
   ]);
   const capPct =
-    state.limits.maxPerDay > 0n
+    state && state.limits.maxPerDay > 0n
       ? Number((state.spentInWindow * 1000n) / state.limits.maxPerDay) / 10
       : 0;
   const owner = row.role === "owner";
@@ -77,123 +78,129 @@ export default async function TreasuryPage({ params }: PageProps<"/app/programs/
           </>
         }
       />
-      <section
-        aria-label="Vault totals"
-        className="bg-card shadow-soft relative overflow-hidden rounded-[1.5rem] p-6 sm:p-8"
-      >
-        <VaultArt className="pointer-events-none absolute top-1/2 right-8 hidden size-40 -translate-y-1/2 md:block" />
-        <div className="relative md:pr-44">
-          <p className="text-muted-foreground flex items-center gap-2 text-sm">
-            Balance
-            {state.paused ? (
-              <span className="bg-warning-subtle text-warning rounded-full px-2 py-0.5 text-xs">
-                Paused
-              </span>
-            ) : null}
-          </p>
-          <p className="display mt-1 text-[3.25rem] leading-none tabular-nums sm:text-[4rem]">
-            {formatUsdc(state.balance, { withSymbol: false })}
-            <span className="text-muted-foreground ml-2 font-sans text-lg">USDC</span>
-          </p>
-          <p className="text-soft mt-2 text-sm">
-            {state.paused ? "Payouts are paused." : "Available for payouts."}
-          </p>
-          <dl className="mt-7 grid grid-cols-1 gap-4 border-t pt-5 sm:grid-cols-3">
-            {(
-              [
-                ["Deposited", state.totalDeposited],
-                ["Paid to contributors", state.totalPaid],
-                ["Withdrawn by you", state.totalWithdrawn],
-              ] as const
-            ).map(([label, v]) => (
-              <div key={label}>
-                <dt className="text-muted-foreground text-xs">{label}</dt>
-                <dd className="display mt-0.5 text-2xl tabular-nums">
-                  {formatUsdc(v, { withSymbol: false })}
-                  <span className="text-muted-foreground ml-1 font-sans text-xs">USDC</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </section>
-
-      <Card
-        title="Rolling 24-hour limit"
-        description="Payouts in the last 24 hours count against this cap. It frees up as older payouts age out."
-      >
-        <div className="flex items-baseline justify-between text-sm">
-          <span className="text-muted-foreground">{capPct.toFixed(0)}% used</span>
-          <span className="mono-num">
-            {formatUsdc(state.spentInWindow, { withSymbol: false })} of{" "}
-            {formatUsdc(state.limits.maxPerDay)}
-          </span>
-        </div>
-        <div
-          className="bg-muted mt-3 h-2 overflow-hidden rounded-full"
-          role="meter"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={capPct}
-          aria-label="Rolling 24-hour limit used"
-        >
-          <div
-            className={`${capPct >= 80 ? "bg-warning" : "bg-brand"} h-full rounded-full`}
-            style={{ width: `${Math.min(100, capPct)}%` }}
-          />
-        </div>
-        {capPct >= 80 ? (
-          <p className="text-warning mt-3 text-sm">
-            Only {formatUsdc(state.limits.maxPerDay - state.spentInWindow)} left in this window.
-            Approved work that doesn&apos;t fit is carried to a later round. To pay more now, raise
-            the limit in{" "}
-            <Link href={`${base}/settings`} className="underline underline-offset-4">
-              Settings
-            </Link>
-            .
-          </p>
-        ) : null}
-      </Card>
-
-      {owner ? (
-        <div className="grid items-start gap-6 lg:grid-cols-2">
-          <Card
-            title="Add funds"
-            description={
-              row.program.chain === "arc-mainnet"
-                ? "Deposit real USDC from your wallet (Arc Mainnet)."
-                : "Deposit USDC from your wallet."
-            }
+      {state ? (
+        <>
+          <section
+            aria-label="Vault totals"
+            className="bg-card shadow-soft relative overflow-hidden rounded-[1.5rem] p-6 sm:p-8"
           >
-            <FundVault
-              programId={id}
-              vault={vault}
-              usdc={usdcAddress(row.program.chain)}
-              owner={me}
-            />
-          </Card>
-          <Card
-            id="vault-controls"
-            title="Withdraw or pause"
-            description="You can take funds out at any time, even while paused. Pausing stops every payout until you resume."
-          >
-            <div className="grid gap-6">
-              <WithdrawVault
-                programId={id}
-                vault={vault}
-                owner={me}
-                balance={state.balance.toString()}
-              />
-              <div className="border-t pt-5">
-                <p className="mb-3 text-sm">
-                  {state.paused ? "The vault is paused." : "Payouts are running normally."}
-                </p>
-                <PauseVault programId={id} vault={vault} owner={me} paused={state.paused} />
-              </div>
+            <VaultArt className="pointer-events-none absolute top-1/2 right-8 hidden size-40 -translate-y-1/2 md:block" />
+            <div className="relative md:pr-44">
+              <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                Balance
+                {state.paused ? (
+                  <span className="bg-warning-subtle text-warning rounded-full px-2 py-0.5 text-xs">
+                    Paused
+                  </span>
+                ) : null}
+              </p>
+              <p className="display mt-1 text-[3.25rem] leading-none tabular-nums sm:text-[4rem]">
+                {formatUsdc(state.balance, { withSymbol: false })}
+                <span className="text-muted-foreground ml-2 font-sans text-lg">USDC</span>
+              </p>
+              <p className="text-soft mt-2 text-sm">
+                {state.paused ? "Payouts are paused." : "Available for payouts."}
+              </p>
+              <dl className="mt-7 grid grid-cols-1 gap-4 border-t pt-5 sm:grid-cols-3">
+                {(
+                  [
+                    ["Deposited", state.totalDeposited],
+                    ["Paid to contributors", state.totalPaid],
+                    ["Withdrawn by you", state.totalWithdrawn],
+                  ] as const
+                ).map(([label, v]) => (
+                  <div key={label}>
+                    <dt className="text-muted-foreground text-xs">{label}</dt>
+                    <dd className="display mt-0.5 text-2xl tabular-nums">
+                      {formatUsdc(v, { withSymbol: false })}
+                      <span className="text-muted-foreground ml-1 font-sans text-xs">USDC</span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </div>
+          </section>
+
+          <Card
+            title="Rolling 24-hour limit"
+            description="Payouts in the last 24 hours count against this cap. It frees up as older payouts age out."
+          >
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="text-muted-foreground">{capPct.toFixed(0)}% used</span>
+              <span className="mono-num">
+                {formatUsdc(state.spentInWindow, { withSymbol: false })} of{" "}
+                {formatUsdc(state.limits.maxPerDay)}
+              </span>
+            </div>
+            <div
+              className="bg-muted mt-3 h-2 overflow-hidden rounded-full"
+              role="meter"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={capPct}
+              aria-label="Rolling 24-hour limit used"
+            >
+              <div
+                className={`${capPct >= 80 ? "bg-warning" : "bg-brand"} h-full rounded-full`}
+                style={{ width: `${Math.min(100, capPct)}%` }}
+              />
+            </div>
+            {capPct >= 80 ? (
+              <p className="text-warning mt-3 text-sm">
+                Only {formatUsdc(state.limits.maxPerDay - state.spentInWindow)} left in this window.
+                Approved work that doesn&apos;t fit is carried to a later round. To pay more now,
+                raise the limit in{" "}
+                <Link href={`${base}/settings`} className="underline underline-offset-4">
+                  Settings
+                </Link>
+                .
+              </p>
+            ) : null}
           </Card>
-        </div>
-      ) : null}
+
+          {owner ? (
+            <div className="grid items-start gap-6 lg:grid-cols-2">
+              <Card
+                title="Add funds"
+                description={
+                  row.program.chain === "arc-mainnet"
+                    ? "Deposit real USDC from your wallet (Arc Mainnet)."
+                    : "Deposit USDC from your wallet."
+                }
+              >
+                <FundVault
+                  programId={id}
+                  vault={vault}
+                  usdc={usdcAddress(row.program.chain)}
+                  owner={me}
+                />
+              </Card>
+              <Card
+                id="vault-controls"
+                title="Withdraw or pause"
+                description="You can take funds out at any time, even while paused. Pausing stops every payout until you resume."
+              >
+                <div className="grid gap-6">
+                  <WithdrawVault
+                    programId={id}
+                    vault={vault}
+                    owner={me}
+                    balance={state.balance.toString()}
+                  />
+                  <div className="border-t pt-5">
+                    <p className="mb-3 text-sm">
+                      {state.paused ? "The vault is paused." : "Payouts are running normally."}
+                    </p>
+                    <PauseVault programId={id} vault={vault} owner={me} paused={state.paused} />
+                  </div>
+                </div>
+              </Card>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <VaultUnavailable href={`${base}/treasury`} />
+      )}
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <section className="grid gap-3">
