@@ -120,3 +120,21 @@ export function roundLifecycle(r: LifecycleInput, now = Date.now()): LifecycleSt
   }
   return steps;
 }
+
+/**
+ * What a round's row shows in the amount column: the paid (or planned) total, approved work waiting in the open round,
+ * "No payouts" once a round closed with nothing to pay, or nothing while an open round has nothing approved yet.
+ */
+export function roundAmount(r: {
+  status: string;
+  totalAmount: bigint;
+  approvedUnpaid: number;
+  approvedUnpaidAmount: string;
+}): { kind: "usdc"; amount: bigint } | { kind: "none" } | { kind: "empty" } {
+  if (r.totalAmount > 0n) return { kind: "usdc", amount: r.totalAmount };
+  if (r.status === "open")
+    return r.approvedUnpaid
+      ? { kind: "usdc", amount: BigInt(r.approvedUnpaidAmount) }
+      : { kind: "empty" };
+  return { kind: "none" };
+}

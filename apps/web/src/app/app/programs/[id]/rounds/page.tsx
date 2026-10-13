@@ -9,6 +9,7 @@ import { listRounds } from "@/lib/server/rounds-view";
 import { getOwnerSession } from "@/lib/server/session";
 import { utcDay } from "@/lib/time";
 import { isScheduled } from "@/lib/rounds";
+import { roundAmount } from "@/lib/round-lifecycle";
 import { fromNow, shortFromNow } from "@/lib/when";
 import { Button } from "@/components/ui/button";
 
@@ -124,20 +125,33 @@ export default async function RoundsPage({ params }: PageProps<"/app/programs/[i
               <span className="text-muted-foreground hidden text-sm sm:block">
                 {r.payouts ? `${r.payouts} payout${r.payouts === 1 ? "" : "s"}` : ""}
               </span>
-              <span className="display row-span-2 text-right text-2xl tabular-nums sm:row-span-1">
-                {r.totalAmount > 0n
-                  ? formatUsdc(r.totalAmount, { withSymbol: false })
-                  : r.status === "open" && r.approvedUnpaid
-                    ? formatUsdc(BigInt(r.approvedUnpaidAmount), { withSymbol: false })
-                    : "—"}
-                <span className="text-muted-foreground ml-1 font-sans text-xs">
-                  {r.totalAmount > 0n || (r.status === "open" && r.approvedUnpaid) ? "USDC" : ""}
-                </span>
-              </span>
+              <RoundAmount r={r} />
             </li>
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function RoundAmount({ r }: { r: Parameters<typeof roundAmount>[0] }) {
+  const a = roundAmount(r);
+  if (a.kind === "none")
+    return (
+      <span className="text-muted-foreground row-span-2 text-right text-sm sm:row-span-1">
+        No payouts
+      </span>
+    );
+  return (
+    <span className="display row-span-2 text-right text-2xl tabular-nums sm:row-span-1">
+      {a.kind === "usdc" ? (
+        <>
+          {formatUsdc(a.amount, { withSymbol: false })}
+          <span className="text-muted-foreground ml-1 font-sans text-xs">USDC</span>
+        </>
+      ) : (
+        "—"
+      )}
+    </span>
   );
 }

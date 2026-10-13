@@ -1,13 +1,17 @@
 /** Time-dependent helpers, kept out of component bodies (render must stay pure). */
 
-type RoundLike = { number: number; startsAt: Date; endsAt: Date };
+type RoundLike = { number: number; startsAt: Date; endsAt: Date; status?: string };
 
-/** The round running now, else the next upcoming one, else the last one. */
+/**
+ * The open round that has started (even past its end, until the agent closes it), else the round whose window holds
+ * now, else the next upcoming one, else the last one. A round closed early is never picked over the open one.
+ */
 export function currentRound<R extends RoundLike>(
   rounds: R[],
   now: number = Date.now(),
 ): R | undefined {
   return (
+    rounds.find((r) => r.status === "open" && r.startsAt.getTime() <= now) ??
     rounds.find((r) => r.startsAt.getTime() <= now && r.endsAt.getTime() > now) ??
     rounds.find((r) => r.startsAt.getTime() > now) ??
     rounds.at(-1)

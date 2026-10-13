@@ -2,7 +2,7 @@
 
 import { formatUsdc } from "@misthos/shared/money";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui-kit/confirm-dialog";
@@ -24,6 +24,18 @@ export function CloseRoundNow({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  // The worker closes the round a few seconds after the request: refresh until this round is gone from the page (the
+  // next one replaces it, header pill included), at most ~30 s.
+  const [closing, setClosing] = useState<string | null>(null);
+  useEffect(() => {
+    if (closing !== roundId) return;
+    let tries = 0;
+    const t = setInterval(() => {
+      router.refresh();
+      if (++tries >= 15) clearInterval(t);
+    }, 2000);
+    return () => clearInterval(t);
+  }, [closing, roundId, router]);
   const total = BigInt(approvedTotal);
   async function close() {
     setBusy(true);
@@ -35,11 +47,12 @@ export function CloseRoundNow({
         return;
       }
       const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-      if (body.ok)
+      if (body.ok) {
         toast.success(`Closing round ${roundNumber}`, {
           description: "The agent is re-checking approved work and preparing payouts.",
         });
-      else toast.error(body.error ?? "Couldn't close the round.");
+        setClosing(roundId);
+      } else toast.error(body.error ?? "Couldn't close the round.");
       router.refresh();
     } catch {
       toast.error("Couldn't reach Misthos. Check your connection and try again.");
@@ -56,7 +69,11 @@ export function CloseRoundNow({
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}
-        title={`Close round ${roundNumber} now?`}
+        title={
+          approvedCount === 0
+            ? "Nothing is approved in this round. Close it anyway?"
+            : `Close round ${roundNumber} now?`
+        }
         description="Contributors can't submit to this round after it closes. The next round opens right away."
         rows={[
           { label: "Approved so far", value: formatUsdc(total), mono: true },
@@ -69,7 +86,7 @@ export function CloseRoundNow({
               ? "The agent re-checks each item, then proposes the round. It's above your approval threshold, so it waits for your signature before anything is paid."
               : "The agent re-checks each item, then pays the round automatically within your limits."
         }
-        confirmLabel="Close round"
+        confirmLabel={approvedCount === 0 ? "Close anyway" : "Close round"}
         onConfirm={close}
       />
     </>
