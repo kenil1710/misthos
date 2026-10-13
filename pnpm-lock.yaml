@@ -165,6 +165,7 @@ settings:
 overrides:
   lodash-es: ^4.18.1
   ws@8: ^8.21.0
+  cuer>qr: 0.5.5
 
 importers:
 
@@ -7450,8 +7451,8 @@ packages:
     resolution: {integrity: sha512-z6LQUt5SH7jwGtGA+nMtJuEjZIsqPiwQ+EFHCYuVDQrJpvifNmmGuyDvTzAKPyFzihxgHc5f3aMzu2kn8Ps37A==}
     engines: {node: '>=22.12.0'}
 
-  qr@0.7.2:
-    resolution: {integrity: sha512-yovYRuacJBJkG9fWSwcB2bKZhr58c04DpOXguDU+rAAoJZdi6/J3DtlomkKqdd1MutIptIK+kigWmT7LKz8y7A==}
+  qr@0.5.5:
+    resolution: {integrity: sha512-iQBvKj7MRKO+co+MY0IZpyLO+ezvttxsmV86WywrgPuAmgBkv0pytyi03wourniSoPgzffeBW6cBgIkpqcvjTg==}
     engines: {node: '>= 20.19.0'}
 
   qrcode@1.5.3:
@@ -13709,7 +13710,7 @@ snapshots:
 
   cuer@0.0.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3):
     dependencies:
-      qr: 0.7.2
+      qr: 0.5.5
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
     optionalDependencies:
@@ -17139,7 +17140,7 @@ snapshots:
       - utf-8-validate
       - yauzl
 
-  qr@0.7.2: {}
+  qr@0.5.5: {}
 
   qrcode@1.5.3:
     dependencies:
