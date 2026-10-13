@@ -1,7 +1,25 @@
 # Arc Mainnet support — plan and log
 
-Branch: `mainnet` (never merged into `main` by an agent). Production (https://misthos.world, `main`) stays on Arc
-Testnet and is unchanged. Deadline: Oct 17, 2026 11:59 PM ET.
+Branch: `mainnet`. Deadline: Oct 17, 2026 11:59 PM ET.
+
+## Go-live (2026-10-13, with the owner's explicit approval)
+
+- **Circle production:** the owner's LIVE key and an ARC Gas Station policy ($2/day, $0.50/tx, 100 tx/day). Circle had no
+  production entity secret, so a separate one was registered (`CIRCLE_MAINNET_ENTITY_SECRET`); its recovery file is in
+  `~/misthos-circle-recovery-mainnet/` (dir 700, file 600), outside the repo.
+- **Mainnet agent:** SCA `0xea208f9c9a7f06fff8a4c4afa8bddaa23d3c1f8c` (ARC, LIVE), deployed by a sponsored no-op call,
+  tx `0xe87923033a6653202e7658b62a0cb271d596ff17636f245d940e0d0affbd55ed`. USDC balance 0. Deployer untouched (nonce 2).
+- **Env:** Railway worker: `CIRCLE_LIVE_API_KEY`, `CIRCLE_MAINNET_ENTITY_SECRET`, `CIRCLE_MAINNET_AGENT_WALLET_ID`,
+  `CIRCLE_MAINNET_AGENT_WALLET_ADDRESS` (set via stdin, checked by hash). Vercel Production:
+  `CIRCLE_MAINNET_AGENT_WALLET_ADDRESS` only. `NEXT_PUBLIC_CHAIN` stays `arc-testnet` on both.
+- **Shipped:** `main` fast-forwarded 58e9615 → 0a72c1d; Vercel built from the push; worker via `railway up`. No migration.
+- **Production checks:** worker log `networks=["arc-testnet","arc-mainnet"]`, no "Arc Mainnet off", no warnings; worker
+  health ok. Pages 200; X sign-in redirects to x.com with the production callback; SIWE nonce 200. Verify on two live
+  testnet records gives identical results before and after (one full on-chain payout match). Mainnet offered at runtime.
+- **Known quirk:** Turbo's strict env mode hides `CIRCLE_MAINNET_AGENT_WALLET_ADDRESS` from the build, so the
+  prerendered landing page shows "mainnet off" copy for up to 5 minutes after each deploy, until ISR revalidates.
+  Dynamic pages (wizard, server actions) are unaffected. Fix: add the name to `globalEnv` in `turbo.json`.
+- **Next:** the owner's mainnet smoke test (they deposit from their own wallet).
 
 ## Morning report (2026-10-13)
 
