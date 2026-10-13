@@ -10,7 +10,8 @@ original and inside the round, scores it against the program's rubric, and expla
 from a vault contract whose limits the agent cannot exceed, and every decision is a signed record anyone can verify
 against the chain.
 
-**Live on Arc testnet: https://misthos.world** · [Docs](https://misthos.world/docs) ·
+**Live on Arc Testnet and Arc Mainnet (pick the network in the header): https://misthos.world** ·
+[Docs](https://misthos.world/docs) ·
 [A real program's audit page](https://misthos.world/p/kency-arc-creators)
 
 Built for the Tameion Agents Hackathon (Canteen × Circle × Arc). Status and decisions: [PROGRESS.md](./PROGRESS.md).
@@ -103,13 +104,13 @@ More: [ARCHITECTURE.md](./ARCHITECTURE.md) · [SECURITY.md](./SECURITY.md) ·
 
 ## Circle and Arc, and where they are used
 
-| Tool                                  | Use                                                                   | Code                                                                      |
-| ------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| USDC on Arc                           | All payouts, 6-decimal ERC-20 interface; gas paid in USDC             | `packages/contracts/src/MisthosVault.sol`, `packages/shared/src/money.ts` |
-| Circle Developer-Controlled Wallets   | The agent is an SCA on ARC-TESTNET (executor + record signer)         | `apps/worker/src/circle.ts`, `apps/worker/scripts/circle-setup.ts`        |
-| Circle Gas Station                    | Sponsors the agent SCA's gas (default testnet policy)                 | `apps/worker/src/circle.ts` (balance stays 0)                             |
-| Circle Contracts API (contract exec.) | `registerPayee`, `proposeRound`, `executeRound` with idempotency keys | `packages/agent/src/rounds/job.ts`, `apps/worker/src/circle.ts`           |
-| ERC-1271 signatures                   | Decision records verify against the agent SCA on Arc                  | `packages/shared/src/signatures.ts`, `apps/web/src/lib/verify.ts`         |
+| Tool                                  | Use                                                                                                            | Code                                                                                          |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| USDC on Arc                           | All payouts, 6-decimal ERC-20 interface; gas paid in USDC                                                      | `packages/contracts/src/MisthosVault.sol`, `packages/shared/src/money.ts`                     |
+| Circle Developer-Controlled Wallets   | The agent is an SCA on ARC-TESTNET, and a separate SCA on ARC (mainnet) (executor + record signer)             | `apps/worker/src/circle.ts`, `apps/worker/scripts/circle-setup.ts`, `circle-setup-mainnet.ts` |
+| Circle Gas Station                    | Sponsors both agent SCAs' gas (testnet default policy; ARC mainnet policy with daily and per-transaction caps) | `apps/worker/src/circle.ts` (balances stay 0)                                                 |
+| Circle Contracts API (contract exec.) | `registerPayee`, `proposeRound`, `executeRound` with idempotency keys                                          | `packages/agent/src/rounds/job.ts`, `apps/worker/src/circle.ts`                               |
+| ERC-1271 signatures                   | Decision records verify against the agent SCA on Arc                                                           | `packages/shared/src/signatures.ts`, `apps/web/src/lib/verify.ts`                             |
 
 ## On-chain
 
@@ -128,14 +129,27 @@ a round above the approval threshold that waited for the owner
 ([approve](https://explorer.testnet.arc.io/tx/0x760d0e8e1a936cc5f308d7402cf658c211cded0e75e0dca601010b2383add98e),
 [execute](https://explorer.testnet.arc.io/tx/0x5b56ab5de70be70b56030d5dd3a6cbbc2a75c936c33be02c5f250b35f3ba29ce)).
 
+### Arc Mainnet
+
+Arc Mainnet (chain 5042) runs the same contracts with real USDC. Owners pick the network when they create a campaign,
+and each campaign, its vault and its records stay on that network. Mainnet campaigns get their own Circle agent wallet,
+never the testnet one. Setup and the security model: [docs/MAINNET.md](./docs/MAINNET.md).
+
+| Contract                    | Address                                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| MisthosVaultFactory         | [0x9075CbB50639216C2e4E32013514baa01f2b0C1b](https://explorer.arc.io/address/0x9075CbB50639216C2e4E32013514baa01f2b0C1b) |
+| MisthosVault implementation | [0x36E677De57Ce0f59eFed05a748B07c7Bb07d5dBb](https://explorer.arc.io/address/0x36E677De57Ce0f59eFed05a748B07c7Bb07d5dBb) |
+| Agent SCA (Circle, ARC)     | [0xea208f9c9a7f06fff8a4c4afa8bddaa23d3c1f8c](https://explorer.arc.io/address/0xea208f9c9a7f06fff8a4c4afa8bddaa23d3c1f8c) |
+| USDC                        | [0x3600000000000000000000000000000000000000](https://explorer.arc.io/address/0x3600000000000000000000000000000000000000) |
+
 ## Deployment
 
-| Part      | Where                                          | Notes                                                                                                                                                                                                           |
-| --------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Web app   | Vercel, [misthos.world](https://misthos.world) | `apps/web` (Next.js 16.3.8), built from `main` on push; no signing keys; edge rate limit on `/api/auth`, `/api/public`, `/api/contributor`; `misthos-iota.vercel.app` and `www` redirect (308) to misthos.world |
-| Worker    | Railway, always on                             | `apps/worker/Dockerfile` + `railway.json` (restart always), deployed with `railway up --service worker`; the only process with the Circle entity secret                                                         |
-| Database  | Neon Postgres                                  | migrations in `packages/db/migrations` (`pnpm --filter @misthos/db db:migrate`)                                                                                                                                 |
-| Contracts | Arc testnet                                    | addresses above; mainnet only with the owner's explicit approval                                                                                                                                                |
+| Part      | Where                                          | Notes                                                                                                                                                                                                                                                                                               |
+| --------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web app   | Vercel, [misthos.world](https://misthos.world) | `apps/web` (Next.js 16.3.8), built from `main` on push; no signing keys; in-memory fixed-window rate limits per server instance (by IP on sign-in, Verify and public records; by session on submit, appeal and wallet linking); `misthos-iota.vercel.app` and `www` redirect (308) to misthos.world |
+| Worker    | Railway, always on                             | `apps/worker/Dockerfile` + `railway.json` (restart always), deployed with `railway up --service worker`; the only process with the Circle entity secret                                                                                                                                             |
+| Database  | Neon Postgres                                  | migrations in `packages/db/migrations` (`pnpm --filter @misthos/db db:migrate`)                                                                                                                                                                                                                     |
+| Contracts | Arc Testnet and Arc Mainnet                    | addresses above                                                                                                                                                                                                                                                                                     |
 
 ## Screenshots
 

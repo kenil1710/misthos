@@ -227,6 +227,7 @@ export default async function Home() {
               act on. These two are real
               {featured.isDemo ? ", from the public demo program" : ""}.
             </Heading>
+            <TestnetExample />
             <div className="mt-16 grid gap-5 lg:grid-cols-2">
               {[examples.approved, examples.rejected].map((e, i) =>
                 e ? (
@@ -333,6 +334,7 @@ export default async function Home() {
                   </Link>
                 </Button>
               ) : null}
+              {verifyHref ? <TestnetExample /> : null}
             </div>
             <Reveal>
               <div className="bg-card shadow-soft rounded-3xl p-6 sm:p-8">
@@ -574,6 +576,18 @@ function Cap({ label, value, unit }: { label: string; value: string | null; unit
           <span className="text-muted-foreground ml-1.5 font-sans text-sm">{unit}</span>
         ) : null}
       </p>
+    </div>
+  );
+}
+
+/** On Mainnet, says that the landing's examples (cached, shared by both networks) come from Arc Testnet. */
+function TestnetExample() {
+  return (
+    <div className="net-mainnet mt-6">
+      <span className="bg-card text-soft inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium">
+        <span aria-hidden="true" className="bg-warning size-1.5 rounded-full" />
+        Example from Arc Testnet
+      </span>
     </div>
   );
 }

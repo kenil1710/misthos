@@ -54,6 +54,14 @@ test("network switch: Testnet by default, remembered per visitor (cookie, else l
   await expect(heroLine).toBeHidden();
   await expect(page.locator("main p.net-mainnet")).toBeVisible();
   await expect(page.locator("main p.net-mainnet")).toContainText("Arc Mainnet");
+  // The landing's example decisions are testnet records: on Mainnet each example section says so (one label per
+  // section that's there; a fresh e2e database may have none).
+  const exampleLabels = page.getByText("Example from Arc Testnet", { exact: true });
+  const exampleSections =
+    (await page.getByRole("link", { name: "Verify a decision yourself" }).count()) +
+    (await page.getByRole("heading", { name: /Every decision comes with its/ }).count());
+  expect(await exampleLabels.count()).toBe(exampleSections);
+  for (const label of await exampleLabels.all()) await expect(label).toBeVisible();
   expect((await ctx.cookies()).find((c) => c.name === "misthos_network")?.value).toBe(
     "arc-mainnet",
   );
@@ -77,7 +85,21 @@ test("network switch: Testnet by default, remembered per visitor (cookie, else l
   await pickNetwork(page, "Arc Testnet");
   await page.goto("/");
   await expect(heroLine).toBeVisible();
+  for (const label of await exampleLabels.all()) await expect(label).toBeHidden();
   expect(errors).toEqual([]);
+});
+
+test("security headers: no framing, nosniff, referrer and permissions policies on pages and APIs", async ({
+  request,
+}) => {
+  for (const path of ["/", "/docs", "/app", "/api/health"]) {
+    const h = (await request.get(path)).headers();
+    expect(h["x-frame-options"], path).toBe("DENY");
+    expect(h["content-security-policy"], path).toBe("frame-ancestors 'none'");
+    expect(h["x-content-type-options"], path).toBe("nosniff");
+    expect(h["referrer-policy"], path).toBe("strict-origin-when-cross-origin");
+    expect(h["permissions-policy"], path).toContain("camera=()");
+  }
 });
 
 test("wizard: Arc Mainnet is 'Coming soon' (disabled) while this deployment has no mainnet agent", async ({
