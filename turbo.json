@@ -1,6 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalEnv": ["NEXT_PUBLIC_CHAIN", "NEXT_PUBLIC_APP_URL"],
+  "globalEnv": ["NEXT_PUBLIC_CHAIN", "NEXT_PUBLIC_APP_URL", "CIRCLE_MAINNET_AGENT_WALLET_ADDRESS"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
