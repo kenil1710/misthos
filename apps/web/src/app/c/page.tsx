@@ -93,9 +93,13 @@ export default async function ContributorHomeIndex() {
         ) : joined.length === 0 && other.length ? (
           <NetworkEmpty network={network} what="programs you joined" otherCount={other.length} />
         ) : joined.length === 0 ? (
-          <EmptyState art="link" title="No programs yet">
-            You haven&apos;t joined a program yet. Open a program&apos;s join link (owners share it
-            on X) to get started.
+          <EmptyState
+            art="link"
+            title="No programs yet"
+            action={{ label: "Explore campaigns", href: "/campaigns" }}
+          >
+            You haven&apos;t joined a program yet. Browse the open campaigns, or open a
+            program&apos;s join link (owners share it on X) to get started.
           </EmptyState>
         ) : (
           <section

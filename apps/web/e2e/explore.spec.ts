@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import pg from "pg";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { E2E } from "../playwright.config";
-import { newPage, seedProgram } from "./helpers";
+import { contributorSession, newPage, ownerSignIn, seedProgram } from "./helpers";
+import { injectWallet } from "./wallet";
 
 /** The public "Explore campaigns" page: published campaigns with an open round, on the header's network only. */
 
@@ -56,6 +57,23 @@ test.afterAll(async () => db.end());
 
 const cards = (page: Page) => page.getByTestId("campaign-card");
 
+/**
+ * The list is shared-cached for 45 s, and an earlier spec may have filled it (even by prefetching a /campaigns link)
+ * before this one seeded its campaigns: reload until the seeded card shows.
+ */
+async function reloadUntil(page: Page, card: string) {
+  await expect
+    .poll(
+      async () => {
+        const n = await cards(page).filter({ hasText: card }).count();
+        if (!n) await page.reload();
+        return n;
+      },
+      { timeout: 90_000, intervals: [3_000] },
+    )
+    .toBe(1);
+}
+
 test("explore lists open, published campaigns on the selected network, and nothing else", async ({
   browser,
 }) => {
@@ -71,8 +89,8 @@ test("explore lists open, published campaigns on the selected network, and nothi
   await expect(page).toHaveURL(/\/campaigns$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore campaigns");
 
+  await reloadUntil(page, `Open ${RUN}`);
   const open = cards(page).filter({ hasText: `Open ${RUN}` });
-  await expect(open).toHaveCount(1);
   await expect(open).toContainText("Testnet");
   await expect(open).toContainText("Pays for");
   await expect(open).toContainText("up to");
@@ -83,13 +101,18 @@ test("explore lists open, published campaigns on the selected network, and nothi
   );
   for (const hidden of ["Mainnet", "Draft", "Paused", "Later", "QA Program", "Demo"])
     await expect(cards(page).filter({ hasText: `${hidden} ${RUN}` })).toHaveCount(0);
+  // Signed out: the public layout, no app sidebar.
+  await expect(page.locator("aside")).toHaveCount(0);
   // No owner wallet on the page (the seeded vault addresses aren't shown either: balance only).
   await expect(page.locator("main")).not.toContainText(/0x[0-9a-f]{40}/i);
 
   // Mainnet: only the mainnet campaign.
   await page.getByTestId("network-switch").click();
   await page.getByRole("menuitemradio", { name: /Arc Mainnet/ }).click();
-  await expect(cards(page).filter({ hasText: `Mainnet ${RUN}` })).toHaveCount(1);
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.dataset.network))
+    .toBe("arc-mainnet");
+  await reloadUntil(page, `Mainnet ${RUN}`);
   await expect(cards(page).filter({ hasText: `Open ${RUN}` })).toHaveCount(0);
 
   // Join goes to the join page.
@@ -141,4 +164,51 @@ test("explore: an empty network says so", async ({ browser }) => {
   await expect(page.getByTestId("explore-empty")).toContainText(
     "No open campaigns on Arc Mainnet yet",
   );
+});
+
+test("explore from the app: the welcome page offers it, the sidebar links to it and stays on /campaigns", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  await injectWallet(ctx, generatePrivateKey());
+  const { page, errors } = await newPage(ctx);
+  await ownerSignIn(page);
+
+  // A new owner: "Create your first program" stays primary, with a way to earn instead.
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { name: "Welcome to Misthos" })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Create your first program" })).toBeVisible();
+  await expect(main.getByText("Want to earn instead?")).toBeVisible();
+  await expect(main.getByRole("link", { name: "Explore campaigns" })).toHaveAttribute(
+    "href",
+    "/campaigns",
+  );
+
+  // The sidebar's Workspace link, active on /campaigns, which keeps the app frame.
+  const rail = page.locator("aside");
+  const link = rail.getByRole("link", { name: "Explore campaigns" });
+  await expect(link).not.toHaveAttribute("aria-current", "page");
+  await link.click();
+  await expect(page).toHaveURL(/\/campaigns$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Explore campaigns");
+  await expect(rail.getByRole("link", { name: "Explore campaigns" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(cards(page).filter({ hasText: `Open ${RUN}` })).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
+test("explore: a contributor with no programs is pointed to it", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const { cookie } = await contributorSession(db, { id: `explore-${RUN}`, handle: `ex_${RUN}` });
+  await ctx.addCookies([cookie]);
+  const page = await ctx.newPage();
+  await page.goto("/c");
+  await expect(page.getByText("No programs yet")).toBeVisible();
+  await page.getByRole("main").getByRole("link", { name: "Explore campaigns" }).click();
+  await expect(page).toHaveURL(/\/campaigns$/);
+  // Signed in with X only: the contributor header, not the owner sidebar.
+  await expect(page.locator("aside")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Programs you joined" })).toBeVisible();
 });

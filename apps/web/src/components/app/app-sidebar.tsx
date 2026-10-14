@@ -5,6 +5,7 @@ import {
   BookOpen,
   Check,
   ChevronsUpDown,
+  Compass,
   Inbox,
   Landmark,
   Layers,
@@ -173,6 +174,13 @@ export function AppSidebar({
             onNavigate={onNavigate}
           />
         ) : null}
+        <NavItem
+          href="/campaigns"
+          icon={Compass}
+          label="Explore campaigns"
+          path={path}
+          onNavigate={onNavigate}
+        />
         {contributor ? (
           <NavItem
             href="/c"

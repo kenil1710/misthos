@@ -77,6 +77,15 @@ export default async function OverviewPage() {
                 </Button>
               ) : null}
             </div>
+            <div className="bg-muted/50 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3">
+              <p className="text-soft max-w-[44ch] text-sm leading-relaxed">
+                <span className="text-foreground font-medium">Want to earn instead?</span> Browse
+                open campaigns and get paid in USDC for real work.
+              </p>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/campaigns">Explore campaigns</Link>
+              </Button>
+            </div>
           </div>
           <ProductFrame
             light={heroLight}

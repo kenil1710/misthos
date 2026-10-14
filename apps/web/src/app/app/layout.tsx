@@ -1,15 +1,9 @@
 import Link from "next/link";
-import { AppShell } from "@/components/app/app-shell";
+import { OwnerAppShell } from "@/components/app/owner-app-shell";
 import { Wordmark } from "@/components/brand/wordmark";
 import { NetworkSwitch } from "@/components/network-switch";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { OwnerSignIn } from "@/components/web3/islands";
-import { isFounder } from "@/lib/server/founders";
-import { selectedNetwork } from "@/lib/server/network";
-import { appOrigin } from "@/lib/server/env";
-import { programSummaries } from "@/lib/server/program-summary";
-import { shareOnXUrl } from "@/lib/share";
-import { roundPill } from "@/lib/status-line";
 import { getContributorSession, getOwnerSession } from "@/lib/server/session";
 
 export const metadata = { title: { default: "App", template: "%s · Misthos" } };
@@ -96,43 +90,10 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
       </>
     );
 
-  const [summaries, founder, contributor, network] = await Promise.all([
-    programSummaries(session.sub),
-    isFounder(session),
-    Promise.resolve(contributorOnly),
-    selectedNetwork(),
-  ]);
-  const origin = appOrigin();
   return (
-    <AppShell
-      address={session.addr}
-      founder={founder}
-      contributor={!!contributor}
-      network={network}
-      programs={summaries.map(({ program: p, waitingReview, needs, round }) => ({
-        id: p.id,
-        chain: p.chain,
-        name: p.name,
-        slug: p.slug,
-        status: p.status,
-        review: waitingReview,
-        roundPill: p.status === "draft" ? null : roundPill(round),
-        needs: needs.map(({ text, href, action, kind }) => ({ text, href, action, kind })),
-        joinUrl: `${origin}/join/${p.slug}`,
-        shareHref: shareOnXUrl({
-          name: p.name,
-          joinUrl: `${origin}/join/${p.slug}`,
-          sources: [...new Set(p.rubricJson.categories.flatMap((c) => c.sourceTypes))],
-          bestPayout: p.rubricJson.categories.reduce(
-            (m, c) =>
-              p.ratePerPoint * BigInt(c.maxPoints) > m ? p.ratePerPoint * BigInt(c.maxPoints) : m,
-            0n,
-          ),
-        }),
-      }))}
-    >
+    <OwnerAppShell session={session} contributor={!!contributorOnly}>
       {children}
-    </AppShell>
+    </OwnerAppShell>
   );
 }
 

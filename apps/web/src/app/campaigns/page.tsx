@@ -4,7 +4,9 @@ import { ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Address } from "viem";
+import { OwnerAppShell } from "@/components/app/owner-app-shell";
 import { SiteHeader } from "@/components/app/site-header";
+import { ContributorAccount } from "@/components/contributor/contributor-account";
 import { NetworkBadge } from "@/components/network-badge";
 import { SwitchNetworkButton } from "@/components/network-empty";
 import { Button } from "@/components/ui/button";
@@ -12,6 +14,7 @@ import { stillOpen } from "@/lib/explore";
 import { openCampaignsCached, type OpenCampaign } from "@/lib/server/explore";
 import { selectedNetwork } from "@/lib/server/network";
 import { readVaultForPage } from "@/lib/server/vault";
+import { getContributorSession, getOwnerSession } from "@/lib/server/session";
 import { fromNow } from "@/lib/when";
 
 export const metadata: Metadata = {
@@ -27,7 +30,11 @@ const NAME: Record<ChainKey, string> = {
 
 /** Every campaign open to new contributors on the header's network, with a way in. */
 export default async function ExploreCampaigns() {
-  const network = await selectedNetwork();
+  const [network, owner, contributor] = await Promise.all([
+    selectedNetwork(),
+    getOwnerSession(),
+    getContributorSession(),
+  ]);
   const other: ChainKey = network === "arc-mainnet" ? "arc-testnet" : "arc-mainnet";
   const [list, otherList] = await Promise.all([
     openCampaignsCached(network).then((l) => stillOpen(l)),
@@ -40,55 +47,80 @@ export default async function ExploreCampaigns() {
     ),
   );
 
+  const body = (
+    <div className="grid content-start gap-10">
+      <div>
+        <h1 className="display text-[2.5rem] leading-[1.05] sm:text-[3.25rem]">
+          Explore <em>campaigns</em>
+        </h1>
+        <p className="text-soft mt-2 max-w-[60ch] text-[15px]">
+          Campaigns on {NAME[network]} with a round open now. Join, do the work, and get paid in{" "}
+          {network === "arc-mainnet" ? "real" : "test"} USDC when the round closes.
+        </p>
+      </div>
+      {list.length === 0 ? (
+        <div
+          className="bg-card/50 grid justify-items-center gap-1.5 rounded-[1.25rem] border border-dashed px-6 py-12 text-center"
+          data-testid="explore-empty"
+        >
+          <p className="display text-[1.5rem] leading-tight">
+            No open campaigns on {NAME[network]} yet
+          </p>
+          <p className="text-soft max-w-[46ch] text-sm leading-relaxed">
+            Check back soon, or start one yourself.
+            {otherList.length ? ` ${otherList.length} open on ${NAME[other]}.` : ""}
+          </p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {otherList.length ? (
+              <SwitchNetworkButton to={other}>Show {NAME[other]}</SwitchNetworkButton>
+            ) : null}
+            <Button asChild size="sm" variant={otherList.length ? "ghost" : "default"}>
+              <Link href="/app" prefetch={false}>
+                Launch a campaign
+              </Link>
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <ul
+          aria-label={`Open campaigns on ${NAME[network]}`}
+          className="grid items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          {list.map((c, i) => (
+            <CampaignCard key={c.slug} c={c} balance={balances[i] ?? null} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  // Signed in with a wallet: inside the app, sidebar and all. Signed in with X only: the contributor header (like
+  // "Programs you joined"). Signed out: the public page.
+  if (owner)
+    return (
+      <OwnerAppShell session={owner} contributor={!!contributor}>
+        <div className="pt-4 pb-4">{body}</div>
+      </OwnerAppShell>
+    );
   return (
     <>
-      <SiteHeader />
+      <SiteHeader
+        right={
+          contributor ? (
+            <>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/c">Programs you joined</Link>
+              </Button>
+              <ContributorAccount handle={contributor.xh} />
+            </>
+          ) : null
+        }
+      />
       <main
         id="main"
-        className="mx-auto grid w-full max-w-6xl flex-1 content-start gap-10 px-4 py-8 sm:px-6 sm:py-12"
+        className="mx-auto grid w-full max-w-6xl flex-1 content-start px-4 py-8 sm:px-6 sm:py-12"
       >
-        <div>
-          <h1 className="display text-[2.5rem] leading-[1.05] sm:text-[3.25rem]">
-            Explore <em>campaigns</em>
-          </h1>
-          <p className="text-soft mt-2 max-w-[60ch] text-[15px]">
-            Campaigns on {NAME[network]} with a round open now. Join, do the work, and get paid in{" "}
-            {network === "arc-mainnet" ? "real" : "test"} USDC when the round closes.
-          </p>
-        </div>
-        {list.length === 0 ? (
-          <div
-            className="bg-card/50 grid justify-items-center gap-1.5 rounded-[1.25rem] border border-dashed px-6 py-12 text-center"
-            data-testid="explore-empty"
-          >
-            <p className="display text-[1.5rem] leading-tight">
-              No open campaigns on {NAME[network]} yet
-            </p>
-            <p className="text-soft max-w-[46ch] text-sm leading-relaxed">
-              Check back soon, or start one yourself.
-              {otherList.length ? ` ${otherList.length} open on ${NAME[other]}.` : ""}
-            </p>
-            <div className="mt-3 flex flex-wrap justify-center gap-2">
-              {otherList.length ? (
-                <SwitchNetworkButton to={other}>Show {NAME[other]}</SwitchNetworkButton>
-              ) : null}
-              <Button asChild size="sm" variant={otherList.length ? "ghost" : "default"}>
-                <Link href="/app" prefetch={false}>
-                  Launch a campaign
-                </Link>
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <ul
-            aria-label={`Open campaigns on ${NAME[network]}`}
-            className="grid items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-3"
-          >
-            {list.map((c, i) => (
-              <CampaignCard key={c.slug} c={c} balance={balances[i] ?? null} />
-            ))}
-          </ul>
-        )}
+        {body}
       </main>
     </>
   );
