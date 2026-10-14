@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { availableChains } from "@/lib/server/vault";
-import { createProgram, setProgramStatus } from "@/lib/server/programs";
+import { createProgram, endProgram, setProgramStatus } from "@/lib/server/programs";
 import { getOwnerSession } from "@/lib/server/session";
 
 export type CreateProgramState = { error?: string; fieldErrors?: Record<string, string> };
@@ -57,4 +57,15 @@ export async function setProgramStatusAction(programId: string, status: "active"
   });
   revalidatePath("/app", "layout");
   return { ok };
+}
+
+/** End the campaign (Settings, after a confirmation). See endProgram. */
+export async function endProgramAction(programId: string) {
+  const session = await getOwnerSession();
+  if (!session) return { ok: false as const, error: "Sign in again and retry." };
+  const id = z.uuid().safeParse(programId);
+  if (!id.success) return { ok: false as const, error: "not_found" };
+  const res = await endProgram(getDb(), { programId: id.data, userId: session.sub });
+  revalidatePath("/app", "layout");
+  return res.ok ? { ok: true as const } : res;
 }

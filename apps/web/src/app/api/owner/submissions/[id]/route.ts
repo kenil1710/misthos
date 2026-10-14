@@ -85,6 +85,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/owner/submissio
         amount: row.s.amount?.toString() ?? null,
         createdAt: row.s.createdAt.toISOString(),
         lastError: row.s.lastError,
+        waitingForFunds: !!row.s.waitingForFundsAt,
       },
       program: program
         ? {

@@ -5,7 +5,7 @@ import { SOURCE_LABEL, type SourceType } from "@misthos/shared/sources";
 import { ChevronRight } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { StatusBadge, type Status } from "@/components/status-badge";
+import { shownStatus, StatusBadge, type Status } from "@/components/status-badge";
 import { flagLabel } from "@/lib/flags";
 import { BOARD_STAGES, boardStage } from "@/lib/journey";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,8 @@ export interface ReviewRow {
   url: string;
   sourceType: SourceType;
   status: Status;
+  /** Approved, but the vault couldn't cover it yet. */
+  waitingForFunds?: boolean;
   amount: string | null;
   createdAt: string;
   xHandle: string;
@@ -145,12 +147,12 @@ export function ReviewTable({
                 className="hover:bg-muted/40 grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-2 px-5 py-4 transition-colors sm:grid-cols-[8.5rem_minmax(0,1fr)_auto_auto]"
               >
                 <span className="hidden sm:block">
-                  <StatusBadge status={r.status} />
+                  <StatusBadge status={shownStatus(r.status, r.waitingForFunds)} />
                 </span>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm">
                     <span className="sm:hidden">
-                      <StatusBadge status={r.status} />
+                      <StatusBadge status={shownStatus(r.status, r.waitingForFunds)} />
                     </span>
                     <span className="font-medium">@{r.xHandle}</span>
                     <span className="text-muted-foreground">{SOURCE_LABEL[r.sourceType]}</span>

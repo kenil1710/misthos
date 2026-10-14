@@ -18,6 +18,8 @@ export async function POST(req: Request, ctx: RouteContext<"/api/owner/programs/
   if (!sameOrigin(req)) return jsonError("bad_origin", 403);
   const owner = await requireProgramOwner((await ctx.params).id);
   if (owner instanceof Response) return owner;
+  if (owner.program.endedAt)
+    return jsonError("This campaign has ended: no new rounds are scheduled.", 409);
   const body = Body.safeParse(await readJson(req));
   if (!body.success) return jsonError("Check the round length (1 to 90 days) and start time.", 400);
   const db = getDb() as unknown as DbLike;

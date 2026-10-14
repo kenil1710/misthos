@@ -1,8 +1,9 @@
 import "server-only";
 import type { DbLike } from "@misthos/db";
 import { contributors, getDb, programs, rounds } from "@misthos/db";
-import { and, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { isTestProgram, openRoundNow } from "@/lib/explore";
+import { approvedUnpaidBy } from "./budget";
 import { cached } from "./cache";
 
 export interface OpenCampaign {
@@ -18,11 +19,15 @@ export interface OpenCampaign {
   maxPerPiece: bigint;
   round: { number: number; endsAt: Date };
   contributors: number;
+  /** For the budget check on the page (balance − this): approved work not paid yet, and one point's worth. */
+  approvedUnpaid: bigint;
+  ratePerPoint: bigint;
 }
 
 /**
- * Campaigns anyone can join right now on one network: published with joining on (`active`, not paused or draft),
- * a deployed vault, a round taking submissions, and not a demo, QA or test program.
+ * Campaigns anyone can join right now on one network: published with joining on (`active`, not paused or draft), not
+ * ended, a deployed vault, a round taking submissions, and not a demo, QA or test program. (The page also hides those
+ * whose budget is used up, once it has read the vault's balance.)
  */
 export async function openCampaigns(
   chain: string,
@@ -48,12 +53,13 @@ export async function openCampaigns(
         eq(programs.isDemo, false),
         eq(programs.chain, chain),
         isNotNull(programs.vaultAddress),
+        isNull(programs.endedAt),
       ),
     );
   const live = rows.filter((p) => !isTestProgram(p));
   if (!live.length) return [];
   const ids = live.map((p) => p.id);
-  const [roundRows, counts] = await Promise.all([
+  const [roundRows, counts, unpaid] = await Promise.all([
     db
       .select({
         programId: rounds.programId,
@@ -69,6 +75,7 @@ export async function openCampaigns(
       .from(contributors)
       .where(and(inArray(contributors.programId, ids), ne(contributors.status, "removed")))
       .groupBy(contributors.programId),
+    approvedUnpaidBy(ids, db),
   ]);
   const out: OpenCampaign[] = [];
   for (const p of live) {
@@ -91,6 +98,8 @@ export async function openCampaigns(
       }, 0n),
       round: { number: round.number, endsAt: round.endsAt },
       contributors: Number(counts.find((c) => c.programId === p.id)?.n ?? 0),
+      approvedUnpaid: unpaid.get(p.id) ?? 0n,
+      ratePerPoint: p.ratePerPoint,
     });
   }
   // Most contributors first, then the round closing soonest.
@@ -103,6 +112,6 @@ export async function openCampaigns(
 /** Shared by every visitor for 45 s; bump the version when the shape or filters change. */
 export const openCampaignsCached = cached(
   (chain: string) => openCampaigns(chain),
-  ["open-campaigns", "v2"],
+  ["open-campaigns", "v3"],
   { revalidate: 45, tags: ["public"] },
 );

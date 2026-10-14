@@ -94,6 +94,7 @@ export async function listSubmissionsForReview(
       amount: submissions.amount,
       createdAt: submissions.createdAt,
       xHandle: contributors.xHandle,
+      waitingForFundsAt: submissions.waitingForFundsAt,
     })
     .from(submissions)
     .innerJoin(contributors, eq(contributors.id, submissions.contributorId))
@@ -125,8 +126,10 @@ export async function listSubmissionsForReview(
   for (const d of decs) if (!latest.has(d.submissionId)) latest.set(d.submissionId, d);
   return rows.map((r) => {
     const d = latest.get(r.id);
+    const { waitingForFundsAt, ...rest } = r;
     return {
-      ...r,
+      ...rest,
+      waitingForFunds: !!waitingForFundsAt,
       amount: r.amount?.toString() ?? null,
       createdAt: r.createdAt.toISOString(),
       summary: d?.summary ?? null,

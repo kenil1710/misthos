@@ -8,6 +8,7 @@ import { audit } from "./audit";
 export type LinkWalletError =
   | "program_not_found"
   | "program_not_open"
+  | "program_ended"
   | "stale"
   | "bad_signature"
   | "nonce_used"
@@ -59,12 +60,22 @@ export async function linkContributorWallet(
       minXFollowers: programs.minXFollowers,
       minAccountAgeDays: programs.minAccountAgeDays,
       belowMinimum: programs.belowMinimum,
+      endedAt: programs.endedAt,
     })
     .from(programs)
     .where(eq(programs.slug, p.programSlug))
     .limit(1);
   if (!program) return { ok: false, error: "program_not_found" };
   if (program.status !== "active") return { ok: false, error: "program_not_open" };
+  // Ended: no new members. Members can still change their payout wallet (their approved work is still paid).
+  if (program.endedAt) {
+    const [member] = await db
+      .select({ id: contributors.id })
+      .from(contributors)
+      .where(and(eq(contributors.programId, program.id), eq(contributors.xUserId, p.user.xUserId)))
+      .limit(1);
+    if (!member) return { ok: false, error: "program_ended" };
+  }
   // "Can't join": accounts below the minimums are turned away before they join (members can still change wallet).
   if (program.belowMinimum === "block") {
     const [member] = await db

@@ -28,6 +28,7 @@ const ERRORS: Record<string, string> = {
   nonce_used: "This request was already used. Try again.",
   stale: "The request expired. Try again.",
   program_not_open: "This program isn't accepting contributors right now.",
+  program_ended: "This campaign has ended. Thanks for contributing!",
   minimum_unknown:
     "This program checks your X followers and account age. Sign out, sign in with X again, then join.",
   below_minimum:

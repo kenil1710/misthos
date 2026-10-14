@@ -2,7 +2,9 @@ import "server-only";
 import { auditEvents, contributors, programs, submissions, type DbLike } from "@misthos/db";
 import { classifySubmissionUrl, QUEUES, SOURCE_LABELS } from "@misthos/shared";
 import { and, eq, gte, ne, sql } from "drizzle-orm";
+import { programBudget, vaultBalance } from "./budget";
 import { ensureCurrentRound } from "./rounds";
+import { closedReason, ENDED_MESSAGE } from "@/lib/budget";
 import { utc } from "@/lib/time";
 
 export const DAILY_SUBMISSION_LIMIT = 20;
@@ -15,7 +17,15 @@ export type SubmitResult = { ok: true; submissionId: string } | { ok: false; err
  */
 export async function createSubmission(
   db: DbLike,
-  p: { programSlug: string; xUserId: string; userId: string; url: string; now?: Date },
+  p: {
+    programSlug: string;
+    xUserId: string;
+    userId: string;
+    url: string;
+    now?: Date;
+    /** The vault's balance (default: the shared on-chain read; tests pass their own). */
+    balanceOf?: typeof vaultBalance;
+  },
   enqueue: (queue: string, data: object, key: string) => Promise<unknown>,
 ): Promise<SubmitResult> {
   const now = p.now ?? new Date();
@@ -29,6 +39,7 @@ export async function createSubmission(
     .limit(1);
   if (!program || program.status !== "active")
     return { ok: false, error: "This program isn't accepting submissions right now." };
+  if (program.endedAt) return { ok: false, error: ENDED_MESSAGE };
   const [me] = await db
     .select()
     .from(contributors)
@@ -59,6 +70,13 @@ export async function createSubmission(
         "Connect your GitHub account before submitting GitHub work, so the agent can confirm it's yours.",
     };
   }
+
+  // Out of budget: nothing new until the owner adds funds (it reopens by itself; nothing is fetched or judged).
+  const closed = closedReason({
+    endedAt: program.endedAt,
+    budget: await programBudget(program, db, p.balanceOf ?? vaultBalance),
+  });
+  if (closed) return { ok: false, error: closed };
 
   const round = await ensureCurrentRound(db, program, now);
   if (!round)

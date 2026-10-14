@@ -1,5 +1,6 @@
 import { contributors, programs, rounds, users, type DbLike } from "@misthos/db";
 import { testDb } from "@misthos/db/testing";
+import { eq } from "drizzle-orm";
 import { Rubric } from "@misthos/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isTestProgram, openRoundNow, stillOpen } from "@/lib/explore";
@@ -143,6 +144,16 @@ describe("explore: which campaigns are listed", () => {
     ]);
   });
 
+  it("hides an ended campaign", async () => {
+    const p = await campaign({ slug: "ended-one" });
+    await campaign({ slug: "still-open" });
+    await db
+      .update(programs)
+      .set({ endedAt: new Date(NOW - DAY) })
+      .where(eq(programs.id, p.id));
+    expect(await slugs()).toEqual(["still-open"]);
+  });
+
   it("follows the network: each network lists only its own campaigns", async () => {
     await campaign({ slug: "on-testnet" });
     await campaign({ slug: "on-mainnet", chain: "arc-mainnet" });
@@ -171,12 +182,14 @@ describe("explore: which campaigns are listed", () => {
     });
     expect(Object.keys(list[0]!).sort()).toEqual(
       [
+        "approvedUnpaid",
         "chain",
         "contributors",
         "description",
         "maxPerPiece",
         "name",
         "paysFor",
+        "ratePerPoint",
         "round",
         "slug",
         "vaultAddress",

@@ -22,6 +22,8 @@ import {
   xAccountOf,
 } from "@/lib/server/queries";
 import { minimumRuleText, minimumStatus } from "@/lib/minimums";
+import { BUDGET_USED_UP_MESSAGE, ENDED_MESSAGE } from "@/lib/budget";
+import { programBudget } from "@/lib/server/budget";
 import { currentRound, isScheduled } from "@/lib/rounds";
 import { getContributorSession } from "@/lib/server/session";
 import { utcDay } from "@/lib/time";
@@ -72,11 +74,13 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
   // Sent here from a signed-out dashboard link: come back to the dashboard after signing in (it sends
   // non-members back here to join).
   const toDashboard = sp.return === "dashboard";
-  const [session, rounds, example] = await Promise.all([
+  const [session, rounds, example, budget] = await Promise.all([
     getContributorSession(),
     getRounds(program.id),
     bestDecision(program.id),
+    preview || program.endedAt ? null : programBudget(program),
   ]);
+  const ended = !preview && !!program.endedAt;
   const [membership, account] = session
     ? await Promise.all([
         getContributorMembership(program.id, session.xid),
@@ -275,6 +279,15 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
         </article>
 
         <aside className="bg-card shadow-lift order-first h-fit rounded-[1.5rem] p-6 sm:p-7 lg:sticky lg:top-6 lg:order-none">
+          {budget?.usedUp && !ended ? (
+            <p
+              role="status"
+              className="bg-warning-subtle text-warning mb-5 rounded-xl px-3.5 py-2.5 text-sm"
+              data-testid="budget-used-up"
+            >
+              {BUDGET_USED_UP_MESSAGE} New submissions reopen when the team adds funds.
+            </p>
+          ) : null}
           {preview ? (
             <>
               <h2 className="display text-[1.75rem] leading-tight">Join</h2>
@@ -282,6 +295,16 @@ export default async function JoinPage({ params, searchParams }: PageProps<"/joi
                 Contributors can join here once you publish the program.
               </p>
             </>
+          ) : ended ? (
+            <div className="grid gap-4" data-testid="campaign-ended">
+              <h2 className="display text-[1.75rem] leading-tight">Campaign ended</h2>
+              <p className="text-soft text-sm">{ENDED_MESSAGE}</p>
+              {membership ? (
+                <Button asChild variant="outline">
+                  <Link href={`/c/${program.slug}`}>See your payouts</Link>
+                </Button>
+              ) : null}
+            </div>
           ) : program.status === "paused" && !membership ? (
             <>
               <h2 className="display text-[1.75rem] leading-tight">Joining is paused</h2>

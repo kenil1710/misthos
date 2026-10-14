@@ -5,7 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Address } from "viem";
 import { z } from "zod";
-import { ProgramStatus } from "@/components/app/program-status";
+import { programState, ProgramStatus } from "@/components/app/program-status";
 import {
   SetupChecklist,
   SetupComplete,
@@ -14,7 +14,7 @@ import {
 } from "@/components/app/setup-checklist";
 import { VaultArt } from "@/components/brand/illustrations";
 import { Button } from "@/components/ui/button";
-import { Card, PageHeader, Stat } from "@/components/ui-kit";
+import { Card, Notice, PageHeader, Stat } from "@/components/ui-kit";
 import { CopyField } from "@/components/ui-kit/copy-field";
 import { Term } from "@/components/ui-kit/term";
 import { currentRound } from "@/lib/rounds";
@@ -28,7 +28,7 @@ import {
   submissionCounts,
 } from "@/lib/server/queries";
 import { shortFromNow } from "@/lib/when";
-import { Fragment, Suspense } from "react";
+import { Fragment, Suspense, type ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { programSummary } from "@/lib/server/program-summary";
 import { programStatusLine } from "@/lib/status-line";
@@ -64,7 +64,7 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
         title={program.name}
         meta={
           <span className="flex flex-wrap items-center gap-2">
-            <ProgramStatus status={program.status} />
+            <ProgramStatus status={programState(program)} />
             <NetworkBadge chain={program.chain} />
           </span>
         }
@@ -79,7 +79,7 @@ export default async function ProgramPage({ params }: PageProps<"/app/programs/[
                 </Link>
               </Button>
             ) : null}
-            {role === "owner" && published ? (
+            {role === "owner" && published && !program.endedAt ? (
               <PublishButton programId={program.id} status={program.status} />
             ) : null}
           </>
@@ -248,8 +248,78 @@ async function OverviewBody({ id, session }: { id: string; session: OwnerSession
     readyToPay: summary.readyToPay,
   });
 
+  // Money and lifecycle states, said plainly at the top: ended, approved work waiting for funds, out of funds.
+  const waiting = summary.waitingForFunds;
+  const states: { key: string; tone: "warning" | "info"; text: ReactNode }[] = [];
+  if (program.endedAt)
+    states.push({
+      key: "ended",
+      tone: "info",
+      text: (
+        <>
+          <span className="font-medium">Ended.</span> No new joins, submissions or rounds.{" "}
+          {current?.status === "open"
+            ? `Round ${current.number} still closes ${shortFromNow(current.endsAt)} and pays approved work.`
+            : "Its last round has closed."}{" "}
+          Withdraw what&apos;s left from{" "}
+          <Link href={`${base}/treasury`} className="underline underline-offset-4">
+            Treasury
+          </Link>
+          .
+        </>
+      ),
+    });
+  if (waiting.items)
+    states.push({
+      key: "waiting",
+      tone: "warning",
+      text: (
+        <>
+          <span className="font-medium">
+            {waiting.items} approved item{waiting.items === 1 ? "" : "s"} (
+            {formatUsdc(waiting.amount)}) {waiting.items === 1 ? "is" : "are"} waiting for funds
+          </span>{" "}
+          —{" "}
+          {program.endedAt
+            ? "the campaign has ended, so no later round will pay them."
+            : "add funds to pay them. They're paid first, in approval order, when the round closes."}{" "}
+          {isOwner && !program.endedAt ? (
+            <Link href={`${base}/treasury`} className="font-medium underline underline-offset-4">
+              Add funds
+            </Link>
+          ) : null}
+        </>
+      ),
+    });
+  else if (summary.budget.usedUp && published && !program.endedAt)
+    states.push({
+      key: "out",
+      tone: "warning",
+      text: (
+        <>
+          <span className="font-medium">Out of funds — add funds to reopen.</span> New submissions
+          are paused and the campaign is hidden from Explore until the vault can pay again; it
+          reopens by itself.{" "}
+          {isOwner ? (
+            <Link href={`${base}/treasury`} className="font-medium underline underline-offset-4">
+              Add funds
+            </Link>
+          ) : null}
+        </>
+      ),
+    });
+
   return (
     <div className="-mt-2 grid grid-cols-[minmax(0,1fr)] gap-10">
+      {states.length ? (
+        <div className="grid gap-3" data-testid="program-states">
+          {states.map((st) => (
+            <Notice key={st.key} tone={st.tone}>
+              {st.text}
+            </Notice>
+          ))}
+        </div>
+      ) : null}
       <section
         aria-label="Status"
         className="bg-card shadow-soft relative overflow-hidden rounded-[1.5rem] p-6 sm:p-8"

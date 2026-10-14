@@ -16,7 +16,7 @@ import { StatusBadge, type Status } from "@/components/status-badge";
 import { roundPhrase } from "@/lib/status-line";
 import { fromNow } from "@/lib/when";
 import { cn } from "@/lib/utils";
-import { ProgramStatus } from "./program-status";
+import { programState, ProgramStatus } from "./program-status";
 
 const SETUP_TEXT = {
   deploy: "Next: deploy the vault",
@@ -29,6 +29,7 @@ const NEED_ICON: Record<NeedItem["kind"], typeof Inbox> = {
   approval: Stamp,
   payee: AlertTriangle,
   low_balance: Wallet,
+  waiting_funds: Wallet,
   appeal: MessageSquareQuote,
 };
 
@@ -123,7 +124,7 @@ export function ProgramCard({ s }: { s: ProgramSummary }) {
     <article className="bg-card shadow-soft hover:shadow-lift relative flex flex-col rounded-[1.25rem] p-6 transition-shadow">
       {/* Badges above the name, so a name is never cut short to make room for them. */}
       <div className="flex flex-wrap items-center gap-1.5">
-        <ProgramStatus status={p.status} />
+        <ProgramStatus status={programState(p)} />
         <NetworkBadge chain={p.chain} short />
         {s.needs.length ? (
           <span className="bg-warning-subtle text-warning inline-flex h-5 items-center rounded-md px-1.5 text-xs font-medium">

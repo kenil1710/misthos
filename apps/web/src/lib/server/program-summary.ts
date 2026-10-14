@@ -9,16 +9,18 @@ import {
   submissions,
 } from "@misthos/db";
 import { formatUsdc } from "@misthos/shared/money";
-import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Address } from "viem";
 import { currentRound, isScheduled } from "@/lib/rounds";
+import { budgetOf, type Budget } from "@/lib/budget";
+import { approvedUnpaidBy } from "./budget";
 import { readVault, readVaultShared, type VaultState } from "./vault";
 
 /** Vault reads for lists and cards: shared for 15s, so an owner with many programs isn't one RPC per program per view. */
 const readVaultCached = (address: string, chain: string) =>
   readVaultShared(address as Address, chain);
 
-export type NeedKind = "review" | "approval" | "payee" | "low_balance" | "appeal";
+export type NeedKind = "review" | "approval" | "payee" | "low_balance" | "waiting_funds" | "appeal";
 export interface NeedItem {
   kind: NeedKind;
   text: string;
@@ -42,6 +44,10 @@ export interface ProgramSummary {
   /** Approved, unpaid work, capped by the per-round limit: what the next close would pay. */
   readyToPay: bigint;
   vault: VaultState | null;
+  /** Approved work the vault couldn't cover when its round was paid: paid first once the owner adds funds. */
+  waitingForFunds: { items: number; amount: bigint };
+  /** Vault balance − all approved, unpaid work; `usedUp` pauses new submissions until funds are added. */
+  budget: Budget;
   /** The first unfinished step of getting live, or null once deployed, funded and published. */
   setupNext: "deploy" | "fund" | "publish" | null;
   needs: NeedItem[];
@@ -70,67 +76,84 @@ export async function programSummaries(
   const ids = mine.map((m) => m.p.id);
   if (!ids.length) return [];
 
-  const [counts, ready, roundRows, people, changes, vaults, openAppeals] = await Promise.all([
-    db
-      .select({
-        programId: submissions.programId,
-        roundId: submissions.roundId,
-        status: submissions.status,
-        n: sql<number>`count(*)::int`,
-      })
-      .from(submissions)
-      .where(inArray(submissions.programId, ids))
-      .groupBy(submissions.programId, submissions.roundId, submissions.status),
-    db
-      .select({
-        programId: submissions.programId,
-        total: sql<string>`coalesce(sum(${submissions.amount}), 0)::text`,
-      })
-      .from(submissions)
-      .where(
-        and(
-          inArray(submissions.programId, ids),
-          inArray(submissions.status, ["approved", "partial"]),
-          isNull(submissions.payoutId),
+  const [counts, ready, roundRows, people, changes, vaults, openAppeals, waitingRows, unpaid] =
+    await Promise.all([
+      db
+        .select({
+          programId: submissions.programId,
+          roundId: submissions.roundId,
+          status: submissions.status,
+          n: sql<number>`count(*)::int`,
+        })
+        .from(submissions)
+        .where(inArray(submissions.programId, ids))
+        .groupBy(submissions.programId, submissions.roundId, submissions.status),
+      db
+        .select({
+          programId: submissions.programId,
+          total: sql<string>`coalesce(sum(${submissions.amount}), 0)::text`,
+        })
+        .from(submissions)
+        .where(
+          and(
+            inArray(submissions.programId, ids),
+            inArray(submissions.status, ["approved", "partial"]),
+            isNull(submissions.payoutId),
+          ),
+        )
+        .groupBy(submissions.programId),
+      db.select().from(rounds).where(inArray(rounds.programId, ids)).orderBy(rounds.number),
+      db
+        .select({ programId: contributors.programId, n: sql<number>`count(*)::int` })
+        .from(contributors)
+        .where(inArray(contributors.programId, ids))
+        .groupBy(contributors.programId),
+      db
+        .select({
+          id: contributors.id,
+          programId: contributors.programId,
+          xHandle: contributors.xHandle,
+          walletChangedAt: contributors.walletChangedAt,
+        })
+        .from(contributors)
+        .where(
+          and(
+            inArray(contributors.programId, ids),
+            gt(contributors.walletChangedAt, new Date(now - 7 * 86400_000)),
+          ),
         ),
-      )
-      .groupBy(submissions.programId),
-    db.select().from(rounds).where(inArray(rounds.programId, ids)).orderBy(rounds.number),
-    db
-      .select({ programId: contributors.programId, n: sql<number>`count(*)::int` })
-      .from(contributors)
-      .where(inArray(contributors.programId, ids))
-      .groupBy(contributors.programId),
-    db
-      .select({
-        id: contributors.id,
-        programId: contributors.programId,
-        xHandle: contributors.xHandle,
-        walletChangedAt: contributors.walletChangedAt,
-      })
-      .from(contributors)
-      .where(
-        and(
-          inArray(contributors.programId, ids),
-          gt(contributors.walletChangedAt, new Date(now - 7 * 86400_000)),
+      Promise.all(
+        mine.map((m) =>
+          m.p.vaultAddress
+            ? (opts.freshVault
+                ? readVault(m.p.vaultAddress as Address, m.p.chain)
+                : readVaultCached(m.p.vaultAddress, m.p.chain)
+              ).catch(() => null)
+            : Promise.resolve(null),
         ),
       ),
-    Promise.all(
-      mine.map((m) =>
-        m.p.vaultAddress
-          ? (opts.freshVault
-              ? readVault(m.p.vaultAddress as Address, m.p.chain)
-              : readVaultCached(m.p.vaultAddress, m.p.chain)
-            ).catch(() => null)
-          : Promise.resolve(null),
-      ),
-    ),
-    db
-      .select({ programId: appeals.programId, n: sql<number>`count(*)::int` })
-      .from(appeals)
-      .where(and(inArray(appeals.programId, ids), isNull(appeals.resolvedAt)))
-      .groupBy(appeals.programId),
-  ]);
+      db
+        .select({ programId: appeals.programId, n: sql<number>`count(*)::int` })
+        .from(appeals)
+        .where(and(inArray(appeals.programId, ids), isNull(appeals.resolvedAt)))
+        .groupBy(appeals.programId),
+      db
+        .select({
+          programId: submissions.programId,
+          n: sql<number>`count(*)::int`,
+          total: sql<string>`coalesce(sum(${submissions.amount}), 0)::text`,
+        })
+        .from(submissions)
+        .where(
+          and(
+            inArray(submissions.programId, ids),
+            inArray(submissions.status, ["approved", "partial"]),
+            isNotNull(submissions.waitingForFundsAt),
+          ),
+        )
+        .groupBy(submissions.programId),
+      approvedUnpaidBy(ids, db),
+    ]);
 
   return mine.map(({ p, role }, i) => {
     const vault = vaults[i] ?? null;
@@ -181,7 +204,21 @@ export async function programSummaries(
         href: `${base}/submissions?status=appeal`,
         action: "Review",
       });
-    if (vault && p.status !== "archived" && readyToPay > vault.balance)
+    const w = waitingRows.find((x) => x.programId === p.id);
+    const waitingForFunds = { items: Number(w?.n ?? 0), amount: BigInt(w?.total ?? "0") };
+    if (waitingForFunds.items)
+      needs.push({
+        kind: "waiting_funds",
+        text: `${waitingForFunds.items} approved item${waitingForFunds.items === 1 ? "" : "s"} (${formatUsdc(waitingForFunds.amount)}) ${waitingForFunds.items === 1 ? "is" : "are"} waiting for funds`,
+        href: `${base}/treasury`,
+        action: "Add funds",
+      });
+    const budget = budgetOf({
+      balance: vault?.balance ?? null,
+      approvedUnpaid: unpaid.get(p.id) ?? 0n,
+      ratePerPoint: p.ratePerPoint,
+    });
+    if (vault && p.status !== "archived" && !waitingForFunds.items && readyToPay > vault.balance)
       needs.push({
         kind: "low_balance",
         text: `The vault holds ${formatUsdc(vault.balance)}, less than the ${formatUsdc(readyToPay)} of approved work waiting to be paid`,
@@ -200,6 +237,8 @@ export async function programSummaries(
       approvedUnpaid: by("approved") + by("partial"),
       readyToPay,
       vault,
+      waitingForFunds,
+      budget,
       setupNext: !p.vaultAddress
         ? "deploy"
         : !vault || vault.totalDeposited === 0n

@@ -10,6 +10,8 @@ export interface SubmissionItem {
   status: (typeof submissions.$inferSelect)["status"];
   amount: string | null;
   createdAt: string;
+  /** Approved, but the vault couldn't cover it yet (paid first once the owner adds funds). */
+  waitingForFunds: boolean;
   decision: {
     summary: string;
     decisionHash: string;
@@ -117,6 +119,7 @@ export async function contributorSubmissionItems(
       status: r.status,
       amount: r.amount?.toString() ?? null,
       createdAt: r.createdAt.toISOString(),
+      waitingForFunds: !!r.waitingForFundsAt,
       decision: d
         ? {
             summary: d.summary,

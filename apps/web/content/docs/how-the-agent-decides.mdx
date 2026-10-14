@@ -12,7 +12,7 @@ A submission goes through four stages. Only the third uses a model.
    in the program, and raises flags.
 3. **Judge.** Claude Haiku 4.5 scores the work against your rubric through a strict tool schema (`judge-v5`). It
    returns a category, a score per criterion, a confidence, a recommendation and its reasons. It doesn't set amounts.
-4. **Decision engine.** Plain TypeScript rules (`rules-v8`) combine the flags and the judgment into an action and an
+4. **Decision engine.** Plain TypeScript rules (`rules-v9`) combine the flags and the judgment into an action and an
    amount, and write the explanation the contributor sees.
 
 ## Threads on X
@@ -74,6 +74,8 @@ The engine applies these in order and stops at the first match. The rule that de
 | `R8_ZERO_AMOUNT`             | The work scores zero points → **review**.                                                                                                                                                                               |
 | `R9_ABOVE_AUTO_CAP`          | The amount is above the program's auto-approve cap per item → **review**.                                                                                                                                               |
 | `R9B_ARTICLE_REVIEW`         | An article → **review**, always: its author and date come from the page itself, not a platform.                                                                                                                         |
+| `R9C_NOT_ENOUGH_FUNDS`       | More than the vault can still pay (its balance minus approved, unpaid work) → **review**: "Not enough funds in the vault".                                                                                              |
+| `R9D_BUDGET_UNKNOWN`         | The vault's balance couldn't be read (after retries) → **review**.                                                                                                                                                      |
 | `R10_AUTO_APPROVE`           | Otherwise → **approve** (or **partial** when the judge recommends it).                                                                                                                                                  |
 
 ## Amounts

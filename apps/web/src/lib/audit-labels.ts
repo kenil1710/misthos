@@ -4,6 +4,7 @@ export const AUDIT_LABELS: Record<string, string> = {
   "program.created": "Program created",
   "program.published": "Program published",
   "program.paused": "Joining paused",
+  "program.ended": "Campaign ended",
   "program.marked_demo": "Marked as demo",
   "program.schedule_updated": "Round schedule changed",
   "vault.deployed": "Vault deployed",

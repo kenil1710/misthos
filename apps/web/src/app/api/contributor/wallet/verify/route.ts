@@ -24,6 +24,7 @@ const Body = z.object({
 const STATUS: Record<string, number> = {
   program_not_found: 404,
   program_not_open: 409,
+  program_ended: 409,
   stale: 400,
   bad_signature: 401,
   nonce_used: 409,

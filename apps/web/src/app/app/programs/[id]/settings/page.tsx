@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Address } from "viem";
 import { emptyContextDraft, toDraftUnderstanding } from "@/lib/context-draft";
 import { ContextSettings } from "@/components/app/context-settings";
-import { ProgramStatus } from "@/components/app/program-status";
+import { programState, ProgramStatus } from "@/components/app/program-status";
 import { SubmissionRules } from "@/components/app/submission-rules";
 import { HexValue } from "@/components/hex-value";
 import { Card, EmptyState, Notice, PageHeader } from "@/components/ui-kit";
@@ -17,6 +17,9 @@ import { getOwnerSession } from "@/lib/server/session";
 import { explorerAddress, readVaultForPage } from "@/lib/server/vault";
 import { VaultUnavailable } from "@/components/vault/vault-unavailable";
 import { PublishButton } from "../publish-button";
+import { EndCampaign } from "./end-campaign";
+import { currentRound } from "@/lib/rounds";
+import { utc } from "@/lib/time";
 import { ShareOnX } from "@/components/app/share-on-x";
 import { shareOnXUrl } from "@/lib/share";
 
@@ -48,7 +51,8 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
   // Shared 15 s read: the owner's own transactions expire it at once (vaultChanged), so this still reflects them.
   const state = vault ? await readVaultForPage(vault, row.program.chain) : null;
   const joinUrl = `${appOrigin()}/join/${row.program.slug}`;
-  const latest = (await getRounds(id)).at(-1) ?? null;
+  const rounds = await getRounds(id);
+  const latest = rounds.at(-1) ?? null;
   const l = state?.limits;
   const ctx = await currentContext(id, row.program.contextVersion);
   return (
@@ -69,6 +73,9 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
                 ["#schedule", "Round schedule"],
                 ["#vault", "Vault"],
                 ["#limits", "Limits"],
+                ...(row.program.endedAt || row.program.status === "draft"
+                  ? []
+                  : ([["#end", "End campaign"]] as const)),
               ] as const
             ).map(([href, label]) => (
               <li key={href}>
@@ -83,17 +90,27 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
           </ul>
         </nav>
         <div className="grid max-w-3xl gap-6">
-          <Card id="join" title="Join page" actions={<ProgramStatus status={row.program.status} />}>
+          <Card
+            id="join"
+            title="Join page"
+            actions={<ProgramStatus status={programState(row.program)} />}
+          >
             <div className="grid gap-4">
-              <p className="text-sm">{JOINING[row.program.status]}</p>
+              <p className="text-sm">
+                {row.program.endedAt
+                  ? `You ended this campaign on ${utc(row.program.endedAt)}. The join page thanks contributors and takes no new joins or submissions.`
+                  : JOINING[row.program.status]}
+              </p>
               <CopyField
                 value={joinUrl}
                 label="join link"
                 display={joinUrl.replace(/^https?:\/\//, "")}
               />
               <div className="flex flex-wrap gap-2">
-                <PublishButton programId={id} status={row.program.status} />
-                {row.program.status === "active" ? (
+                {row.program.endedAt ? null : (
+                  <PublishButton programId={id} status={row.program.status} />
+                )}
+                {row.program.status === "active" && !row.program.endedAt ? (
                   <ShareOnX
                     href={shareOnXUrl({
                       name: row.program.name,
@@ -260,6 +277,25 @@ export default async function SettingsPage({ params }: PageProps<"/app/programs/
               </p>
             )}
           </Card>
+
+          {row.program.endedAt || row.program.status === "draft" ? null : (
+            <Card
+              id="end"
+              title="End campaign"
+              description="Stop the campaign for good: no new joins, submissions or rounds. The round open now still closes on schedule and pays approved work within the vault's balance; withdraw what's left from Treasury afterwards."
+            >
+              <EndCampaign
+                programId={id}
+                name={row.program.name}
+                roundLine={(() => {
+                  const r = currentRound(rounds);
+                  return r && r.status === "open"
+                    ? `Round ${r.number} still closes on ${utc(r.endsAt)} and pays approved work.`
+                    : "Approved work still waiting is paid within the vault's balance.";
+                })()}
+              />
+            </Card>
+          )}
         </div>
       </div>
     </div>

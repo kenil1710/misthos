@@ -10,7 +10,7 @@ import { Disclosure } from "@/components/ui-kit/disclosure";
 import { reasoningChecks, scoreLines, submissionJourney } from "@/lib/journey";
 import type { SourceType } from "@misthos/shared/sources";
 import { ConfirmDialog } from "@/components/ui-kit/confirm-dialog";
-import { StatusBadge, type Status } from "@/components/status-badge";
+import { shownStatus, StatusBadge, type Status } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,7 @@ interface Detail {
     amount: string | null;
     createdAt: string;
     lastError: string | null;
+    waitingForFunds?: boolean;
   };
   contributor: { xHandle: string; githubLogin: string | null; wallet: string | null };
   program: { slug: string; published: boolean } | null;
@@ -255,7 +256,9 @@ function DrawerBody({
                 <ExternalLink className="size-3 shrink-0" aria-hidden="true" />
               </a>
             </div>
-            <StatusBadge status={detail.submission.status} />
+            <StatusBadge
+              status={shownStatus(detail.submission.status, detail.submission.waitingForFunds)}
+            />
           </div>
 
           {detail.appeal && !detail.appeal.resolvedAt ? (

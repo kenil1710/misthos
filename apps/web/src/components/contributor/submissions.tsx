@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { StatusBadge, type Status } from "@/components/status-badge";
+import { shownStatus, StatusBadge, type Status } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,7 +31,10 @@ export function Submissions({
   roundEndsAt,
   verifyBase,
   initial,
+  closed = null,
 }: {
+  /** Why new submissions aren't taken right now (ended, or the budget is used up): shown instead of the form. */
+  closed?: string | null;
   programSlug: string;
   acceptedSources: SourceType[];
   roundNumber: number | null;
@@ -137,6 +140,7 @@ export function Submissions({
         status: "pending",
         amount: null,
         createdAt: new Date().toISOString(),
+        waitingForFunds: false,
         decision: null,
         round: null,
         payout: null,
@@ -202,41 +206,50 @@ export function Submissions({
           </Button>
         </div>
       ) : null}
-      <form onSubmit={submit} className="grid min-w-0 gap-2">
-        <label htmlFor="submit-url" className="display text-[1.5rem] leading-tight">
-          Submit your work
-        </label>
-        <p className="text-muted-foreground text-sm">
-          This program pays for {accepts}. One link per submission.
-        </p>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            id="submit-url"
-            inputMode="url"
-            autoComplete="off"
-            placeholder="Paste a link"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            aria-invalid={hint ? !hint.ok : undefined}
-            aria-describedby="submit-hint"
-            className="h-10 sm:h-9"
-          />
-          <Button type="submit" disabled={!hint?.ok || busy} className="h-10 sm:h-9">
-            {busy ? "Submitting…" : "Submit"}
-          </Button>
-        </div>
-        <p
-          id="submit-hint"
-          className={`text-xs ${hint && !hint.ok ? "text-danger" : "text-muted-foreground"}`}
-        >
-          {hint ? hint.text : "The agent reviews it in about a minute and tells you why."}
-        </p>
-        {error ? (
-          <p role="alert" className="text-danger text-sm">
-            {error}
+      {closed ? (
+        <div className="grid gap-1" data-testid="submissions-closed">
+          <h2 className="display text-[1.5rem] leading-tight">Submit your work</h2>
+          <p role="status" className="bg-muted/60 rounded-xl px-4 py-3 text-sm">
+            {closed}
           </p>
-        ) : null}
-      </form>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="grid min-w-0 gap-2">
+          <label htmlFor="submit-url" className="display text-[1.5rem] leading-tight">
+            Submit your work
+          </label>
+          <p className="text-muted-foreground text-sm">
+            This program pays for {accepts}. One link per submission.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              id="submit-url"
+              inputMode="url"
+              autoComplete="off"
+              placeholder="Paste a link"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              aria-invalid={hint ? !hint.ok : undefined}
+              aria-describedby="submit-hint"
+              className="h-10 sm:h-9"
+            />
+            <Button type="submit" disabled={!hint?.ok || busy} className="h-10 sm:h-9">
+              {busy ? "Submitting…" : "Submit"}
+            </Button>
+          </div>
+          <p
+            id="submit-hint"
+            className={`text-xs ${hint && !hint.ok ? "text-danger" : "text-muted-foreground"}`}
+          >
+            {hint ? hint.text : "The agent reviews it in about a minute and tells you why."}
+          </p>
+          {error ? (
+            <p role="alert" className="text-danger text-sm">
+              {error}
+            </p>
+          ) : null}
+        </form>
+      )}
 
       {justSubmitted ? (
         <section
@@ -348,7 +361,7 @@ function SubmissionItem({ i, verifyBase }: { i: Item; verifyBase: string }) {
     <li className="bg-card shadow-soft min-w-0 overflow-hidden rounded-[1.25rem] p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <StatusBadge status={i.status} />
+          <StatusBadge status={shownStatus(i.status, i.waitingForFunds)} />
           <span className="text-muted-foreground text-xs whitespace-nowrap">
             {singular(i.sourceType)}
           </span>

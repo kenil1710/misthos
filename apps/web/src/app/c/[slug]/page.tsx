@@ -24,6 +24,8 @@ import {
   xAccountOf,
 } from "@/lib/server/queries";
 import { minimumStatus } from "@/lib/minimums";
+import { closedReason } from "@/lib/budget";
+import { programBudget } from "@/lib/server/budget";
 import { getContributorSession } from "@/lib/server/session";
 import { utc, utcDay } from "@/lib/time";
 import { contributorTimeline } from "@/lib/contributor-timeline";
@@ -47,12 +49,17 @@ export default async function ContributorHome({ params, searchParams }: PageProp
 
   const cooldownSeconds = program.limitsJson.payeeCooldownSeconds;
   const cooldownEnds = cooldownEndsAt(me.walletChangedAt, cooldownSeconds);
-  const [detail, rounds, initialItems, account] = await Promise.all([
+  const [detail, rounds, initialItems, account, budget] = await Promise.all([
     contributorDetail(program.id, me.id),
     getRounds(program.id),
     contributorSubmissionItems(me.id),
     xAccountOf(session.sub),
+    program.endedAt ? null : programBudget(program),
   ]);
+  const closed = closedReason({
+    endedAt: program.endedAt,
+    budget: budget ?? { available: null, usedUp: false },
+  });
   // Below the follower or account-age minimum: say so before they post, with what will happen.
   const minimums = minimumStatus(program, account, new Date(), true);
   const round = currentRound(rounds);
@@ -267,6 +274,7 @@ export default async function ContributorHome({ params, searchParams }: PageProp
                 roundEndsAt={roundOpen && round ? round.endsAt.toISOString() : null}
                 verifyBase={`/p/${program.slug}`}
                 initial={initialItems}
+                closed={closed}
               />
             </section>
 

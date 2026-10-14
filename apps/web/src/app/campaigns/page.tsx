@@ -10,6 +10,7 @@ import { ContributorAccount } from "@/components/contributor/contributor-account
 import { NetworkBadge } from "@/components/network-badge";
 import { SwitchNetworkButton } from "@/components/network-empty";
 import { Button } from "@/components/ui/button";
+import { budgetOf } from "@/lib/budget";
 import { stillOpen } from "@/lib/explore";
 import { openCampaignsCached, type OpenCampaign } from "@/lib/server/explore";
 import { selectedNetwork } from "@/lib/server/network";
@@ -36,16 +37,23 @@ export default async function ExploreCampaigns() {
     getContributorSession(),
   ]);
   const other: ChainKey = network === "arc-mainnet" ? "arc-testnet" : "arc-mainnet";
-  const [list, otherList] = await Promise.all([
+  const [all, otherList] = await Promise.all([
     openCampaignsCached(network).then((l) => stillOpen(l)),
     openCampaignsCached(other).then((l) => stillOpen(l)),
   ]);
-  // Balance only: the vault's owner and agent addresses aren't shown here.
-  const balances = await Promise.all(
-    list.map((c) =>
-      readVaultForPage(c.vaultAddress as Address, c.chain).then((v) => v?.balance ?? null),
-    ),
+  // Balance only: the vault's owner and agent addresses aren't shown here. A campaign whose budget is used up is
+  // hidden until the owner adds funds (an unreadable balance doesn't hide it).
+  const read = await Promise.all(
+    all.map(async (c) => {
+      const balance = await readVaultForPage(c.vaultAddress as Address, c.chain).then(
+        (v) => v?.balance ?? null,
+      );
+      return { c, balance, budget: budgetOf({ balance, ...c }) };
+    }),
   );
+  const shown = read.filter((x) => !x.budget.usedUp);
+  const list = shown.map((x) => x.c);
+  const balances = shown.map((x) => x.balance);
 
   const body = (
     <div className="grid content-start gap-10">

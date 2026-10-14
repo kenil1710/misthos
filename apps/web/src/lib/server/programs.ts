@@ -89,6 +89,12 @@ export async function setProgramStatus(
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
     if ((await getMembership(tx, p.programId, p.userId)) !== "owner") return false;
+    const [cur] = await tx
+      .select({ endedAt: programs.endedAt })
+      .from(programs)
+      .where(eq(programs.id, p.programId));
+    // An ended campaign stays ended: joining can't be reopened.
+    if (cur?.endedAt) return false;
     await tx.update(programs).set({ status: p.status }).where(eq(programs.id, p.programId));
     await audit(tx, {
       programId: p.programId,
@@ -98,5 +104,39 @@ export async function setProgramStatus(
       entityId: p.programId,
     });
     return true;
+  });
+}
+
+/**
+ * End a campaign (owner only, published campaigns only, can't be undone): no new joins, submissions or rounds from now
+ * on. The round open now still closes on schedule and pays approved work within the vault's balance, so the program
+ * is kept (or put back) `active` for the worker; the owner can still withdraw what's left from Treasury.
+ */
+export async function endProgram(
+  db: DbLike,
+  p: { programId: string; userId: string; now?: Date },
+): Promise<{ ok: true; endedAt: Date } | { ok: false; error: string }> {
+  return db.transaction(async (tx) => {
+    if ((await getMembership(tx, p.programId, p.userId)) !== "owner")
+      return { ok: false as const, error: "not_found" };
+    const [cur] = await tx.select().from(programs).where(eq(programs.id, p.programId));
+    if (!cur) return { ok: false as const, error: "not_found" };
+    if (cur.endedAt) return { ok: true as const, endedAt: cur.endedAt };
+    if (cur.status !== "active" && cur.status !== "paused")
+      return { ok: false as const, error: "Only a published campaign can be ended." };
+    const endedAt = p.now ?? new Date();
+    await tx
+      .update(programs)
+      .set({ endedAt, status: "active" })
+      .where(eq(programs.id, p.programId));
+    await audit(tx, {
+      programId: p.programId,
+      actor: `user:${p.userId}`,
+      action: "program.ended",
+      entity: "program",
+      entityId: p.programId,
+      data: { endedAt: endedAt.toISOString(), wasPaused: cur.status === "paused" },
+    });
+    return { ok: true as const, endedAt };
   });
 }
