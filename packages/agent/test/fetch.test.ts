@@ -24,7 +24,12 @@ describe("X fetcher", () => {
 
   it("normalizes a long post (note_tweet), author and metrics, and logs cost", async () => {
     const f = x("original-thread");
-    const r = await fetchXPost("1840000000000000001", { bearerToken: "t", fetch: f });
+    // Within X's 7-day recent-search window of the fixture post (2026-10-06), so its thread is looked up.
+    const r = await fetchXPost("1840000000000000001", {
+      bearerToken: "t",
+      fetch: f,
+      now: () => new Date("2026-10-08T00:00:00Z"),
+    });
     expect(r.usage).toEqual([
       { provider: "x", endpoint: "GET /2/tweets/:id", units: 1, estCostUsd: 0.015 },
       {

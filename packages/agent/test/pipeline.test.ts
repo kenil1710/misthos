@@ -60,6 +60,8 @@ function fixtureFetchers() {
     if (!name) throw new Error(`no fixture for ${id}`);
     return fetchXPost(id, {
       bearerToken: "t",
+      // The pipeline's clock (below): fixture posts stay inside X's 7-day recent-search window.
+      now: () => new Date("2026-10-08T00:00:00Z"),
       fetch: fixtureFetch({
         // Searched first (more specific): no self-replies, so each fixture post is a single post.
         "/2/tweets/search/recent": { json: { meta: { result_count: 0 } } },
