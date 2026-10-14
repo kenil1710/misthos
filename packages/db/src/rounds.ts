@@ -6,10 +6,11 @@ const DAY_MS = 24 * 3600 * 1000;
 
 /**
  * The round open at `now`, creating consecutive rounds lazily as time passes. Returns null before round 1 starts.
+ * An ended campaign never gets a new round: its last one runs to its end and that's all.
  */
 export async function ensureCurrentRound(
   db: DbLike,
-  program: { id: string; roundLengthDays: number },
+  program: { id: string; roundLengthDays: number; endedAt?: Date | null },
   now = new Date(),
 ): Promise<typeof rounds.$inferSelect | null> {
   for (let guard = 0; guard < 120; guard++) {
@@ -32,6 +33,7 @@ export async function ensureCurrentRound(
       return prev && now >= prev.startsAt && now < prev.endsAt ? prev : null;
     }
     if (now < latest.endsAt) return latest;
+    if (program.endedAt) return null;
     // Past the latest round: open the next one (unique (program, number) makes concurrent creators safe).
     await db
       .insert(rounds)

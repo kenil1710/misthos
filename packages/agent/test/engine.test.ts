@@ -235,6 +235,17 @@ describe("decide", () => {
     ).toBe("R8_ZERO_AMOUNT");
   });
 
+  it("R9C: more than the vault can still pay goes to review; exactly what's left approves", () => {
+    expect(decide(input({ availableBudget: 15n * USDC })).rule).toBe("R9C_NOT_ENOUGH_FUNDS");
+    expect(decide(input({ availableBudget: 0n })).action).toBe("escalate");
+    expect(decide(input({ availableBudget: 16n * USDC })).action).toBe("approve");
+    expect(decide(input({ availableBudget: "unknown" })).rule).toBe("R9D_BUDGET_UNKNOWN");
+    // Never turns a rejection into a review.
+    expect(decide(input({ availableBudget: 0n, flags: [flag("OWNERSHIP_MISMATCH")] })).action).toBe(
+      "reject",
+    );
+  });
+
   it("R9: above the per-item auto cap escalates; at the cap approves", () => {
     expect(decide(input({ maxAutoApproveItem: 15n * USDC })).rule).toBe("R9_ABOVE_AUTO_CAP");
     expect(decide(input({ maxAutoApproveItem: 16n * USDC })).action).toBe("approve");

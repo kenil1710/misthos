@@ -21,6 +21,7 @@ import { explain } from "./explain";
 import type { Understander } from "./context";
 import { JudgeError, type Judge, type JudgeBrief, type Judgment } from "./judge";
 import { onProgramNetwork } from "./network";
+import type { VaultReader } from "./rounds/vault";
 import { signRecord, type AgentSigner, type DecisionRecord } from "./record";
 import { fromSigned64, hamming, simhash64, toSigned64 } from "./simhash";
 import {
@@ -48,6 +49,8 @@ export interface PipelineDeps {
   signer: AgentSigner;
   chainId: number;
   now?: () => Date;
+  /** Reads the vault's balance, so the agent never auto-approves more than it can still pay (the worker sets it). */
+  reader?: Pick<VaultReader, "vaultFunds">;
 }
 
 export type ProcessResult =
@@ -433,7 +436,7 @@ export async function processSubmission(
   }
 
   // ── Decision ─────────────────────────────────────────────────────────
-  const decision = decide({
+  const engineInput = {
     flags,
     judgment: judgment?.output ?? null,
     judgeError,
@@ -443,7 +446,29 @@ export async function processSubmission(
     autoApproveConfidence: program.autoApproveConfidence,
     maxPerPayout: BigInt(limits.maxPerPayout),
     maxAutoApproveItem: BigInt(limits.maxAutoApproveItem),
-  });
+  };
+  let decision = decide(engineInput);
+  // Budget: only an automatic approval needs it (the vault is read only then). Balance minus every approved, unpaid
+  // amount is what's left; more than that goes to the owner. An unreadable balance is retried, then reviewed.
+  if (
+    decision.auto &&
+    (decision.action === "approve" || decision.action === "partial") &&
+    deps.reader &&
+    program.vaultAddress
+  ) {
+    let availableBudget: bigint | "unknown";
+    try {
+      const balance = await deps.reader.vaultFunds(program.vaultAddress as Hex);
+      availableBudget = balance - (await approvedUnpaid(db, program.id, sub.id));
+    } catch (e) {
+      if (!opts.finalAttempt) {
+        await release("The vault's balance couldn't be read; retrying.");
+        throw new FetchError(`vault balance unavailable: ${(e as Error).message}`, true);
+      }
+      availableBudget = "unknown";
+    }
+    decision = decide({ ...engineInput, availableBudget });
+  }
   const allFlags = [...flags, ...decision.addedFlags];
   const summary = explain({
     decision,
@@ -988,4 +1013,23 @@ export async function programBrief(
       mustInclude: c.mustIncludeJson,
     },
   };
+}
+
+/** Approved work not paid yet, across every round of a program (`except`: the submission being decided). */
+export async function approvedUnpaid(
+  db: DbLike,
+  programId: string,
+  except?: string,
+): Promise<bigint> {
+  const [row] = await db
+    .select({ total: sql<string>`coalesce(sum(${submissions.amount}), 0)::text` })
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.programId, programId),
+        inArray(submissions.status, ["approved", "partial"]),
+        except ? ne(submissions.id, except) : undefined,
+      ),
+    );
+  return BigInt(row?.total ?? "0");
 }

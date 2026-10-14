@@ -143,3 +143,33 @@ describe("planRound", () => {
     expect(r.decisionRoot).toBe(keccak256("0x"));
   });
 });
+
+describe("planRound: the vault balance is one more limit", () => {
+  it("never plans more than the funds available, in approval order, and says why the rest waits", () => {
+    // a's second item was approved before b's: it goes first even though a is already in the plan.
+    const a1 = { ...item("a", 4n * U, 900), approvedAt: new Date(Date.UTC(2026, 9, 8, 0, 1)) };
+    const b1 = { ...item("b", 4n * U, 901), approvedAt: new Date(Date.UTC(2026, 9, 8, 0, 3)) };
+    const a2 = { ...item("a", 4n * U, 902), approvedAt: new Date(Date.UTC(2026, 9, 8, 0, 2)) };
+    const r = plan([b1, a2, a1], { limits: { ...limits, available: 9n * U } });
+    expect(r.total).toBe(8n * U);
+    expect(r.payouts.map((p) => [p.contributorId, p.amount, p.submissionIds])).toEqual([
+      ["a", 8n * U, [a1.submissionId, a2.submissionId]],
+    ]);
+    expect(r.deferred).toEqual([{ submissionId: b1.submissionId, reason: "insufficient_funds" }]);
+  });
+
+  it("plans nothing from an empty vault, and is unchanged when the balance isn't a limit", () => {
+    const items = [item("a", 2n * U), item("b", 3n * U)];
+    expect(plan(items, { limits: { ...limits, available: 0n } }).payouts).toEqual([]);
+    expect(plan(items, { limits: { ...limits, available: -5n * U } }).total).toBe(0n);
+    expect(plan(items).total).toBe(5n * U);
+    expect(plan(items, { limits: { ...limits, available: 5n * U } }).total).toBe(5n * U);
+  });
+
+  it("keeps the cap reasons when a cap binds before the balance", () => {
+    const big = item("a", 60n * U);
+    expect(plan([big], { limits: { ...limits, available: 10n * U } }).deferred).toEqual([
+      { submissionId: big.submissionId, reason: "per_payout_cap" },
+    ]);
+  });
+});

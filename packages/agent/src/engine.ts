@@ -4,7 +4,7 @@ import type { JudgmentOutput } from "./judge";
 import type { Flag, Resource } from "./types";
 
 /** Bump whenever a rule below changes. Recorded in every decision. */
-export const RULE_VERSION = "rules-v8";
+export const RULE_VERSION = "rules-v9";
 
 /** One contradicted claim, in the words owners and contributors both see. */
 export const contradictionLine = (claim: string, briefSays: string) =>
@@ -70,6 +70,11 @@ export interface EngineInput {
   autoApproveConfidence: number;
   maxPerPayout: bigint;
   maxAutoApproveItem: bigint;
+  /**
+   * What the vault can still pay: its balance minus all approved, unpaid work. "unknown" when the balance couldn't be
+   * read; omitted when there's no vault to check (nothing is checked then).
+   */
+  availableBudget?: bigint | "unknown";
 }
 
 export type EngineAction = "approve" | "partial" | "reject" | "escalate";
@@ -218,6 +223,10 @@ export function decide(i: EngineInput): EngineDecision {
   if (amount > i.maxAutoApproveItem) return out("escalate", "R9_ABOVE_AUTO_CAP");
   // Articles have no platform-verified author or date: a person always approves them (never automatic).
   if (i.resource?.sourceType === "article") return out("escalate", "R9B_ARTICLE_REVIEW");
+  // Never approve automatically more than the vault can still pay (its balance minus approved, unpaid work).
+  if (i.availableBudget === "unknown") return out("escalate", "R9D_BUDGET_UNKNOWN");
+  if (i.availableBudget !== undefined && amount > i.availableBudget)
+    return out("escalate", "R9C_NOT_ENOUGH_FUNDS");
   return out(
     i.judgment.recommended_action === "partial" ? "partial" : "approve",
     "R10_AUTO_APPROVE",

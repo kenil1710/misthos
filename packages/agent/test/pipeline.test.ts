@@ -222,6 +222,52 @@ const statusOf = async (id: string) =>
 const flagCodes = (d: { flagsJson: unknown }) =>
   (d.flagsJson as { code: string }[]).map((f) => f.code);
 
+describe("budget: never auto-approve more than the vault can pay", () => {
+  const POST = "https://x.com/alice_builds/status/1840000000000000001";
+  const withVault = async () =>
+    db
+      .update(programs)
+      .set({ vaultAddress: "0x000000000000000000000000000000000000f00d" })
+      .where(eq(programs.id, programId));
+  const reader = (balance: bigint | Error) => ({
+    vaultFunds: async () => {
+      if (balance instanceof Error) throw balance;
+      return balance;
+    },
+  });
+
+  it("sends work over the available budget to the owner: Not enough funds in the vault", async () => {
+    await withVault();
+    // 20 USDC in the vault and 10 USDC of earlier work approved, not paid yet: 10 left, and this post is worth 16.
+    const earlier = await submit(
+      "alice_builds",
+      "https://x.com/alice_builds/status/1840000000000000004",
+    );
+    await db
+      .update(submissions)
+      .set({ status: "approved", amount: 10n * USDC })
+      .where(eq(submissions.id, earlier));
+    const second = await submit("alice_builds", POST);
+    const res = await processSubmission({ ...deps(), reader: reader(20n * USDC) }, second);
+    expect(res).toMatchObject({ status: "decided", action: "escalate" });
+    expect(await statusOf(second)).toMatchObject({ status: "escalated" });
+    const dec = await latestDecision(second);
+    expect(dec.summary).toMatch(/Not enough funds in the vault/);
+    expect(JSON.parse(dec.decisionJson)).toMatchObject({ rule: "R9C_NOT_ENOUGH_FUNDS" });
+  });
+
+  it("retries when the balance can't be read, and sends it to review on the last attempt", async () => {
+    await withVault();
+    const id = await submit("alice_builds", POST);
+    const broken = { ...deps(), reader: reader(new Error("rpc down")) };
+    await expect(processSubmission(broken, id)).rejects.toThrow(/vault balance unavailable/);
+    expect(await statusOf(id)).toMatchObject({ status: "pending" });
+    expect(await processSubmission(broken, id, { finalAttempt: true })).toMatchObject({
+      action: "escalate",
+    });
+  });
+});
+
 describe("processSubmission", () => {
   it("approves original, owned, in-window work and stores a verifiable signed record", async () => {
     const d = deps();
@@ -243,7 +289,7 @@ describe("processSubmission", () => {
       decidedBy: "agent",
       model: "claude-haiku-4-5-20251001",
       promptVersion: "judge-v5",
-      ruleVersion: "rules-v8",
+      ruleVersion: "rules-v9",
     });
     expect(dec.summary).toMatch(
       /^Approved · 16\.00 USDC\. Posted inside the round by the linked account\. .* Scored 8\/10 on depth, 7\/10 on clarity and 9\/10 on originality\.$/,

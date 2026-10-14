@@ -78,6 +78,13 @@
       "when": 1791580250384,
       "tag": "0010_below_minimum_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791972439091,
+      "tag": "0011_budget_end_campaign",
+      "breakpoints": true
     }
   ]
 }

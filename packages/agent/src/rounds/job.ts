@@ -11,7 +11,7 @@ import {
   type DbLike,
 } from "@misthos/db";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNull, lte, gt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, gt, ne, or, sql } from "drizzle-orm";
 import type { Address, Hex } from "viem";
 import { ChainError, idempotencyUuid, type AgentExecutor } from "../chain/executor";
 import { networkSeed, onProgramNetwork } from "../network";
@@ -418,7 +418,7 @@ async function recordExecuted(
         );
       await t
         .update(submissions)
-        .set({ status: "paid" })
+        .set({ status: "paid", waitingForFundsAt: null })
         .where(
           inArray(
             submissions.payoutId,
@@ -693,8 +693,12 @@ async function runLocked(
               .orderBy(desc(decisions.createdAt))
           : [];
         const hashOf = new Map<string, Hex>();
+        const approvedAt = new Map<string, Date>();
         for (const d of latest)
-          if (!hashOf.has(d.submissionId)) hashOf.set(d.submissionId, d.hash as Hex);
+          if (!hashOf.has(d.submissionId)) {
+            hashOf.set(d.submissionId, d.hash as Hex);
+            approvedAt.set(d.submissionId, d.createdAt);
+          }
 
         const limits = await deps.reader.limits(vault);
         const items: PayableItem[] = valid.map((v) => ({
@@ -705,13 +709,32 @@ async function runLocked(
           amount: v.s.amount ?? 0n,
           decisionHash: hashOf.get(v.s.id)!,
           createdAt: v.s.createdAt,
+          approvedAt: approvedAt.get(v.s.id),
         }));
+        // Never propose more than the vault can pay: its balance minus this program's other rounds already proposed
+        // and not yet paid (an earlier round waiting for a deposit keeps its claim; first approved, first paid).
+        const [elsewhere] = await db
+          .select({ total: sql<string>`coalesce(sum(${payouts.amount}), 0)::text` })
+          .from(payouts)
+          .innerJoin(rounds, eq(rounds.id, payouts.roundId))
+          .where(
+            and(
+              eq(rounds.programId, program.id),
+              ne(payouts.roundId, cur.id),
+              inArray(payouts.status, ["pending", "proposed"]),
+            ),
+          );
+        const available = (await deps.reader.vaultFunds(vault)) - BigInt(elsewhere?.total ?? "0");
         const plan = planRound({
           programBytes32: programBytes,
           roundBytes32: roundBytes,
           items,
           payees,
-          limits: { ...limits, spentInWindow: await deps.reader.spentInWindow(vault) },
+          limits: {
+            ...limits,
+            spentInWindow: await deps.reader.spentInWindow(vault),
+            available,
+          },
           nowSeconds: await deps.reader.chainTime(),
         });
 
@@ -736,6 +759,21 @@ async function runLocked(
               .set({ payoutId: inserted!.id })
               .where(inArray(submissions.id, p.submissionIds));
           }
+          // "Waiting for funds": approved work the vault couldn't cover; it keeps its place in line.
+          const short = plan.deferred
+            .filter((d) => d.reason === "insufficient_funds")
+            .map((d) => d.submissionId);
+          if (short.length)
+            await tx
+              .update(submissions)
+              .set({ waitingForFundsAt: sql`coalesce(${submissions.waitingForFundsAt}, now())` })
+              .where(inArray(submissions.id, short));
+          const inPayout = plan.payouts.flatMap((x) => x.submissionIds);
+          if (inPayout.length)
+            await tx
+              .update(submissions)
+              .set({ waitingForFundsAt: null })
+              .where(inArray(submissions.id, inPayout));
           await tx
             .update(rounds)
             .set({
@@ -860,6 +898,15 @@ async function runLocked(
             .update(rounds)
             .set({ lastError: message })
             .where(and(eq(rounds.id, round.id), eq(rounds.roundIdBytes32, roundBytes)));
+          await db
+            .update(submissions)
+            .set({ waitingForFundsAt: sql`coalesce(${submissions.waitingForFundsAt}, now())` })
+            .where(
+              inArray(
+                submissions.payoutId,
+                rows.map((p) => p.id),
+              ),
+            );
           await audit(db, program.id, "round.awaiting_funds", round.id, {
             roundId: roundBytes,
             balance: balance.toString(),

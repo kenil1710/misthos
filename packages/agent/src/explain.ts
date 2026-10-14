@@ -107,6 +107,9 @@ export function explain(p: {
     R9_ABOVE_AUTO_CAP: "The amount is above what this program approves without review.",
     R5B_OFF_TOPIC:
       "The agent is confident this isn't about what the program pays for (see the program's brief).",
+    R9C_NOT_ENOUGH_FUNDS:
+      "Not enough funds in the vault: approving it would owe more than the vault holds after the work already approved.",
+    R9D_BUDGET_UNKNOWN: "The vault's balance couldn't be read, so a person reviews this one.",
     R9B_ARTICLE_REVIEW:
       "Articles are always reviewed by a person: their author and date come from the page itself, not a platform.",
   };

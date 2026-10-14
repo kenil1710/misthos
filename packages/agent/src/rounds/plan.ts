@@ -17,6 +17,8 @@ export interface PayableItem {
   amount: bigint;
   decisionHash: Hex;
   createdAt: Date;
+  /** When the work was approved (its latest decision): payment order, first approved first paid. Default createdAt. */
+  approvedAt?: Date;
 }
 
 export interface PayeeState {
@@ -30,6 +32,11 @@ export interface PlanLimits {
   maxPerDay: bigint;
   /** USDC already paid out in the vault's rolling 24h window. */
   spentInWindow: bigint;
+  /**
+   * What the vault can pay this round: its balance minus rounds of this program already proposed and not paid. A round
+   * is never proposed for more than this. Omitted: no balance limit.
+   */
+  available?: bigint;
 }
 
 export type DeferReason =
@@ -38,7 +45,8 @@ export type DeferReason =
   | "per_payout_cap"
   | "round_cap"
   | "daily_cap"
-  | "too_many_payouts";
+  | "too_many_payouts"
+  | "insufficient_funds";
 
 export interface PlannedPayout {
   contributorId: string;
@@ -63,8 +71,9 @@ export interface RoundPlan {
 /**
  * Turn approved, unpaid items into vault payouts, deterministically. Nothing here can exceed what the vault would
  * accept: payee must be registered to the same wallet and out of cooldown; per-contributor total ≤ maxPerPayout;
- * round total ≤ min(maxPerRound, maxPerDay − spentInWindow); ≤ MAX_PAYOUTS_PER_ROUND payouts. Whole submissions are never split:
- * anything that doesn't fit is deferred to a later round with a reason.
+ * round total ≤ min(maxPerRound, maxPerDay − spentInWindow) and ≤ the funds available; ≤ MAX_PAYOUTS_PER_ROUND payouts.
+ * Items go in approval order (first approved, first paid), one payout per contributor. Whole submissions are never
+ * split: anything that doesn't fit is deferred to a later round with a reason.
  */
 export function planRound(p: {
   programBytes32: Hex;
@@ -75,74 +84,86 @@ export function planRound(p: {
   nowSeconds: bigint;
 }): RoundPlan {
   const deferred: RoundPlan["deferred"] = [];
-  const byContributor = new Map<string, PayableItem[]>();
-  for (const it of [...p.items].sort(
-    (a, b) =>
-      a.createdAt.getTime() - b.createdAt.getTime() || a.submissionId.localeCompare(b.submissionId),
-  )) {
-    if (it.amount <= 0n) continue;
-    byContributor.set(it.contributorId, [...(byContributor.get(it.contributorId) ?? []), it]);
-  }
-  // First come, first paid: contributors ordered by their earliest item.
-  const order = [...byContributor.entries()];
+  const at = (i: PayableItem) => (i.approvedAt ?? i.createdAt).getTime();
+  // First approved, first paid: items in approval order, each added to its contributor's one payout if it fits.
+  const sorted = p.items
+    .filter((it) => it.amount > 0n)
+    .sort(
+      (a, b) =>
+        at(a) - at(b) ||
+        a.createdAt.getTime() - b.createdAt.getTime() ||
+        a.submissionId.localeCompare(b.submissionId),
+    );
 
   const roundRoom = (() => {
     const dayRoom = p.limits.maxPerDay - p.limits.spentInWindow;
     return dayRoom < p.limits.maxPerRound ? (dayRoom < 0n ? 0n : dayRoom) : p.limits.maxPerRound;
   })();
   const dailyBinds = p.limits.maxPerDay - p.limits.spentInWindow < p.limits.maxPerRound;
+  const available =
+    p.limits.available === undefined ? null : p.limits.available < 0n ? 0n : p.limits.available;
 
-  const payouts: PlannedPayout[] = [];
+  /** Why a contributor can't be paid this round at all (payee checks), once per contributor. */
+  const blocked = new Map<string, DeferReason | null>();
+  const buckets = new Map<string, PayableItem[]>();
+  const sums = new Map<string, bigint>();
   let total = 0n;
-  for (const [contributorId, items] of order) {
-    const first = items[0]!;
-    const payee = p.payees.get(contributorId);
-    const deferAll = (reason: DeferReason) =>
-      items.forEach((i) => deferred.push({ submissionId: i.submissionId, reason }));
-    if (!payee?.wallet || payee.wallet.toLowerCase() !== first.wallet.toLowerCase()) {
-      deferAll("payee_not_registered");
+  for (const it of sorted) {
+    if (!blocked.has(it.contributorId)) {
+      const payee = p.payees.get(it.contributorId);
+      blocked.set(
+        it.contributorId,
+        !payee?.wallet || payee.wallet.toLowerCase() !== it.wallet.toLowerCase()
+          ? "payee_not_registered"
+          : payee.payableAfter > p.nowSeconds
+            ? "payee_cooldown"
+            : null,
+      );
+    }
+    const reason = blocked.get(it.contributorId);
+    if (reason) {
+      deferred.push({ submissionId: it.submissionId, reason });
       continue;
     }
-    if (payee.payableAfter > p.nowSeconds) {
-      deferAll("payee_cooldown");
+    if (!buckets.has(it.contributorId) && buckets.size >= MAX_PAYOUTS_PER_ROUND) {
+      deferred.push({ submissionId: it.submissionId, reason: "too_many_payouts" });
       continue;
     }
-    if (payouts.length >= MAX_PAYOUTS_PER_ROUND) {
-      deferAll("too_many_payouts");
+    const sum = sums.get(it.contributorId) ?? 0n;
+    if (sum + it.amount > p.limits.maxPerPayout) {
+      deferred.push({ submissionId: it.submissionId, reason: "per_payout_cap" });
       continue;
     }
+    if (total + it.amount > roundRoom) {
+      deferred.push({
+        submissionId: it.submissionId,
+        reason: dailyBinds ? "daily_cap" : "round_cap",
+      });
+      continue;
+    }
+    if (available !== null && total + it.amount > available) {
+      deferred.push({ submissionId: it.submissionId, reason: "insufficient_funds" });
+      continue;
+    }
+    buckets.set(it.contributorId, [...(buckets.get(it.contributorId) ?? []), it]);
+    sums.set(it.contributorId, sum + it.amount);
+    total += it.amount;
+  }
 
-    const included: PayableItem[] = [];
-    let sum = 0n;
-    for (const it of items) {
-      if (sum + it.amount > p.limits.maxPerPayout) {
-        deferred.push({ submissionId: it.submissionId, reason: "per_payout_cap" });
-        continue;
-      }
-      if (total + sum + it.amount > roundRoom) {
-        deferred.push({
-          submissionId: it.submissionId,
-          reason: dailyBinds ? "daily_cap" : "round_cap",
-        });
-        continue;
-      }
-      included.push(it);
-      sum += it.amount;
-    }
-    if (!included.length) continue;
+  const payouts: PlannedPayout[] = [...buckets.entries()].map(([contributorId, included]) => {
+    const first = included[0]!;
     const hashes = included.map((i) => i.decisionHash);
-    payouts.push({
+    return {
       contributorId,
       contributorBytes32: first.contributorBytes32,
       payoutId: payoutIdFor(p.programBytes32, p.roundBytes32, first.contributorBytes32),
       to: first.wallet,
-      amount: sum,
+      amount: sums.get(contributorId)!,
       decisionHash: hashOfHashes(hashes),
       submissionIds: included.map((i) => i.submissionId),
       decisionHashes: hashes,
-    });
-    total += sum;
-  }
+    };
+  });
   return {
     payouts,
     deferred,

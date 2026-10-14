@@ -150,6 +150,11 @@ export const programs = pgTable(
     status: programStatus("status").notNull().default("draft"),
     /** Demo programs are excluded from every public metric. */
     isDemo: boolean("is_demo").notNull().default(false),
+    /**
+     * When the owner ended the campaign: no new joins, submissions or rounds; the round open at that moment still
+     * closes and pays. Status stays as it was, so the worker still closes that round.
+     */
+    endedAt: timestamp("ended_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [index("programs_owner_idx").on(t.ownerUserId)],
@@ -329,6 +334,11 @@ export const submissions = pgTable(
     payoutId: uuid("payout_id"),
     /** Last successful re-check at payout time; a re-plan or retry within a few hours doesn't fetch again. */
     recheckedAt: timestamp("rechecked_at", { withTimezone: true }),
+    /**
+     * Approved, but the vault couldn't cover it when its round was paid: set by the round job, cleared once it's in
+     * a payout. Shown as "Waiting for funds"; paid first (approval order) at the next round close once funded.
+     */
+    waitingForFundsAt: timestamp("waiting_for_funds_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [

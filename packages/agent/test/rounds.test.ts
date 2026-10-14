@@ -12,7 +12,7 @@ import {
 } from "@misthos/db";
 import { testDb } from "@misthos/db/testing";
 import { Rubric } from "@misthos/shared";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { keccak256, toBytes, type Address, type Hex } from "viem";
 import { generatePrivateKey } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -160,7 +160,12 @@ afterEach(async () => {
 
 let n = 0;
 /** An approved submission with a signed-looking agent decision. */
-async function approved(who: keyof typeof people, amount: bigint, roundId = round1) {
+async function approved(
+  who: keyof typeof people,
+  amount: bigint,
+  roundId = round1,
+  approvedAt?: Date,
+) {
   const person = people[who]!;
   const rid = `${person.xUserId}-${++n}`;
   const [s] = await db
@@ -200,6 +205,7 @@ async function approved(who: keyof typeof people, amount: bigint, roundId = roun
     signerAddress: "0x0000000000000000000000000000000000000001",
     ruleVersion: "rules-v2",
     decidedBy: "agent",
+    ...(approvedAt ? { createdAt: approvedAt } : {}),
   });
   return s!.id;
 }
@@ -445,6 +451,133 @@ describe("runRound", () => {
   it("lists rounds that are due", async () => {
     expect(await dueRounds(db, new Date("2026-10-11T00:00:00Z"))).toEqual([]);
     expect(await dueRounds(db, new Date("2026-10-12T00:00:00Z"))).toEqual([{ id: round1 }]);
+  });
+});
+
+describe("budget: never propose more than the vault holds", () => {
+  const wide = { maxPerPayout: 20n * U, maxPerRound: 20n * U, autoApproveThreshold: 20n * U };
+  const sub = async (id: string) =>
+    (await db.select().from(submissions).where(eq(submissions.id, id)))[0]!;
+  const at = (minute: number) => new Date(Date.UTC(2026, 9, 7, 0, minute));
+
+  it("15 owed, 10 in the vault: the items that fit are paid in approval order, the rest wait for funds", async () => {
+    await db
+      .update(programs)
+      .set({
+        limitsJson: {
+          maxPerPayout: String(20n * U),
+          maxPerRound: String(20n * U),
+          maxPerDay: String(50n * U),
+          autoApproveThreshold: String(20n * U),
+          payeeCooldownSeconds: 0,
+          maxAutoApproveItem: String(5n * U),
+        },
+      })
+      .where(eq(programs.id, programId));
+    const v = fake(wide, 10n * U);
+    // Ten 1.5 USDC items across three people, approved in the reverse of the order they were submitted.
+    const who = ["alice", "bob", "carol"] as const;
+    const ids: string[] = [];
+    for (let i = 0; i < 10; i++)
+      ids.push(await approved(who[i % 3]!, 1_500_000n, round1, at(100 - i)));
+    const byApproval = [...ids].reverse(); // the last submitted was approved first
+
+    expect(await runRound(deps(v), round1)).toMatchObject({ status: "executed", total: 9n * U });
+    expect(v.vaultBalance).toBe(1n * U);
+    for (const id of byApproval.slice(0, 6))
+      expect(await sub(id)).toMatchObject({ status: "paid", waitingForFundsAt: null });
+    for (const id of byApproval.slice(6)) {
+      const s = await sub(id);
+      expect(s).toMatchObject({ status: "approved", payoutId: null });
+      expect(s.waitingForFundsAt).toBeInstanceOf(Date);
+    }
+    const planned = (await db.select().from(auditEvents)).find(
+      (a) => a.action === "round.planned",
+    )!;
+    expect(
+      (planned.dataJson as { deferred: { submissionId: string; reason: string }[] }).deferred,
+    ).toEqual(
+      byApproval.slice(6).map((submissionId) => ({ submissionId, reason: "insufficient_funds" })),
+    );
+
+    // The owner deposits: at the next close the waiting items go first, before newer work.
+    v.vaultBalance += 10n * U;
+    const [r2] = await db
+      .select()
+      .from(rounds)
+      .where(and(eq(rounds.programId, programId), eq(rounds.number, 2)));
+    const newer = await approved("alice", 4n * U, r2!.id, at(200));
+    await db
+      .update(rounds)
+      .set({ endsAt: new Date("2026-10-12T00:00:00Z") })
+      .where(eq(rounds.id, r2!.id));
+    expect(await runRound(deps(v), r2!.id)).toMatchObject({ status: "executed", total: 10n * U });
+    for (const id of byApproval.slice(6))
+      expect(await sub(id)).toMatchObject({ status: "paid", waitingForFundsAt: null });
+    expect(await sub(newer)).toMatchObject({ status: "paid" });
+  });
+
+  it("an empty vault plans nothing: no round is proposed on-chain and the items wait", async () => {
+    const v = fake({}, 0n);
+    const s = await approved("alice", 2n * U);
+    expect(await runRound(deps(v), round1)).toEqual({ status: "nothing_to_pay" });
+    expect(v.calls).not.toContain("proposeRound");
+    expect((await sub(s)).waitingForFundsAt).toBeInstanceOf(Date);
+  });
+
+  it("a proposed round still waiting for a deposit keeps its claim on the balance", async () => {
+    const v = fake({}, 3n * U);
+    await approved("alice", 3n * U);
+    // Round 1 is planned and proposed with 3 USDC, then the owner withdraws before it executes (today's behaviour:
+    // it waits for funds).
+    await db
+      .update(programs)
+      .set({
+        limitsJson: {
+          maxPerPayout: String(5n * U),
+          maxPerRound: String(12n * U),
+          maxPerDay: String(50n * U),
+          autoApproveThreshold: String(1n * U),
+          payeeCooldownSeconds: 0,
+          maxAutoApproveItem: String(5n * U),
+        },
+      })
+      .where(eq(programs.id, programId));
+    v.lim.autoApproveThreshold = 1n * U;
+    expect(await runRound(deps(v), round1)).toMatchObject({ status: "awaiting_approval" });
+    v.vaultBalance = 2n * U;
+    expect(await runRound(deps(v), round1)).toMatchObject({ status: "awaiting_funds" });
+    const [r2] = await db
+      .select()
+      .from(rounds)
+      .where(and(eq(rounds.programId, programId), eq(rounds.number, 2)));
+    const later = await approved("bob", 1n * U, r2!.id);
+    await db
+      .update(rounds)
+      .set({ endsAt: new Date("2026-10-12T00:00:00Z") })
+      .where(eq(rounds.id, r2!.id));
+    // 2 in the vault, 3 already claimed by round 1: round 2 can't take any of it.
+    expect(await runRound(deps(v), r2!.id)).toEqual({ status: "nothing_to_pay" });
+    expect((await sub(later)).waitingForFundsAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("ended campaign", () => {
+  it("closes its last round and pays it, and opens no new round", async () => {
+    await db
+      .update(programs)
+      .set({ endedAt: new Date("2026-10-08T00:00:00Z") })
+      .where(eq(programs.id, programId));
+    const v = fake();
+    const s = await approved("alice", 2n * U);
+    expect(await dueRounds(db, new Date("2026-10-12T00:00:01Z"))).toEqual([{ id: round1 }]);
+    expect(await runRound(deps(v), round1)).toMatchObject({ status: "executed", total: 2n * U });
+    expect((await db.select().from(submissions).where(eq(submissions.id, s)))[0]!.status).toBe(
+      "paid",
+    );
+    expect(
+      (await db.select().from(rounds).where(eq(rounds.programId, programId))).map((r) => r.number),
+    ).toEqual([1]);
   });
 });
 
