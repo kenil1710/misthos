@@ -16,6 +16,9 @@ export function SiteHeader() {
         <nav aria-label="Main" className="flex items-center gap-1">
           <div className="hidden items-center gap-1 md:flex">
             <Button asChild variant="ghost" size="sm" className="text-soft">
+              <Link href="/campaigns">Explore</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm" className="text-soft">
               <a href="#how-it-works">How it works</a>
             </Button>
             <Button asChild variant="ghost" size="sm" className="text-soft">
@@ -61,6 +64,7 @@ export function SiteFooter({ mainnet = false }: { mainnet?: boolean }) {
             <Link href="/app" prefetch={false}>
               Open the app
             </Link>
+            <Link href="/campaigns">Explore campaigns</Link>
             <a href="#how-it-works">How it works</a>
             <a href="#guardrails">Guardrails</a>
             <a href="#faq">Questions</a>

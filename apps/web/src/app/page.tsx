@@ -89,6 +89,14 @@ export default async function Home() {
               {mainnet.featured ? (
                 <SeeItLive href={`/p/${mainnet.featured.slug}`} className="net-mainnet" />
               ) : null}
+              <Button
+                asChild
+                variant="ghost"
+                size="lg"
+                className="bg-card/70 hover:bg-card h-12 rounded-xl px-6 text-base"
+              >
+                <Link href="/campaigns">Explore campaigns</Link>
+              </Button>
             </div>
             <p className="net-testnet text-muted-foreground mt-6 text-sm">
               Live on Arc testnet with test USDC.
