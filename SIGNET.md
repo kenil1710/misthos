@@ -16,8 +16,9 @@ the vault factory, and vaults the factory created **for the signing owner** (or 
 1. **Vercel token** (vercel.com → Account Settings → Tokens → Create: scope = the team that owns the `misthos`
    project, an expiry date). Add it in your own terminal (`gh` asks for it; it never appears anywhere):
    `gh secret set VERCEL_TOKEN -R kenil1710/misthos`
-2. **Vercel IDs** (not secret): in `apps/web`, `npx vercel@39 link` writes `.vercel/project.json`; then
-   `gh variable set VERCEL_ORG_ID -R kenil1710/misthos -b <orgId>` and the same for `VERCEL_PROJECT_ID`.
+2. **Vercel IDs** (not secret; the project's Root Directory is `apps/web`, so the Vercel CLI runs from the repo root,
+   where `vercel link` already wrote `.vercel/project.json`): `gh variable set VERCEL_ORG_ID -R kenil1710/misthos -b <orgId>`
+   and the same for `VERCEL_PROJECT_ID`.
    **Protection bypass** (the seal crawls the staged deployment, which Deployment Protection hides): Project →
    Settings → Deployment Protection → Protection Bypass for Automation → create; then
    `gh secret set VERCEL_AUTOMATION_BYPASS_SECRET -R kenil1710/misthos`.
