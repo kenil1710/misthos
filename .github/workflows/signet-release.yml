@@ -1,4 +1,5 @@
 # Signet release: nothing goes live on misthos.world until its seal is approved and published on X Layer.
+# Vercel CLI 65.14.0: 39.x can't read pnpm 12's two-document pnpm-lock.yaml (it fell back to npm install).
 #   1. Build for production and deploy it to Vercel WITHOUT assigning misthos.world (a staged production deployment).
 #   2. Seal that exact build (every /_next/static file, and the inline scripts its pages run, crawled in Chromium).
 #   3. Propose it on Signet's gate with the CI key. The gate computes the risk tier on-chain; the CI key can't approve.
@@ -39,18 +40,22 @@ jobs:
       - run: pnpm --filter @misthos/web exec playwright install --with-deps chromium
       - name: Build for production
         run: |
-          npx -y vercel@39 pull --yes --environment=production --token "$VERCEL_TOKEN"
-          npx -y vercel@39 build --prod --token "$VERCEL_TOKEN"
+          npx -y vercel@65.14.0 pull --yes --environment=production --token "$VERCEL_TOKEN"
+          npx -y vercel@65.14.0 build --prod --token "$VERCEL_TOKEN"
           OUT=$(ls -d .vercel/output/static apps/web/.vercel/output/static 2>/dev/null | head -1)
           [ -n "$OUT" ] || { echo "no .vercel/output/static"; exit 1; }
           echo "OUT=$OUT" >> "$GITHUB_ENV"
       - name: Deploy to Vercel without assigning misthos.world
         run: |
-          URL=$(npx -y vercel@39 deploy --prebuilt --prod --skip-domain --token "$VERCEL_TOKEN")
+          set -o pipefail
+          npx -y vercel@65.14.0 deploy --prebuilt --prod --skip-domain --token "$VERCEL_TOKEN" | tee deploy.out
+          URL=$(grep -Eo 'https://[A-Za-z0-9.-]+\.vercel\.app' deploy.out | tail -1)
+          [ -n "$URL" ] || { echo "no deployment URL in the vercel deploy output"; exit 1; }
           echo "URL=$URL" >> "$GITHUB_ENV"
           echo "Staged deployment: $URL" >> "$GITHUB_STEP_SUMMARY"
       - name: Seal this exact build and propose it
         run: |
+          set -o pipefail
           npx -y "$SIGNETGUARD" -C apps/web verify "$URL" || true
           npx -y "$SIGNETGUARD" -C apps/web seal "$OUT" --crawl-browser "$URL"
           npx -y "$SIGNETGUARD" -C apps/web propose "$OUT" | tee propose.log
@@ -75,5 +80,5 @@ jobs:
             exit 0
           fi
           [ "$code" = 0 ] || exit "$code"
-          npx -y vercel@39 promote "$URL" --token "$VERCEL_TOKEN"
+          npx -y vercel@65.14.0 promote "$URL" --token "$VERCEL_TOKEN"
           echo "Published on X Layer and promoted to misthos.world: $URL" >> "$GITHUB_STEP_SUMMARY"
