@@ -35,5 +35,5 @@ jobs:
           OUT=$(dirname "$(find sealed -name signet-manifest.json | head -1)")
           URL=$(cat "$(find sealed -name staged-url.txt | head -1)")
           npx -y "$SIGNETGUARD" -C apps/web wait "$OUT" --publish --timeout 600
-          npx -y vercel@39 promote "$URL" --token "$VERCEL_TOKEN"
+          npx -y vercel@65.14.0 promote "$URL" --token "$VERCEL_TOKEN"
           echo "Published on X Layer and promoted to misthos.world: $URL" >> "$GITHUB_STEP_SUMMARY"
