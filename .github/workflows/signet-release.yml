@@ -1,0 +1,79 @@
+# Signet release: nothing goes live on misthos.world until its seal is approved and published on X Layer.
+#   1. Build for production and deploy it to Vercel WITHOUT assigning misthos.world (a staged production deployment).
+#   2. Seal that exact build (every /_next/static file, and the inline scripts its pages run, crawled in Chromium).
+#   3. Propose it on Signet's gate with the CI key. The gate computes the risk tier on-chain; the CI key can't approve.
+#   4. Wait for the approvals and the timelock, publish, then promote the staged deployment to misthos.world.
+# A GitHub job lasts at most 6 h. If the timelock is longer (a first release, or a new contract: 24 h), this job ends
+# without promoting; run "signet-promote" with this run's id once the release is published.
+# Needs: secrets VERCEL_TOKEN, SIGNET_PROPOSER_KEY, VERCEL_AUTOMATION_BYPASS_SECRET; variables VERCEL_ORG_ID,
+# VERCEL_PROJECT_ID; apps/web/signet.config.json with the gate (see SIGNET.md).
+name: signet-release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: signet-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 345
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      SIGNET_PROPOSER_KEY: ${{ secrets.SIGNET_PROPOSER_KEY }}
+      SIGNETGUARD: signetguard@0.2.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: The gate is configured
+        run: node -e 'const c=require("./apps/web/signet.config.json"); if(!/^0x[0-9a-fA-F]{40}$/.test(c.gate||"")){console.error("apps/web/signet.config.json has no gate yet (SIGNET.md, step 3)");process.exit(1)}'
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @misthos/web exec playwright install --with-deps chromium
+      - name: Build for production
+        run: |
+          npx -y vercel@39 pull --yes --environment=production --token "$VERCEL_TOKEN"
+          npx -y vercel@39 build --prod --token "$VERCEL_TOKEN"
+          OUT=$(ls -d .vercel/output/static apps/web/.vercel/output/static 2>/dev/null | head -1)
+          [ -n "$OUT" ] || { echo "no .vercel/output/static"; exit 1; }
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+      - name: Deploy to Vercel without assigning misthos.world
+        run: |
+          URL=$(npx -y vercel@39 deploy --prebuilt --prod --skip-domain --token "$VERCEL_TOKEN")
+          echo "URL=$URL" >> "$GITHUB_ENV"
+          echo "Staged deployment: $URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Seal this exact build and propose it
+        run: |
+          npx -y "$SIGNETGUARD" -C apps/web verify "$URL" || true
+          npx -y "$SIGNETGUARD" -C apps/web seal "$OUT" --crawl-browser "$URL"
+          npx -y "$SIGNETGUARD" -C apps/web propose "$OUT" | tee propose.log
+          cat propose.log >> "$GITHUB_STEP_SUMMARY"
+          echo "$URL" > staged-url.txt   # outside the sealed folder: signet re-checks that folder before publishing
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sealed-release
+          path: |
+            ${{ env.OUT }}
+            staged-url.txt
+          include-hidden-files: true
+          retention-days: 10
+      - name: Wait for approvals and the timelock, publish, then promote
+        run: |
+          set +e
+          npx -y "$SIGNETGUARD" -C apps/web wait "$OUT" --publish --timeout 19800
+          code=$?
+          set -e
+          if [ "$code" = 3 ]; then
+            echo "::notice::Not published yet (approvals or the timelock). When it is, run the signet-promote workflow with run id $GITHUB_RUN_ID."
+            exit 0
+          fi
+          [ "$code" = 0 ] || exit "$code"
+          npx -y vercel@39 promote "$URL" --token "$VERCEL_TOKEN"
+          echo "Published on X Layer and promoted to misthos.world: $URL" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,39 @@
+# Finishes a signet-release run whose timelock outlasted the job: publishes the sealed release on X Layer (if the
+# approvals and the timelock allow it now; the policy circuit decides) and promotes that run's staged deployment.
+name: signet-promote
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'The signet-release run id (in its summary)'
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      SIGNET_PROPOSER_KEY: ${{ secrets.SIGNET_PROPOSER_KEY }}
+      SIGNETGUARD: signetguard@0.2.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v4
+        with:
+          name: sealed-release
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          path: sealed
+      - name: Publish (if allowed now), then promote
+        run: |
+          OUT=$(dirname "$(find sealed -name signet-manifest.json | head -1)")
+          URL=$(cat "$(find sealed -name staged-url.txt | head -1)")
+          npx -y "$SIGNETGUARD" -C apps/web wait "$OUT" --publish --timeout 600
+          npx -y vercel@39 promote "$URL" --token "$VERCEL_TOKEN"
+          echo "Published on X Layer and promoted to misthos.world: $URL" >> "$GITHUB_STEP_SUMMARY"

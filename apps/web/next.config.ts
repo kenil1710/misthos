@@ -42,7 +42,11 @@ const nextConfig: NextConfig = {
   // Baseline security headers on every response. Framing is refused outright (clickjacking on owner actions); no
   // full CSP yet, only frame-ancestors. Permissions-Policy turns off device APIs the app never uses.
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      // Signet's domain proof: Guard, the dashboard and the watchtower read it cross-origin to confirm this site's gate
+      { source: "/.well-known/signet.json", headers: [{ key: "Access-Control-Allow-Origin", value: "*" }] },
+    ];
   },
 };
 
