@@ -25,7 +25,7 @@ the vault factory, and vaults the factory created **for the signing owner** (or 
 3. **CI proposer key**: `npx signetguard@0.2.1 keygen` in `apps/web` (prints only the address), then
    `gh secret set SIGNET_PROPOSER_KEY -R kenil1710/misthos < apps/web/.signet/proposer.key`.
 4. **The gate** (X Layer mainnet, approved separately): created in https://signetguard.xyz/app → New project, from
-   Approver A, with approvers A, B, C, the proposer address from step 3, recovery `0x6940…6D93`, no guardian.
+   Approver A, with approvers A, B, C, the proposer address from step 3, recovery `0x6940…6D93`, guardian signet-ops `0x9275eDEC1c4940B85a1e11Cce3EAd662ba00E291` (it can only freeze releases). Created 2026-11-24: gate `0xDfFf2307d45df1995502d8b300aE9AfbB01c4a59`.
    Then in `apps/web`: `npx signetguard@0.2.1 link misthos.world <gate>` (writes the gate into the config after checking
    the binding) and `npx signetguard@0.2.1 domain public` (writes `public/.well-known/signet.json`); commit both here.
 5. Vercel → Project → Analytics, Speed Insights: off for Production; Settings → General → Vercel Toolbar: off for
