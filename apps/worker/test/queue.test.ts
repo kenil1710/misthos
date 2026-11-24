@@ -123,7 +123,9 @@ beforeEach(async () => {
       programId: p!.id,
       number: 1,
       startsAt: new Date("2026-10-05T00:00:00Z"),
-      endsAt: new Date("2026-10-19T00:00:00Z"),
+      // still open when the test runs (a fixed date here went stale after 2026-10-19: the first drain then found the
+      // round due and paid it before the test expected); tests that need it over set endsAt to the past themselves
+      endsAt: new Date(Date.now() + 7 * 86_400_000),
     })
     .returning();
   const [u] = await db.insert(users).values({ xUserId: "42", xHandle: "alice" }).returning();
