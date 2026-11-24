@@ -2,7 +2,7 @@
   "network": "mainnet",
   "chainId": 5042,
   "domain": "misthos.world",
-  "gate": "",
+  "gate": "0xDfFf2307d45df1995502d8b300aE9AfbB01c4a59",
   "pages": {
     "mode": "ssr",
     "crawl": [
