@@ -12,6 +12,19 @@ name: signet-release
 on:
   push:
     branches: [main]
+    # only what ships to misthos.world: the web app, the packages it imports, and the build's own config. A change to
+    # the worker, the tests of other apps or the docs doesn't start a release (nothing would change on the site).
+    # This file isn't listed: editing the workflow doesn't propose a release either (use "Run workflow" for that).
+    paths:
+      - apps/web/**
+      - packages/db/**
+      - packages/shared/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - tsconfig.base.json
+      - turbo.json
+      - .nvmrc
   workflow_dispatch:
 concurrency:
   group: signet-release
