@@ -25,7 +25,7 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       SIGNET_PROPOSER_KEY: ${{ secrets.SIGNET_PROPOSER_KEY }}
-      SIGNETGUARD: signetguard@0.2.0
+      SIGNETGUARD: signetguard@0.2.1
     steps:
       - uses: actions/checkout@v4
       - name: The gate is configured

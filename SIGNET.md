@@ -22,12 +22,12 @@ the vault factory, and vaults the factory created **for the signing owner** (or 
    **Protection bypass** (the seal crawls the staged deployment, which Deployment Protection hides): Project →
    Settings → Deployment Protection → Protection Bypass for Automation → create; then
    `gh secret set VERCEL_AUTOMATION_BYPASS_SECRET -R kenil1710/misthos`.
-3. **CI proposer key**: `npx signetguard@0.2.0 keygen` in `apps/web` (prints only the address), then
+3. **CI proposer key**: `npx signetguard@0.2.1 keygen` in `apps/web` (prints only the address), then
    `gh secret set SIGNET_PROPOSER_KEY -R kenil1710/misthos < apps/web/.signet/proposer.key`.
 4. **The gate** (X Layer mainnet, approved separately): created in https://signetguard.xyz/app → New project, from
    Approver A, with approvers A, B, C, the proposer address from step 3, recovery `0x6940…6D93`, no guardian.
-   Then in `apps/web`: `npx signetguard@0.2.0 link misthos.world <gate>` (writes the gate into the config after checking
-   the binding) and `npx signetguard@0.2.0 domain public` (writes `public/.well-known/signet.json`); commit both here.
+   Then in `apps/web`: `npx signetguard@0.2.1 link misthos.world <gate>` (writes the gate into the config after checking
+   the binding) and `npx signetguard@0.2.1 domain public` (writes `public/.well-known/signet.json`); commit both here.
 5. Vercel → Project → Analytics, Speed Insights: off for Production; Settings → General → Vercel Toolbar: off for
    Production. Fund the CI key with 0.002 OKB on X Layer.
 6. Merge. The next push runs `signet-release`. The first release is tier 10 (2 approvals + 24 h): approve in the

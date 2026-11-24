@@ -18,7 +18,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       SIGNET_PROPOSER_KEY: ${{ secrets.SIGNET_PROPOSER_KEY }}
-      SIGNETGUARD: signetguard@0.2.0
+      SIGNETGUARD: signetguard@0.2.1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
